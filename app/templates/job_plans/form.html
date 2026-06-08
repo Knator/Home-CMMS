@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% set is_edit = job_plan is not none %}
+{% block title %}{{ 'Edit' if is_edit else 'New' }} Job Plan — Home CMMS{% endblock %}
+{% block page_title %}{{ 'Edit' if is_edit else 'New' }} Job Plan{% endblock %}
+
+{% block content %}
+<div style="max-width:800px;">
+  <div class="card">
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="task_count" id="task-count" value="0">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Name *</label>
+            <input type="text" name="name" value="{{ job_plan.name if is_edit else '' }}" required>
+          </div>
+          <div class="form-group full">
+            <label>Description</label>
+            <textarea name="description" rows="3">{{ job_plan.description or '' if is_edit else '' }}</textarea>
+          </div>
+          <div class="form-group full">
+            <label>Notes</label>
+            <textarea name="notes" rows="4">{{ job_plan.notes or '' if is_edit else '' }}</textarea>
+          </div>
+        </div>
+
+        <div style="margin-top:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <label style="margin-bottom:0;">Tasks</label>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addTaskRow()">+ Add Task</button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 90px 32px;gap:8px;margin-bottom:6px;padding:0 2px;">
+            <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;">Description</span>
+            <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;">Minutes</span>
+            <span></span>
+          </div>
+
+          <div id="task-rows" class="task-rows">
+            {% if is_edit %}
+              {% for task in job_plan.tasks.all() %}
+              <div class="task-row" data-index="{{ loop.index0 }}">
+                <input type="text" name="task_{{ loop.index0 }}_description" value="{{ task.description }}" placeholder="Task description" required>
+                <input type="number" name="task_{{ loop.index0 }}_minutes" value="{{ task.estimated_minutes or '' }}" placeholder="Minutes" min="1">
+                <button type="button" class="btn-remove-task" onclick="removeTaskRow(this)">×</button>
+              </div>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          <p class="text-muted" id="no-tasks-msg" style="font-size:13px;{{ 'display:none' if is_edit and job_plan.tasks.count() > 0 }}">
+            No tasks added. Click "+ Add Task" to add work steps.
+          </p>
+        </div>
+
+        <div class="form-actions mt-1">
+          <button type="submit" class="btn btn-primary">{{ 'Save Changes' if is_edit else 'Create Job Plan' }}</button>
+          {% if is_edit %}
+            <a href="{{ url_for('job_plans.detail', id=job_plan.id) }}" class="btn btn-secondary">Cancel</a>
+          {% else %}
+            <a href="{{ url_for('job_plans.list') }}" class="btn btn-secondary">Cancel</a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+// Hide the "no tasks" hint whenever at least one task row is present.
+function syncNoTasksMsg() {
+  const msg = document.getElementById('no-tasks-msg');
+  if (msg) msg.style.display =
+    document.querySelectorAll('#task-rows .task-row').length > 0 ? 'none' : '';
+}
+document.addEventListener('DOMContentLoaded', syncNoTasksMsg);
+document.addEventListener('click', (e) => {
+  // Re-check after add/remove task buttons fire.
+  if (e.target.matches('[onclick*="addTaskRow"], .btn-remove-task')) {
+    setTimeout(syncNoTasksMsg, 0);
+  }
+});
+</script>
+{% endblock %}

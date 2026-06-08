@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}{{ job_plan.name }} — Home CMMS{% endblock %}
+{% block page_title %}{{ job_plan.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ job_plan.name }}</h1>
+  <div class="page-actions">
+    <a href="{{ url_for('job_plans.edit', id=job_plan.id) }}" class="btn btn-secondary">Edit</a>
+    <a href="{{ url_for('job_plans.list') }}" class="btn btn-ghost">← Back</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><span class="card-title">Details</span></div>
+  <div class="card-body">
+    {% if job_plan.description %}
+    <div style="margin-bottom:14px;">
+      <div class="detail-label" style="margin-bottom:6px;">Description</div>
+      <div class="notes-block">{{ job_plan.description }}</div>
+    </div>
+    {% endif %}
+    {% if job_plan.notes %}
+    <div>
+      <div class="detail-label" style="margin-bottom:6px;">Notes</div>
+      <div class="notes-block">{{ job_plan.notes }}</div>
+    </div>
+    {% endif %}
+    {% if not job_plan.description and not job_plan.notes %}
+      <p class="text-muted">No description or notes.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Tasks ({{ tasks | length }})</span>
+    <a href="{{ url_for('job_plans.edit', id=job_plan.id) }}" class="btn btn-secondary btn-sm">Edit Tasks</a>
+  </div>
+  <div class="card-body">
+    {% if tasks %}
+    <ul class="task-list">
+      {% for task in tasks %}
+      <li class="task-item">
+        <div class="task-seq">{{ task.sequence }}</div>
+        <div class="task-desc">{{ task.description }}</div>
+        {% if task.estimated_minutes %}
+          <div class="task-mins">{{ task.estimated_minutes }} min</div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="text-muted">No tasks defined.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Attachments -->
+<div class="card">
+  <div class="card-header"><span class="card-title">Attachments</span></div>
+  <div class="card-body">
+    {% if attachments %}
+    <ul class="attachment-list">
+      {% for att in attachments %}
+      <li class="attachment-item">
+        <a class="attachment-name" href="{{ url_for('attachments.download', id=att.id) }}">{{ att.original_filename }}</a>
+        <span class="attachment-meta">{{ format_file_size(att.file_size) }} · {{ att.uploaded_at.strftime('%Y-%m-%d') }}</span>
+        <form method="post" action="{{ url_for('attachments.delete', id=att.id) }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-ghost btn-sm text-danger" onclick="return confirm('Delete this file?')">Delete</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="text-muted">No attachments.</p>
+    {% endif %}
+    <form method="post" action="{{ url_for('job_plans.upload_attachment', id=job_plan.id) }}" enctype="multipart/form-data" class="upload-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="file" name="file">
+      <button type="submit" class="btn btn-secondary btn-sm">Upload</button>
+    </form>
+  </div>
+</div>
+
+<div class="danger-zone">
+  <h3>Delete Job Plan</h3>
+  <form method="post" action="{{ url_for('job_plans.delete', id=job_plan.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this job plan?')">Delete Job Plan</button>
+  </form>
+</div>
+{% endblock %}

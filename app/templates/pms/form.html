@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% set is_edit = pm is not none %}
+{% block title %}{{ 'Edit' if is_edit else 'New' }} PM Schedule — Home CMMS{% endblock %}
+{% block page_title %}{{ 'Edit' if is_edit else 'New' }} PM Schedule{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;">
+  <div class="card">
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Name *</label>
+            <input type="text" name="name" value="{{ pm.name if is_edit else '' }}" required>
+          </div>
+          <div class="form-group">
+            <label>Asset</label>
+            <select name="asset_id">
+              <option value="">— None —</option>
+              {% for a in assets %}
+                <option value="{{ a.id }}" {{ 'selected' if is_edit and pm.asset_id == a.id }}>{{ a.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Location</label>
+            <select name="location_id">
+              <option value="">— None —</option>
+              {% for loc in locations %}
+                <option value="{{ loc.id }}" {{ 'selected' if is_edit and pm.location_id == loc.id }}>{{ loc.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Job Plan</label>
+            <select name="job_plan_id">
+              <option value="">— None —</option>
+              {% for jp in job_plans %}
+                <option value="{{ jp.id }}" {{ 'selected' if is_edit and pm.job_plan_id == jp.id }}>{{ jp.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Interval (days) *</label>
+            <input type="number" name="interval_days" min="1" value="{{ pm.interval_days if is_edit else '' }}" required placeholder="e.g. 90">
+          </div>
+          <div class="form-group">
+            <label>Next Due Date *</label>
+            <input type="date" name="next_due_date" value="{{ pm.next_due_date.isoformat() if is_edit else '' }}" required>
+          </div>
+          {% if is_edit %}
+          <div class="form-group">
+            <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-weight:500;">
+              <input type="checkbox" name="is_active" {{ 'checked' if pm.is_active }}> Active
+            </label>
+          </div>
+          {% endif %}
+          <div class="form-group full">
+            <label>Notes</label>
+            <textarea name="notes" rows="5">{{ pm.notes or '' if is_edit else '' }}</textarea>
+          </div>
+        </div>
+        <div class="form-actions mt-1">
+          <button type="submit" class="btn btn-primary">{{ 'Save Changes' if is_edit else 'Create PM Schedule' }}</button>
+          {% if is_edit %}
+            <a href="{{ url_for('pms.detail', id=pm.id) }}" class="btn btn-secondary">Cancel</a>
+          {% else %}
+            <a href="{{ url_for('pms.list') }}" class="btn btn-secondary">Cancel</a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

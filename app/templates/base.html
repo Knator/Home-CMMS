@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Home CMMS{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-brand">
+    Home CMMS
+    <span>Maintenance Management</span>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="sidebar-section">Overview</div>
+    <a href="{{ url_for('main.dashboard') }}" class="{{ 'active' if request.endpoint == 'main.dashboard' }}">Dashboard</a>
+
+    <div class="sidebar-section">Manage</div>
+    <a href="{{ url_for('locations.list') }}" class="{{ 'active' if request.blueprint == 'locations' }}">Locations</a>
+    <a href="{{ url_for('assets.list') }}" class="{{ 'active' if request.blueprint == 'assets' }}">Assets</a>
+    <a href="{{ url_for('work_orders.list') }}" class="{{ 'active' if request.blueprint == 'work_orders' }}">Work Orders</a>
+    <a href="{{ url_for('job_plans.list') }}" class="{{ 'active' if request.blueprint == 'job_plans' }}">Job Plans</a>
+    <a href="{{ url_for('pms.list') }}" class="{{ 'active' if request.blueprint == 'pms' }}">Preventive Maintenance</a>
+
+    {% if current_user.is_admin %}
+    <div class="sidebar-section">Admin</div>
+    <a href="{{ url_for('admin.users') }}" class="{{ 'active' if request.blueprint == 'admin' }}">Users</a>
+    {% endif %}
+  </nav>
+</div>
+
+<div class="main-content">
+  <header class="topbar">
+    <div class="topbar-title">{% block page_title %}{% endblock %}</div>
+    <div class="topbar-right">
+      {{ current_user.username }}
+      &nbsp;·&nbsp;
+      <a href="{{ url_for('auth.change_password') }}">Change Password</a>
+      &nbsp;·&nbsp;
+      <a href="{{ url_for('auth.logout') }}">Logout</a>
+    </div>
+  </header>
+
+  <main class="content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="alerts">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

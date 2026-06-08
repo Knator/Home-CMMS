@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block title %}{{ wo.wo_number }} — Home CMMS{% endblock %}
+{% block page_title %}{{ wo.wo_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ wo.title }}</h1>
+    <div style="margin-top:4px;display:flex;gap:8px;align-items:center;">
+      <span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span>
+      <span class="badge {{ wo.priority_class }}">{{ wo.priority }}</span>
+      <span class="badge badge-type-{{ wo.wo_type }}">{{ wo.wo_type }}</span>
+      {% if wo.is_overdue %}<span class="badge badge-overdue">Overdue</span>{% endif %}
+    </div>
+  </div>
+  <div class="page-actions">
+    <a href="{{ url_for('work_orders.edit', id=wo.id) }}" class="btn btn-secondary">Edit</a>
+    <a href="{{ url_for('work_orders.list') }}" class="btn btn-ghost">← Back</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><span class="card-title">Details</span></div>
+  <div class="card-body">
+    <div class="detail-grid">
+      <div class="detail-field">
+        <div class="detail-label">WO Number</div>
+        <div class="detail-value">{{ wo.wo_number }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Asset</div>
+        <div class="detail-value {{ 'empty' if not wo.asset }}">
+          {% if wo.asset %}<a href="{{ url_for('assets.detail', id=wo.asset.id) }}">{{ wo.asset.name }}</a>{% else %}None{% endif %}
+        </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Location</div>
+        <div class="detail-value {{ 'empty' if not wo.location }}">
+          {% if wo.location %}<a href="{{ url_for('locations.detail', id=wo.location.id) }}">{{ wo.location.name }}</a>{% else %}None{% endif %}
+        </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Job Plan</div>
+        <div class="detail-value {{ 'empty' if not wo.job_plan }}">
+          {% if wo.job_plan %}<a href="{{ url_for('job_plans.detail', id=wo.job_plan.id) }}">{{ wo.job_plan.name }}</a>{% else %}None{% endif %}
+        </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Assigned To</div>
+        <div class="detail-value {{ 'empty' if not wo.assignee }}">{{ wo.assignee.username if wo.assignee else 'Unassigned' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Due Date</div>
+        <div class="detail-value {{ 'text-danger' if wo.is_overdue }}">{{ wo.due_date.strftime('%Y-%m-%d') if wo.due_date else '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Created</div>
+        <div class="detail-value">{{ wo.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Completed</div>
+        <div class="detail-value {{ 'empty' if not wo.completed_date }}">{{ wo.completed_date.strftime('%Y-%m-%d %H:%M') if wo.completed_date else '—' }}</div>
+      </div>
+      {% if wo.source_pm %}
+      <div class="detail-field">
+        <div class="detail-label">PM Source</div>
+        <div class="detail-value"><a href="{{ url_for('pms.detail', id=wo.source_pm.id) }}">{{ wo.source_pm.name }}</a></div>
+      </div>
+      {% endif %}
+    </div>
+    {% if wo.description %}
+    <div style="margin-top:14px;">
+      <div class="detail-label" style="margin-bottom:6px;">Description</div>
+      <div class="notes-block">{{ wo.description }}</div>
+    </div>
+    {% endif %}
+    {% if wo.notes %}
+    <div style="margin-top:14px;">
+      <div class="detail-label" style="margin-bottom:6px;">Notes</div>
+      <div class="notes-block">{{ wo.notes }}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if tasks %}
+<div class="card">
+  <div class="card-header"><span class="card-title">Job Plan Tasks</span></div>
+  <div class="card-body">
+    <ul class="task-list">
+      {% for task in tasks %}
+      <li class="task-item">
+        <div class="task-seq">{{ task.sequence }}</div>
+        <div class="task-desc">{{ task.description }}</div>
+        {% if task.estimated_minutes %}
+          <div class="task-mins">{{ task.estimated_minutes }} min</div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+<!-- Attachments -->
+<div class="card">
+  <div class="card-header"><span class="card-title">Attachments</span></div>
+  <div class="card-body">
+    {% if attachments %}
+    <ul class="attachment-list">
+      {% for att in attachments %}
+      <li class="attachment-item">
+        <a class="attachment-name" href="{{ url_for('attachments.download', id=att.id) }}">{{ att.original_filename }}</a>
+        <span class="attachment-meta">{{ format_file_size(att.file_size) }} · {{ att.uploaded_at.strftime('%Y-%m-%d') }}</span>
+        <form method="post" action="{{ url_for('attachments.delete', id=att.id) }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-ghost btn-sm text-danger" onclick="return confirm('Delete this file?')">Delete</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="text-muted">No attachments.</p>
+    {% endif %}
+    <form method="post" action="{{ url_for('work_orders.upload_attachment', id=wo.id) }}" enctype="multipart/form-data" class="upload-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="file" name="file">
+      <button type="submit" class="btn btn-secondary btn-sm">Upload</button>
+    </form>
+  </div>
+</div>
+
+<div class="danger-zone">
+  <h3>Delete Work Order</h3>
+  <form method="post" action="{{ url_for('work_orders.delete', id=wo.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this work order?')">Delete Work Order</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Users — Home CMMS{% endblock %}
+{% block page_title %}User Management{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Users</h1>
+  <div class="page-actions">
+    <a href="{{ url_for('admin.create_user') }}" class="btn btn-primary">+ New User</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th></th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ u.username }}</td>
+          <td>{{ u.email }}</td>
+          <td><span class="badge {{ 'priority-critical' if u.role == 'admin' else 'priority-low' }}">{{ u.role }}</span></td>
+          <td>
+            {% if u.is_active %}
+              <span class="badge badge-active">Active</span>
+            {% else %}
+              <span class="badge badge-inactive">Inactive</span>
+            {% endif %}
+          </td>
+          <td>{{ u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else '—' }}</td>
+          <td style="display:flex;gap:6px;">
+            <a href="{{ url_for('admin.edit_user', id=u.id) }}" class="btn btn-ghost btn-sm">Edit</a>
+            <form method="post" action="{{ url_for('admin.toggle_user', id=u.id) }}" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-ghost btn-sm">{{ 'Deactivate' if u.is_active else 'Activate' }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

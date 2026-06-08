@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — Home CMMS{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Assets</div>
+    <div class="stat-value">{{ asset_count }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Open Work Orders</div>
+    <div class="stat-value">{{ open_wo_count }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Overdue Work Orders</div>
+    <div class="stat-value {{ 'danger' if overdue_count > 0 }}">{{ overdue_count }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">PMs Due (30 days)</div>
+    <div class="stat-value {{ 'warning' if pms_due_count > 0 }}">{{ pms_due_count }}</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+  <div class="card mb-0">
+    <div class="card-header">
+      <span class="card-title">Recent Work Orders</span>
+      <a href="{{ url_for('work_orders.list') }}" class="btn btn-secondary btn-sm">View all</a>
+    </div>
+    <div class="table-wrap">
+      {% if recent_wos %}
+      <table>
+        <thead><tr><th>WO #</th><th>Title</th><th>Status</th><th>Due</th></tr></thead>
+        <tbody>
+          {% for wo in recent_wos %}
+          <tr class="{{ 'overdue-row' if wo.is_overdue }}">
+            <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id) }}">{{ wo.wo_number }}</a></td>
+            <td>{{ wo.title }}</td>
+            <td><span class="badge {{ wo.status_class }}">{{ wo.status | replace('_', ' ') }}</span></td>
+            <td class="{{ 'text-danger' if wo.is_overdue }}">{{ wo.due_date.strftime('%Y-%m-%d') if wo.due_date else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <div class="card-body text-muted">No work orders yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card mb-0">
+    <div class="card-header">
+      <span class="card-title">PMs Due Soon</span>
+      <a href="{{ url_for('pms.list') }}" class="btn btn-secondary btn-sm">View all</a>
+    </div>
+    <div class="table-wrap">
+      {% if pms_due_soon %}
+      <table>
+        <thead><tr><th>Name</th><th>Due</th><th>Asset</th></tr></thead>
+        <tbody>
+          {% for pm in pms_due_soon %}
+          <tr class="{{ 'overdue-row' if pm.is_overdue }}">
+            <td><a class="row-link" href="{{ url_for('pms.detail', id=pm.id) }}">{{ pm.name }}</a></td>
+            <td class="{{ 'text-danger' if pm.is_overdue }}">{{ pm.next_due_date.strftime('%Y-%m-%d') }}</td>
+            <td>{{ pm.asset.name if pm.asset else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <div class="card-body text-muted">No PMs due in the next 30 days.</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

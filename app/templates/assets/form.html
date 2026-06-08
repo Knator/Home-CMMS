@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% set is_edit = asset is not none %}
+{% block title %}{{ 'Edit' if is_edit else 'New' }} Asset — Home CMMS{% endblock %}
+{% block page_title %}{{ 'Edit' if is_edit else 'New' }} Asset{% endblock %}
+
+{% block content %}
+<div style="max-width:800px;">
+  <div class="card">
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Name *</label>
+            <input type="text" name="name" value="{{ asset.name if is_edit else '' }}" required>
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <select name="category">
+              <option value="">— Select —</option>
+              {% for cat in categories %}
+                <option value="{{ cat }}" {{ 'selected' if is_edit and asset.category == cat }}>{{ cat }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Location</label>
+            <select name="location_id">
+              <option value="">— None —</option>
+              {% for loc in locations %}
+                <option value="{{ loc.id }}" {{ 'selected' if is_edit and asset.location_id == loc.id }}>{{ loc.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Make</label>
+            <input type="text" name="make" value="{{ asset.make or '' if is_edit else '' }}">
+          </div>
+          <div class="form-group">
+            <label>Model</label>
+            <input type="text" name="model" value="{{ asset.model or '' if is_edit else '' }}">
+          </div>
+          <div class="form-group">
+            <label>Serial Number</label>
+            <input type="text" name="serial_number" value="{{ asset.serial_number or '' if is_edit else '' }}">
+          </div>
+          <div class="form-group">
+            <label>Purchase Date</label>
+            <input type="date" name="purchase_date" value="{{ asset.purchase_date.isoformat() if is_edit and asset.purchase_date else '' }}">
+          </div>
+          <div class="form-group">
+            <label>Install Date</label>
+            <input type="date" name="install_date" value="{{ asset.install_date.isoformat() if is_edit and asset.install_date else '' }}">
+          </div>
+          <div class="form-group">
+            <label>Warranty Expiry</label>
+            <input type="date" name="warranty_expiry" value="{{ asset.warranty_expiry.isoformat() if is_edit and asset.warranty_expiry else '' }}">
+          </div>
+          <div class="form-group full">
+            <label>Notes</label>
+            <textarea name="notes" rows="5">{{ asset.notes or '' if is_edit else '' }}</textarea>
+          </div>
+        </div>
+        <div class="form-actions mt-1">
+          <button type="submit" class="btn btn-primary">{{ 'Save Changes' if is_edit else 'Create Asset' }}</button>
+          {% if is_edit %}
+            <a href="{{ url_for('assets.detail', id=asset.id) }}" class="btn btn-secondary">Cancel</a>
+          {% else %}
+            <a href="{{ url_for('assets.list') }}" class="btn btn-secondary">Cancel</a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

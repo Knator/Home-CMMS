@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Locations — Home CMMS{% endblock %}
+{% block page_title %}Locations{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Locations</h1>
+  <div class="page-actions">
+    <a href="{{ url_for('locations.create') }}" class="btn btn-primary">+ New Location</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    {% if locations %}
+    <table>
+      <thead><tr><th>Name</th><th>Description</th><th>Assets</th><th></th></tr></thead>
+      <tbody>
+        {% for loc in locations %}
+        <tr>
+          <td><a class="row-link" href="{{ url_for('locations.detail', id=loc.id) }}">{{ loc.name }}</a></td>
+          <td>{{ loc.description or '' }}</td>
+          <td>{{ loc.assets.count() }}</td>
+          <td><a href="{{ url_for('locations.edit', id=loc.id) }}" class="btn btn-ghost btn-sm">Edit</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="card-body text-muted">No locations yet. <a href="{{ url_for('locations.create') }}">Create one.</a></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Job Plans — Home CMMS{% endblock %}
+{% block page_title %}Job Plans{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Job Plans</h1>
+  <div class="page-actions">
+    <a href="{{ url_for('job_plans.create') }}" class="btn btn-primary">+ New Job Plan</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    {% if job_plans %}
+    <table>
+      <thead><tr><th>Name</th><th>Tasks</th><th>Description</th><th></th></tr></thead>
+      <tbody>
+        {% for jp in job_plans %}
+        <tr>
+          <td><a class="row-link" href="{{ url_for('job_plans.detail', id=jp.id) }}">{{ jp.name }}</a></td>
+          <td>{{ jp.tasks.count() }}</td>
+          <td>{{ jp.description or '' }}</td>
+          <td><a href="{{ url_for('job_plans.edit', id=jp.id) }}" class="btn btn-ghost btn-sm">Edit</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="card-body text-muted">No job plans yet. <a href="{{ url_for('job_plans.create') }}">Create one.</a></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

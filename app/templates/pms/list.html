@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Preventive Maintenance — Home CMMS{% endblock %}
+{% block page_title %}Preventive Maintenance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Preventive Maintenance</h1>
+  <div class="page-actions">
+    <a href="{{ url_for('pms.create') }}" class="btn btn-primary">+ New PM</a>
+  </div>
+</div>
+
+<form method="get" class="filters">
+  <label>Show</label>
+  <select name="show" onchange="this.form.submit()">
+    <option value="active" {{ 'selected' if active_only }}>Active only</option>
+    <option value="all" {{ 'selected' if not active_only }}>All schedules</option>
+  </select>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    {% if pms %}
+    <table>
+      <thead><tr><th>Name</th><th>Asset</th><th>Interval</th><th>Next Due</th><th>Last Generated</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for pm in pms %}
+        <tr class="{{ 'overdue-row' if pm.is_overdue }}">
+          <td><a class="row-link" href="{{ url_for('pms.detail', id=pm.id) }}">{{ pm.name }}</a></td>
+          <td>{{ pm.asset.name if pm.asset else '—' }}</td>
+          <td>Every {{ pm.interval_days }} days</td>
+          <td class="{{ 'text-danger' if pm.is_overdue }}">{{ pm.next_due_date.strftime('%Y-%m-%d') }}</td>
+          <td>{{ pm.last_generated_date.strftime('%Y-%m-%d') if pm.last_generated_date else '—' }}</td>
+          <td>
+            {% if pm.is_active %}
+              <span class="badge badge-active">Active</span>
+            {% else %}
+              <span class="badge badge-inactive">Inactive</span>
+            {% endif %}
+          </td>
+          <td><a href="{{ url_for('pms.edit', id=pm.id) }}" class="btn btn-ghost btn-sm">Edit</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="card-body text-muted">No PM schedules found.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

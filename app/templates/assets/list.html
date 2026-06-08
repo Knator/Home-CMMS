@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Assets — Home CMMS{% endblock %}
+{% block page_title %}Assets{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Assets</h1>
+  <div class="page-actions">
+    <a href="{{ url_for('assets.create') }}" class="btn btn-primary">+ New Asset</a>
+  </div>
+</div>
+
+<form method="get" class="filters">
+  <label>Category</label>
+  <select name="category" onchange="this.form.submit()">
+    <option value="">All Categories</option>
+    {% for cat in categories %}
+      <option value="{{ cat }}" {{ 'selected' if selected_category == cat }}>{{ cat }}</option>
+    {% endfor %}
+  </select>
+  <label>Location</label>
+  <select name="location_id" onchange="this.form.submit()">
+    <option value="">All Locations</option>
+    {% for loc in locations %}
+      <option value="{{ loc.id }}" {{ 'selected' if selected_location == loc.id|string }}>{{ loc.name }}</option>
+    {% endfor %}
+  </select>
+  {% if selected_category or selected_location %}
+    <a href="{{ url_for('assets.list') }}" class="btn btn-ghost btn-sm">Clear</a>
+  {% endif %}
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    {% if assets %}
+    <table>
+      <thead><tr><th>Name</th><th>Category</th><th>Location</th><th>Make / Model</th><th>Install Date</th><th></th></tr></thead>
+      <tbody>
+        {% for a in assets %}
+        <tr>
+          <td><a class="row-link" href="{{ url_for('assets.detail', id=a.id) }}">{{ a.name }}</a></td>
+          <td>{{ a.category or '—' }}</td>
+          <td>{{ a.location.name if a.location else '—' }}</td>
+          <td>{{ ((a.make or '') + ' ' + (a.model or '')) | trim or '—' }}</td>
+          <td>{{ a.install_date.strftime('%Y-%m-%d') if a.install_date else '—' }}</td>
+          <td><a href="{{ url_for('assets.edit', id=a.id) }}" class="btn btn-ghost btn-sm">Edit</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="card-body text-muted">No assets found.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

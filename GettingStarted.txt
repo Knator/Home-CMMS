@@ -238,6 +238,12 @@ This guide takes you from a fresh clone to a running, testable app.
   So the normal way to retire something is to set it Decommissioned, not to
   delete it.
 
+  ATTACHMENT NAMES
+  Every attachment can carry an optional friendly name — "Furnace manual"
+  instead of MAN-4471-rev-c.pdf. Set it when uploading, or use Rename on any
+  file afterwards. The real filename stays visible next to it, and downloads
+  save under the friendly name with the original extension kept.
+
   DOCUMENTS ON WORK ORDERS
   All five record types take file attachments. A work order additionally shows a
   "Related Documents" section pulling in files held on its PM, job plan, asset

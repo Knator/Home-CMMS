@@ -117,7 +117,23 @@ Write paths shared by the routes and the scheduler. **Never insert a `WorkOrder`
 - Posted `status`/`priority`/`wo_type` values are validated against the model's vocabulary; all untrusted ints and dates go through `parse_int`/`parse_date`, which return `None` rather than raising
 
 ### File Uploads
-Files stored at `UPLOAD_FOLDER/<entity_type>/<entity_id>/<uuid>_<original_name>`. The `attachments.download` route requires login and resolves paths against `UPLOAD_FOLDER`, refusing anything outside it. Max upload size is 50 MB; exceeding it is caught by a 413 handler that flashes a message instead of showing a raw error page.
+Files stored at `UPLOAD_FOLDER/<entity_type>/<entity_id>/<uuid>_<original_name>`.
+
+`Attachment.display_name` is an optional friendly label; `att.label` renders it (falling
+back to the filename) and `att.download_name` appends the original extension so a label
+like "Furnace manual" still saves as a `.pdf`. Rename via `attachments.rename`.
+
+All upload paths go through `store_uploads(entity_type, entity_id, rows, user_id)` in
+`app/utils.py`, which validates extensions and returns `(saved, errors)` — a rejected file
+is reported without discarding the rest of the batch or the form submission carrying it.
+Work order create/edit accept files inline via repeatable `attachment_<i>_file` /
+`attachment_<i>_name` rows read by `upload_rows_from_form()` (count is untrusted, so it is
+parsed defensively and capped at 10). On create the files are stored *after* the work order
+commits, since they are filed under its id.
+
+The shared `templates/_attachments.html` macros (`attachment_list`, `upload_form`,
+`related_list`) render attachments on every detail page, so naming and renaming behave
+identically everywhere. The `attachments.download` route requires login and resolves paths against `UPLOAD_FOLDER`, refusing anything outside it. Max upload size is 50 MB; exceeding it is caught by a 413 handler that flashes a message instead of showing a raw error page.
 
 Attachments have no foreign key (they're polymorphic), so nothing in the database cleans them up. **Every entity delete route must call `purge_entity_attachments(entity_type, id)`** or the rows and files are orphaned.
 
@@ -143,7 +159,8 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
 - Base layout: `templates/base.html` — fixed sidebar + topbar + scrollable content area
 - CSS custom properties in `static/css/main.css` (`--sidebar-bg`, `--accent`, etc.)
 - Badge classes for WO status and priority are defined on the model (`status_class`, `priority_class`) and applied in templates
-- JS in `static/js/main.js` handles dynamic task row add/remove on the job plan form; the `task_count` hidden field it maintains is untrusted input, parsed defensively and capped server-side
+- JS in `static/js/main.js` handles dynamic task rows (job plan form) and attachment rows (work order form); the `task_count` / `attachment_count` hidden fields it maintains are untrusted input, parsed defensively and capped server-side
+- `initAssetLocationLink()` fetches `/assets/<id>/summary` when the work order form's asset changes and copies the asset's location across, the way Maximo derives location from asset. It only re-derives on asset change, so a location set by hand afterwards survives; if the asset's location is not in the Active-only picker, the option is injected rather than silently failing
 
 ### Tests (`tests/`)
 `pytest`. Fixtures in `tests/conftest.py` build a throwaway SQLite database and upload directory per test via `create_app(config_overrides=...)`, so tests never touch `instance/home_cmms.db`. `prime_csrf()` seeds the session token so tests can POST without scraping forms.

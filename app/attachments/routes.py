@@ -1,6 +1,6 @@
 import os
 
-from flask import send_file, abort, redirect, url_for, flash, current_app
+from flask import send_file, abort, redirect, url_for, flash, request, current_app
 from flask_login import login_required
 
 from app.attachments import bp
@@ -40,7 +40,34 @@ def download(id):
     file_path = _attachment_path(att)
     if not os.path.exists(file_path):
         abort(404)
-    return send_file(file_path, download_name=att.original_filename, as_attachment=True)
+    # Saves as the friendly name when one is set, keeping the real extension.
+    return send_file(file_path, download_name=att.download_name, as_attachment=True)
+
+
+def _back_to_entity(entity_type, entity_id):
+    """Send the user back to the detail page of whatever owns the attachment."""
+    endpoint = ENTITY_ENDPOINTS.get(entity_type)
+    if endpoint:
+        return redirect(url_for(endpoint, id=entity_id))
+    return redirect(url_for('main.dashboard'))
+
+
+@bp.route('/<int:id>/rename', methods=['POST'])
+@login_required
+def rename(id):
+    """Set or clear an attachment's friendly name. The stored file is untouched."""
+    validate_csrf()
+    att = db.get_or_404(Attachment, id)
+    display_name = request.form.get('display_name', '').strip()
+
+    if len(display_name) > 255:
+        flash('That name is too long (255 characters maximum).', 'error')
+        return _back_to_entity(att.entity_type, att.entity_id)
+
+    att.display_name = display_name or None
+    db.session.commit()
+    flash('Name updated.' if display_name else 'Name cleared.', 'success')
+    return _back_to_entity(att.entity_type, att.entity_id)
 
 
 @bp.route('/<int:id>/delete', methods=['POST'])
@@ -58,7 +85,4 @@ def delete(id):
     db.session.commit()
     flash('Attachment deleted.', 'success')
 
-    endpoint = ENTITY_ENDPOINTS.get(entity_type)
-    if endpoint:
-        return redirect(url_for(endpoint, id=entity_id))
-    return redirect(url_for('main.dashboard'))
+    return _back_to_entity(entity_type, entity_id)

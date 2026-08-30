@@ -7,7 +7,7 @@
 <div style="max-width:900px;">
   <div class="card">
     <div class="card-body">
-      <form method="post">
+      <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-grid">
           <div class="form-group full">
@@ -43,8 +43,9 @@
             <input type="date" name="due_date" value="{{ wo.due_date.isoformat() if is_edit and wo.due_date else '' }}">
           </div>
           <div class="form-group">
-            <label>Asset</label>
-            <select name="asset_id">
+            <label for="asset_id">Asset</label>
+            <select name="asset_id" id="asset_id"
+                    data-summary-url="{{ url_for('assets.summary', id=0) }}">
               <option value="">— None —</option>
               {% for a in assets %}
                 <option value="{{ a.id }}" {{ 'selected' if is_edit and wo.asset_id == a.id }}>{{ a.name }}</option>
@@ -52,13 +53,14 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Location</label>
-            <select name="location_id">
+            <label for="location_id">Location</label>
+            <select name="location_id" id="location_id">
               <option value="">— None —</option>
               {% for loc in locations %}
                 <option value="{{ loc.id }}" {{ 'selected' if is_edit and wo.location_id == loc.id }}>{{ loc.name }}</option>
               {% endfor %}
             </select>
+            <span class="field-hint" id="location-hint" hidden></span>
           </div>
           <div class="form-group">
             <label>Job Plan</label>
@@ -87,6 +89,19 @@
             <textarea name="notes" rows="4">{{ wo.notes or '' if is_edit else '' }}</textarea>
           </div>
         </div>
+        <div class="form-subsection">
+          <div class="form-subsection-head">
+            <h3>Attachments</h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addAttachmentRow()">+ Add file</button>
+          </div>
+          <p class="field-hint">
+            {% if is_edit %}Files are added when you save. Existing attachments are managed on the work order page.
+            {% else %}Files are attached once the work order is created.{% endif %}
+          </p>
+          <input type="hidden" name="attachment_count" id="attachment-count" value="0">
+          <div id="attachment-rows" class="attachment-rows"></div>
+        </div>
+
         <div class="form-actions mt-1">
           <button type="submit" class="btn btn-primary">{{ 'Save Changes' if is_edit else 'Create Work Order' }}</button>
           {% if is_edit %}

@@ -9,7 +9,7 @@ from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, 
 from app.models.attachment import Attachment
 from app.services import asset_delete_blockers, hierarchy_ordered, selectable_locations
 from app.utils import (
-    validate_csrf, allowed_file, save_attachment, purge_entity_attachments,
+    validate_csrf, purge_entity_attachments, store_uploads,
     parse_date, parse_int, choice,
 )
 
@@ -139,6 +139,21 @@ def detail(id):
     )
 
 
+@bp.route('/<int:id>/summary')
+@login_required
+def summary(id):
+    """Small JSON payload the work order form fetches to inherit the location."""
+    asset = db.get_or_404(Asset, id)
+    return {
+        'id': asset.id,
+        'name': asset.name,
+        'status': asset.status,
+        'location_id': asset.location_id,
+        'location_name': asset.location.name if asset.location else None,
+        'location_path': asset.location.path_label if asset.location else None,
+    }
+
+
 @bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit(id):
@@ -195,17 +210,12 @@ def upload_attachment(id):
     if not file or file.filename == '':
         flash('No file selected.', 'error')
         return redirect(url_for('assets.detail', id=id))
-    if not allowed_file(file.filename):
-        flash('File type not allowed.', 'error')
-        return redirect(url_for('assets.detail', id=id))
 
-    stored, original, size, mime = save_attachment(file, ENTITY, id)
-    att = Attachment(
-        entity_type=ENTITY, entity_id=id,
-        stored_filename=stored, original_filename=original,
-        file_size=size, mime_type=mime, uploaded_by=current_user.id,
-    )
-    db.session.add(att)
-    db.session.commit()
-    flash('File uploaded.', 'success')
+    display_name = request.form.get('display_name', '').strip() or None
+    saved, errors = store_uploads(ENTITY, id, [(file, display_name)], current_user.id)
+    for message in errors:
+        flash(message, 'error')
+    if saved:
+        db.session.commit()
+        flash('File uploaded.', 'success')
     return redirect(url_for('assets.detail', id=id))

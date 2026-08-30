@@ -6,12 +6,10 @@ from flask_login import login_required, current_user
 from app.pms import bp
 from app.extensions import db
 from app.models.pm import PM
-from app.models.asset import Asset
-from app.models.location import Location
 from app.models.job_plan import JobPlan
 from app.models.work_order import WorkOrder
 from app.models.attachment import Attachment
-from app.services import generate_work_order_for_pm
+from app.services import generate_work_order_for_pm, selectable_assets, selectable_locations
 from app.utils import (
     validate_csrf, allowed_file, save_attachment, purge_entity_attachments,
     parse_date, parse_int,
@@ -20,10 +18,11 @@ from app.utils import (
 ENTITY = 'pm'
 
 
-def _form_options():
+def _form_options(pm=None):
+    """Active assets and locations only, plus whatever this PM already points at."""
     return dict(
-        assets=Asset.query.order_by(Asset.name).all(),
-        locations=Location.query.order_by(Location.name).all(),
+        assets=selectable_assets(include_id=pm.asset_id if pm else None),
+        locations=selectable_locations(include_id=pm.location_id if pm else None),
         job_plans=JobPlan.query.order_by(JobPlan.name).all(),
     )
 
@@ -106,7 +105,7 @@ def detail(id):
 @login_required
 def edit(id):
     pm = db.get_or_404(PM, id)
-    options = _form_options()
+    options = _form_options(pm)
 
     if request.method == 'POST':
         validate_csrf()

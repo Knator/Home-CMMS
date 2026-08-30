@@ -96,15 +96,30 @@ def run_migrations_online():
 
     connectable = get_engine()
 
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=get_metadata(),
-            **conf_args
-        )
+    # SQLite applies migrations in batch mode, which rebuilds the table. That
+    # cannot run with foreign key enforcement on, so turn it off for the
+    # migration connection. dispose() forces a fresh connection so the pragma
+    # listener sees the new setting; the app's own connections keep FKs ON.
+    from app.extensions import set_sqlite_foreign_keys
+    is_sqlite = connectable.dialect.name == 'sqlite'
+    if is_sqlite:
+        set_sqlite_foreign_keys(False)
+        connectable.dispose()
 
-        with context.begin_transaction():
-            context.run_migrations()
+    try:
+        with connectable.connect() as connection:
+            context.configure(
+                connection=connection,
+                target_metadata=get_metadata(),
+                **conf_args
+            )
+
+            with context.begin_transaction():
+                context.run_migrations()
+    finally:
+        if is_sqlite:
+            set_sqlite_foreign_keys(True)
+            connectable.dispose()
 
 
 if context.is_offline_mode():

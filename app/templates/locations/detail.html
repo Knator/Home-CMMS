@@ -4,7 +4,13 @@
 
 {% block content %}
 <div class="page-header">
-  <h1>{{ location.name }}</h1>
+  <div>
+    <h1>{{ location.name }}</h1>
+    <div class="header-meta">
+      <span class="badge {{ location.status_class }}">{{ location.status_label }}</span>
+      {% if location.ancestors %}<span class="breadcrumb-path">in {{ location.ancestors | reverse | map(attribute='name') | join(' › ') }}</span>{% endif %}
+    </div>
+  </div>
   <div class="page-actions">
     <a href="{{ url_for('locations.edit', id=location.id) }}" class="btn btn-secondary">Edit</a>
     <a href="{{ url_for('locations.index') }}" class="btn btn-ghost">← Back</a>
@@ -18,6 +24,19 @@
       <div class="detail-field">
         <div class="detail-label">Description</div>
         <div class="detail-value {{ 'empty' if not location.description }}">{{ location.description or 'None' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Parent Location</div>
+        <div class="detail-value {{ 'empty' if not location.parent }}">
+          {% if location.parent %}<a href="{{ url_for('locations.detail', id=location.parent.id) }}">{{ location.parent.name }}</a>{% else %}Top level{% endif %}
+        </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Status</div>
+        <div class="detail-value">
+          <span class="badge {{ location.status_class }}">{{ location.status_label }}</span>
+          <div class="field-hint" style="margin-top:4px;">{{ status_help[location.status] }}</div>
+        </div>
       </div>
       <div class="detail-field">
         <div class="detail-label">Assets</div>
@@ -37,6 +56,33 @@
   </div>
 </div>
 
+<!-- Child locations -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Sub-locations</span>
+    <a href="{{ url_for('locations.create') }}" class="btn btn-secondary btn-sm">+ New Location</a>
+  </div>
+  <div class="table-wrap">
+    {% if location.children %}
+    <table>
+      <thead><tr><th>Name</th><th>Status</th><th>Description</th><th>Assets</th></tr></thead>
+      <tbody>
+        {% for child in location.children %}
+        <tr>
+          <td><a class="row-link" href="{{ url_for('locations.detail', id=child.id) }}">{{ child.name }}</a></td>
+          <td><span class="badge {{ child.status_class }}">{{ child.status_label }}</span></td>
+          <td>{{ child.description or '—' }}</td>
+          <td>{{ child.assets.count() }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="card-body text-muted">No sub-locations.</div>
+    {% endif %}
+  </div>
+</div>
+
 <!-- Assets at this location -->
 <div class="card">
   <div class="card-header">
@@ -47,11 +93,12 @@
     {% set loc_assets = location.assets.all() %}
     {% if loc_assets %}
     <table>
-      <thead><tr><th>Name</th><th>Category</th><th>Make / Model</th></tr></thead>
+      <thead><tr><th>Name</th><th>Status</th><th>Category</th><th>Make / Model</th></tr></thead>
       <tbody>
         {% for a in loc_assets %}
         <tr>
           <td><a class="row-link" href="{{ url_for('assets.detail', id=a.id) }}">{{ a.name }}</a></td>
+          <td><span class="badge {{ a.status_class }}">{{ a.status_label }}</span></td>
           <td>{{ a.category or '—' }}</td>
           <td>{{ ((a.make or '') + ' ' + (a.model or '')) | trim or '—' }}</td>
         </tr>
@@ -92,12 +139,23 @@
   </div>
 </div>
 
+{% if blockers %}
+<div class="protected-zone">
+  <h3>This location is in use</h3>
+  <p>It cannot be deleted because it still has {{ blockers | join(', ') }}. Deleting it
+     would orphan that history.</p>
+  <p>To retire it, edit it and set its status to <strong>Decommissioned</strong> — it
+     keeps all its history but can no longer be chosen for new work orders or PMs.</p>
+  <a href="{{ url_for('locations.edit', id=location.id) }}" class="btn btn-secondary btn-sm">Change Status</a>
+</div>
+{% else %}
 <div class="danger-zone">
   <h3>Delete Location</h3>
-  <p class="text-muted" style="margin-bottom:10px;">This will remove the location record. Assets assigned here will lose their location assignment.</p>
+  <p class="text-muted" style="margin-bottom:10px;">Nothing references this location yet, so it can be removed safely. Its attachments will be deleted too.</p>
   <form method="post" action="{{ url_for('locations.delete', id=location.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this location?')">Delete Location</button>
   </form>
 </div>
+{% endif %}
 {% endblock %}

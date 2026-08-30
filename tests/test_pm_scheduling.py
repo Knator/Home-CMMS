@@ -99,14 +99,25 @@ def test_one_failing_pm_does_not_lose_the_others(app, db, monkeypatch):
 
 
 def test_manual_generation_advances_the_schedule(client, db, user, login):
-    pm = make_pm(db, next_due_date=date(2026, 6, 1), interval_days=90)
+    # Relative to today, so the assertion cannot drift into a boundary case as
+    # the calendar moves: one interval from `due` must still land in the future.
+    due = date.today() - timedelta(days=10)
+    pm = make_pm(db, next_due_date=due, interval_days=90)
     login()
     response = client.post(f'/pms/{pm.id}/generate', data={'csrf_token': CSRF})
 
     assert response.status_code == 302
     assert WorkOrder.query.filter_by(pm_id=pm.id).count() == 1
     # Anchored to the old due date, not to today.
-    assert pm.next_due_date == date(2026, 6, 1) + timedelta(days=90)
+    assert pm.next_due_date == due + timedelta(days=90)
+
+
+def test_next_due_is_always_in_the_future(client, db, user, login):
+    """Whatever the interval, generating must leave the PM due later than today."""
+    pm = make_pm(db, next_due_date=date.today() - timedelta(days=400), interval_days=30)
+    login()
+    client.post(f'/pms/{pm.id}/generate', data={'csrf_token': CSRF})
+    assert pm.next_due_date > date.today()
 
 
 def test_manual_generation_refused_for_inactive_pm(client, db, user, login):

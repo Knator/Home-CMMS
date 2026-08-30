@@ -15,8 +15,9 @@
             <input type="text" name="name" value="{{ pm.name if is_edit else '' }}" required>
           </div>
           <div class="form-group">
-            <label>Asset</label>
-            <select name="asset_id" data-searchable>
+            <label for="asset_id">Asset</label>
+            <select name="asset_id" id="asset_id" data-searchable
+                    data-summary-url="{{ url_for('assets.summary', id=0) }}">
               <option value="">— None —</option>
               {% for a in assets %}
                 <option value="{{ a.id }}" {{ 'selected' if is_edit and pm.asset_id == a.id }}>{{ a.name }} ({{ a.asset_number }}){% if a.location %} — {{ a.location.path_label }}{% endif %}</option>
@@ -24,13 +25,14 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Location</label>
-            <select name="location_id" data-searchable>
+            <label for="location_id">Location</label>
+            <select name="location_id" id="location_id" data-searchable>
               <option value="">— None —</option>
               {% for loc in locations %}
                 <option value="{{ loc.id }}" {{ 'selected' if is_edit and pm.location_id == loc.id }}>{{ loc.name }}</option>
               {% endfor %}
             </select>
+            <span class="field-hint" id="location-hint" hidden></span>
           </div>
           <div class="form-group">
             <label>Job Plan</label>

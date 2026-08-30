@@ -74,3 +74,27 @@ def test_searchable_selects_are_marked_up(client, db, user, login):
     body = client.get('/work-orders/new').get_data(as_text=True)
     assert body.count('data-searchable') >= 3
     assert 'js/main.js' in body
+
+
+def test_pm_form_inherits_the_location_from_the_asset(client, db, user, login):
+    """Same wiring as the work order form: pick an asset, get its location."""
+    login()
+    body = client.get('/pms/new').get_data(as_text=True)
+    assert 'data-summary-url="/assets/0/summary"' in body
+    assert 'id="asset_id"' in body
+    assert 'id="location_id"' in body
+    assert 'id="location-hint"' in body
+
+
+def test_pm_edit_form_has_the_same_wiring(client, db, user, login):
+    from datetime import date
+    from app.models.pm import PM
+
+    pm = PM(name='Annual', interval_days=365, next_due_date=date.today())
+    db.session.add(pm)
+    db.session.commit()
+
+    login()
+    body = client.get(f'/pms/{pm.id}/edit').get_data(as_text=True)
+    assert 'data-summary-url="/assets/0/summary"' in body
+    assert 'id="location-hint"' in body

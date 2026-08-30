@@ -249,6 +249,10 @@ This guide takes you from a fresh clone to a running, testable app.
   So the normal way to retire something is to set it Decommissioned, not to
   delete it.
 
+  SEEING LONG FIELD CONTENTS
+  Hovering over any text box shows its full contents as a tooltip, which helps
+  when a value is longer than the box. Password fields are excluded.
+
   FINDING THINGS IN LONG DROPDOWNS
   Asset, location, parent and job plan pickers filter as you type. Typing
   matches anywhere in the entry, not just the start, so "nas" finds

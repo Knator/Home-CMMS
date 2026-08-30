@@ -103,6 +103,7 @@ function addRow(kind) {
   const row = buildRow(kind, container.children.length);
   container.appendChild(row);
   reindexRows(kind);
+  initFieldTooltips(row);
   const first = row.querySelector('input');
   if (first) first.focus();
 }
@@ -269,6 +270,10 @@ function initAssetLocationLink() {
         locationSelect.appendChild(option);
       }
       locationSelect.value = String(data.location_id);
+      // The location picker may have been upgraded to a searchable combobox,
+      // which only re-reads the select when it sees a change event. Setting
+      // .value alone would update the form but not what the user sees.
+      locationSelect.dispatchEvent(new Event('change', { bubbles: true }));
       setHint(`Location set from asset: ${data.location_path || data.location_name}`);
     } catch (e) {
       /* offline or the request failed: leave the field as the user left it */
@@ -428,3 +433,36 @@ function initSearchableSelects() {
 }
 
 document.addEventListener('DOMContentLoaded', initSearchableSelects);
+
+/* ── Field tooltips ──
+   Inputs are often narrower than their contents. Hovering shows the whole value
+   as a tooltip, kept in step as the field is edited. An author-supplied title is
+   left alone, and password fields are excluded so a secret is never surfaced. */
+const TOOLTIP_FIELDS = [
+  'input[type="text"]', 'input[type="email"]', 'input[type="number"]',
+  'input[type="date"]', 'input[type="search"]', 'input[type="tel"]',
+  'input[type="url"]', 'textarea',
+].join(', ');
+
+function syncFieldTooltip(field) {
+  const value = (field.value || '').trim();
+  if (value) field.setAttribute('title', value);
+  else field.removeAttribute('title');
+}
+
+function initFieldTooltips(root) {
+  (root || document).querySelectorAll(TOOLTIP_FIELDS).forEach((field) => {
+    if (field.dataset.tooltipReady) return;
+    field.dataset.tooltipReady = 'true';
+
+    // Respect a title the template already set; it says something we don't.
+    if (field.hasAttribute('title')) return;
+
+    syncFieldTooltip(field);
+    field.addEventListener('input', () => syncFieldTooltip(field));
+    field.addEventListener('change', () => syncFieldTooltip(field));
+  });
+}
+
+// Runs last, so fields added by the other initialisers are covered too.
+document.addEventListener('DOMContentLoaded', () => initFieldTooltips());

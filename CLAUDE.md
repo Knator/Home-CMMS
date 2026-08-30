@@ -204,7 +204,17 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
   select stays in the DOM, enabled and named, so it still submits and remains the single
   source of truth — the widget writes `select.value` and dispatches a `change` event, so
   existing listeners keep working. Without JS you get a plain select.
-- `initAssetLocationLink()` fetches `/assets/<id>/summary` when the work order form's asset changes and copies the asset's location across, the way Maximo derives location from asset. It only re-derives on asset change, so a location set by hand afterwards survives; if the asset's location is not in the Active-only picker, the option is injected rather than silently failing
+- `initFieldTooltips()` mirrors each text field's value into its `title`, so hovering shows
+  content too long for the box. It skips password fields and leaves an author-supplied
+  `title` alone, and is re-run for dynamically added rows.
+- `initAssetLocationLink()` fetches `/assets/<id>/summary` when the **work order or PM** form's
+  asset changes and copies the asset's location across, the way Maximo derives location from
+  asset. A form opts in with `id="asset_id"`, `id="location_id"`, `data-summary-url` and a
+  `#location-hint` span. It **must dispatch a `change` event** after setting `location.value`:
+  the searchable combobox only re-reads the select on `change`, so a bare assignment updates
+  the submitted value but not what the user sees. It only re-derives on asset change, so a location set by hand afterwards survives; if the asset's location is not in the Active-only picker, the option is injected rather than silently failing
 
 ### Tests (`tests/`)
-`pytest`. Fixtures in `tests/conftest.py` build a throwaway SQLite database and upload directory per test via `create_app(config_overrides=...)`, so tests never touch `instance/home_cmms.db`. `prime_csrf()` seeds the session token so tests can POST without scraping forms.
+`pytest`. `tests/test_js_logic.py` runs the real `main.js` under dukpy against the tiny DOM
+shim in `tests/js_shim.js`, so the browser logic is covered rather than eyeballed — three
+defects reached the repo before it existed. It skips cleanly if dukpy is absent. Fixtures in `tests/conftest.py` build a throwaway SQLite database and upload directory per test via `create_app(config_overrides=...)`, so tests never touch `instance/home_cmms.db`. `prime_csrf()` seeds the session token so tests can POST without scraping forms.

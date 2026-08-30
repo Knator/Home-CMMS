@@ -15,6 +15,13 @@ class PM(db.Model):
     next_due_date = db.Column(db.Date, nullable=False)
     last_generated_date = db.Column(db.Date, nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
+    # False (default): fixed schedule — the next due date is anchored to the
+    # previous due date, so the PM keeps its calendar rhythm regardless of when
+    # the work actually happened.
+    # True: floating schedule — the next due date is measured from when the work
+    # was actually completed, so a job done late pushes the whole cycle out.
+    schedule_from_completion = db.Column(db.Boolean, nullable=False,
+                                         default=False, server_default='0')
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=utcnow)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
@@ -41,6 +48,43 @@ class PM(db.Model):
         while next_due <= today:
             next_due += interval
         self.next_due_date = next_due
+
+    def last_completion_date(self):
+        """Most recent completion among the work orders this PM generated."""
+        from app.models.work_order import WorkOrder
+
+        return (
+            db.session.query(db.func.max(WorkOrder.completed_date))
+            .filter(WorkOrder.pm_id == self.id, WorkOrder.completed_date.isnot(None))
+            .scalar()
+        )
+
+    def reschedule_from_completion(self):
+        """Re-anchor the next due date to the latest completion.
+
+        Only meaningful for a floating schedule. Uses the newest completion
+        across all of this PM's work orders rather than whichever one was just
+        saved, so completing them out of order cannot drag the schedule
+        backwards, and repeating the calculation changes nothing.
+
+        Returns True if the due date moved.
+        """
+        if not self.schedule_from_completion:
+            return False
+
+        completed = self.last_completion_date()
+        if completed is None:
+            return False
+
+        next_due = completed + timedelta(days=max(self.interval_days or 1, 1))
+        if next_due == self.next_due_date:
+            return False
+        self.next_due_date = next_due
+        return True
+
+    @property
+    def schedule_basis(self):
+        return 'Last completion' if self.schedule_from_completion else 'Fixed interval'
 
     @property
     def is_overdue(self):

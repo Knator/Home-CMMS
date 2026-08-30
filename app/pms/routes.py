@@ -32,6 +32,7 @@ def _read_form():
     name = request.form.get('name', '').strip()
     interval = parse_int(request.form.get('interval_days', '').strip(), minimum=1)
     next_due = parse_date(request.form.get('next_due_date', '').strip())
+    from_completion = bool(request.form.get('schedule_from_completion'))
 
     errors = []
     if not name:
@@ -40,7 +41,7 @@ def _read_form():
         errors.append('Interval must be a positive number of days.')
     if not next_due:
         errors.append('Next due date is required.')
-    return name, interval, next_due, errors
+    return name, interval, next_due, from_completion, errors
 
 
 @bp.route('/')
@@ -61,7 +62,7 @@ def create():
 
     if request.method == 'POST':
         validate_csrf()
-        name, interval, next_due, errors = _read_form()
+        name, interval, next_due, from_completion, errors = _read_form()
         if errors:
             for e in errors:
                 flash(e, 'error')
@@ -74,6 +75,7 @@ def create():
             job_plan_id=parse_int(request.form.get('job_plan_id')),
             interval_days=interval,
             next_due_date=next_due,
+            schedule_from_completion=from_completion,
             is_active=True,
             notes=request.form.get('notes', '').strip() or None,
             created_by=current_user.id,
@@ -109,7 +111,7 @@ def edit(id):
 
     if request.method == 'POST':
         validate_csrf()
-        name, interval, next_due, errors = _read_form()
+        name, interval, next_due, from_completion, errors = _read_form()
         if errors:
             for e in errors:
                 flash(e, 'error')
@@ -121,8 +123,12 @@ def edit(id):
         pm.job_plan_id = parse_int(request.form.get('job_plan_id'))
         pm.interval_days = interval
         pm.next_due_date = next_due
+        pm.schedule_from_completion = from_completion
         pm.is_active = bool(request.form.get('is_active'))
         pm.notes = request.form.get('notes', '').strip() or None
+        # Switching to a floating schedule re-anchors straight away, so the
+        # change is visible rather than waiting for the next completion.
+        pm.reschedule_from_completion()
         db.session.commit()
         flash('PM schedule updated.', 'success')
         return redirect(url_for('pms.detail', id=id))

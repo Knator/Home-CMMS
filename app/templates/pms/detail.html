@@ -57,6 +57,19 @@
         <div class="detail-value">Every {{ pm.interval_days }} days</div>
       </div>
       <div class="detail-field">
+        <div class="detail-label">Schedule Basis</div>
+        <div class="detail-value">
+          {{ pm.schedule_basis }}
+          <div class="field-hint" style="margin-top:4px;">
+            {% if pm.schedule_from_completion %}
+              Next due date is counted from the last completed work order.
+            {% else %}
+              Next due date follows a fixed interval from the previous due date.
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="detail-field">
         <div class="detail-label">Next Due Date</div>
         <div class="detail-value {{ 'text-danger' if pm.is_overdue }}">{{ pm.next_due_date.strftime('%Y-%m-%d') }}</div>
       </div>

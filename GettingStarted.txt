@@ -311,6 +311,18 @@ This guide takes you from a fresh clone to a running, testable app.
           and job plan), and
         * advances the PM: last_generated_date = today, and next_due_date
           moves forward by one interval FROM THE PREVIOUS DUE DATE.
+  - Each PM chooses how its next due date is worked out, via the "Schedule Based
+    on Last Completed" checkbox:
+        * OFF (default) — fixed rhythm. The next due date is one interval after
+          the previous DUE date, so an annual job stays on its anniversary even
+          if you finish it a fortnight late.
+        * ON — floating. The next due date is one interval after the work was
+          actually COMPLETED, so finishing late pushes the whole cycle out.
+          Good for things measured from actual service, like an oil change.
+    With a 30-day PM due on the 1st and completed on the 10th, fixed comes due
+    on the 31st; floating comes due on the 40th day. Where several work orders
+    exist for the PM, the most recent completion is the one that counts.
+
   - Anchoring to the due date rather than to "today" is deliberate: a late
     scheduler tick or a manual "Generate WO Now" therefore does not shift the
     anniversary of every future occurrence. If a PM is several intervals

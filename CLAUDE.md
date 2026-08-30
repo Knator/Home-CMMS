@@ -118,6 +118,19 @@ Write paths shared by the routes and the scheduler. **Never insert a `WorkOrder`
 ### PM Scheduler (`app/scheduler.py`)
 `run_pm_check(app)` runs hourly. It finds active PMs where `next_due_date <= today` and `last_generated_date` is either NULL or not today (the explicit `IS NULL` matters — SQL treats `NULL != today` as NULL, which would skip brand-new PMs). Each PM commits independently and failures are logged and skipped, so one bad PM can't discard the rest of the pass.
 
+A PM schedules one of two ways, chosen by `schedule_from_completion` ("Schedule Based on
+Last Completed"):
+- **Fixed** (default): the calendar rhythm is kept — see `advance_schedule()` below.
+- **Floating**: `reschedule_from_completion()` re-anchors `next_due_date` to the *latest*
+  completion across all the PM's work orders, plus the interval. Using the latest rather
+  than whichever work order was just saved makes it idempotent and stops out-of-order
+  completions dragging the schedule backwards. It is driven by completion events, not by
+  the scheduler: `sync_pm_schedule()` is called from the work order create and edit paths,
+  and by the PM edit route so switching the flag on takes effect immediately.
+
+Generation still advances the due date in both modes — otherwise a floating PM would
+regenerate every day until someone completed the work.
+
 `PM.advance_schedule()` anchors the next due date to the **previous due date**, not to the day it ran, so a late tick or a manual "Generate WO Now" doesn't shift every future occurrence. If a PM is several intervals overdue, whole intervals are skipped — one catch-up WO, not a backlog.
 
 ### Auth & Security

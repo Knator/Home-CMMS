@@ -1,38 +1,55 @@
 {% extends 'base.html' %}
-{% set is_edit = location is not none %}
-{% block title %}{{ 'Edit' if is_edit else 'New' }} Location — Home CMMS{% endblock %}
-{% block page_title %}{{ 'Edit' if is_edit else 'New' }} Location{% endblock %}
+{% block title %}{{ 'Edit' if location else 'New' }} Location — Home CMMS{% endblock %}
+{% block page_title %}{{ 'Edit Location' if location else 'New Location' }}{% endblock %}
 
 {% block content %}
-<div style="max-width:640px;">
-  <div class="card">
-    <div class="card-body">
-      <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="form-grid">
-          <div class="form-group full">
-            <label for="name">Name *</label>
-            <input type="text" id="name" name="name" value="{{ location.name if is_edit else '' }}" required>
-          </div>
-          <div class="form-group full">
-            <label for="description">Description</label>
-            <input type="text" id="description" name="description" value="{{ location.description or '' }}">
-          </div>
-          <div class="form-group full">
-            <label for="notes">Notes</label>
-            <textarea id="notes" name="notes" rows="5">{{ location.notes or '' }}</textarea>
-          </div>
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="name">Name *</label>
+          <input type="text" id="name" name="name" required
+                 value="{{ location.name if location else '' }}">
         </div>
-        <div class="form-actions mt-1">
-          <button type="submit" class="btn btn-primary">{{ 'Save Changes' if is_edit else 'Create Location' }}</button>
-          {% if is_edit %}
-            <a href="{{ url_for('locations.detail', id=location.id) }}" class="btn btn-secondary">Cancel</a>
-          {% else %}
-            <a href="{{ url_for('locations.index') }}" class="btn btn-secondary">Cancel</a>
-          {% endif %}
+        <div class="form-group">
+          <label for="parent_id">Parent Location</label>
+          <select id="parent_id" name="parent_id">
+            <option value="">— None (top level) —</option>
+            {% for p in parents %}
+              <option value="{{ p.id }}"
+                {{ 'selected' if location and location.parent_id == p.id }}>{{ p.path_label }}</option>
+            {% endfor %}
+          </select>
+          <span class="field-hint">A location cannot sit beneath one of its own children.</span>
         </div>
-      </form>
-    </div>
+        <div class="form-group">
+          <label for="status">Status</label>
+          <select id="status" name="status">
+            {% for s in statuses %}
+              <option value="{{ s }}"
+                {{ 'selected' if (location.status if location else 'active') == s }}>{{ status_labels[s] }}</option>
+            {% endfor %}
+          </select>
+          <span class="field-hint">Only Active locations can be picked for new work orders and PMs.</span>
+        </div>
+        <div class="form-group">
+          <label for="description">Description</label>
+          <input type="text" id="description" name="description"
+                 value="{{ location.description or '' if location else '' }}">
+        </div>
+        <div class="form-group full">
+          <label for="notes">Notes</label>
+          <textarea id="notes" name="notes">{{ location.notes or '' if location else '' }}</textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ 'Save Changes' if location else 'Create Location' }}</button>
+        <a href="{{ url_for('locations.detail', id=location.id) if location else url_for('locations.index') }}"
+           class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
   </div>
 </div>
 {% endblock %}

@@ -33,6 +33,25 @@
             </select>
           </div>
           <div class="form-group">
+            <label>Parent Asset</label>
+            <select name="parent_id">
+              <option value="">— None (top level) —</option>
+              {% for p in parents %}
+                <option value="{{ p.id }}" {{ 'selected' if is_edit and asset.parent_id == p.id }}>{{ p.path_label }}</option>
+              {% endfor %}
+            </select>
+            <span class="field-hint">For sub-assemblies, e.g. a compressor inside an HVAC unit. An asset cannot sit beneath one of its own children.</span>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select name="status">
+              {% for st in statuses %}
+                <option value="{{ st }}" {{ 'selected' if (asset.status if is_edit else 'active') == st }}>{{ status_labels[st] }}</option>
+              {% endfor %}
+            </select>
+            <span class="field-hint">Only Active assets can be picked for new work orders and PMs.</span>
+          </div>
+          <div class="form-group">
             <label>Make</label>
             <input type="text" name="make" value="{{ asset.make or '' if is_edit else '' }}">
           </div>

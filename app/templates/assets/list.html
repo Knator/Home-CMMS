@@ -25,20 +25,31 @@
       <option value="{{ loc.id }}" {{ 'selected' if selected_location == loc.id|string }}>{{ loc.name }}</option>
     {% endfor %}
   </select>
-  {% if selected_category or selected_location %}
+  <label>Show</label>
+  <select name="show" onchange="this.form.submit()">
+    <option value="active" {{ 'selected' if not show_all }}>Active only</option>
+    <option value="all" {{ 'selected' if show_all }}>All statuses</option>
+  </select>
+  {% if selected_category or selected_location or show_all %}
     <a href="{{ url_for('assets.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}
 </form>
 
 <div class="card">
   <div class="table-wrap">
-    {% if assets %}
+    {% if rows %}
     <table>
-      <thead><tr><th>Name</th><th>Category</th><th>Location</th><th>Make / Model</th><th>Install Date</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Status</th><th>Category</th><th>Location</th><th>Make / Model</th><th>Install Date</th><th></th></tr></thead>
       <tbody>
-        {% for a in assets %}
+        {% for a, depth in rows %}
         <tr>
-          <td><a class="row-link" href="{{ url_for('assets.detail', id=a.id) }}">{{ a.name }}</a></td>
+          <td>
+            <span class="tree-indent" style="--depth: {{ depth }}">
+              {% if depth %}<span class="tree-branch" aria-hidden="true">└</span>{% endif %}
+              <a class="row-link" href="{{ url_for('assets.detail', id=a.id) }}">{{ a.name }}</a>
+            </span>
+          </td>
+          <td><span class="badge {{ a.status_class }}">{{ a.status_label }}</span></td>
           <td>{{ a.category or '—' }}</td>
           <td>{{ a.location.name if a.location else '—' }}</td>
           <td>{{ ((a.make or '') + ' ' + (a.model or '')) | trim or '—' }}</td>
@@ -49,7 +60,7 @@
       </tbody>
     </table>
     {% else %}
-      <div class="card-body text-muted">No assets found.</div>
+      <div class="card-body text-muted">No assets found{{ ' with Active status' if not show_all }}.</div>
     {% endif %}
   </div>
 </div>

@@ -130,6 +130,31 @@
   </div>
 </div>
 
+<!-- Attachments inherited from the work order's associations -->
+{% if related %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Related Documents</span>
+    <span class="text-muted" style="font-size:12px;">Links to files held on the PM, job plan, asset and location</span>
+  </div>
+  <div class="card-body">
+    <ul class="attachment-list">
+      {% for item in related %}
+      <li class="attachment-item">
+        <a class="attachment-name" href="{{ url_for('attachments.download', id=item.attachment.id) }}">{{ item.attachment.original_filename }}</a>
+        <span class="source-tag">{{ item.source_label }}: {{ item.source_name }}</span>
+        <span class="attachment-meta">{{ format_file_size(item.attachment.file_size) }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="field-hint" style="margin-top:10px;">
+      These are links to the originals, not copies — updating the file on the asset or
+      job plan updates it everywhere it appears.
+    </p>
+  </div>
+</div>
+{% endif %}
+
 <div class="danger-zone">
   <h3>Delete Work Order</h3>
   <form method="post" action="{{ url_for('work_orders.delete', id=wo.id) }}">

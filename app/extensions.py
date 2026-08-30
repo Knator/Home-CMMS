@@ -15,6 +15,17 @@ login_manager.login_message_category = 'info'
 login_manager.session_protection = 'strong'
 
 
+# Alembic's batch migrations rebuild each table (create temp -> copy -> drop ->
+# rename). SQLite cannot do that with foreign key enforcement on, so
+# migrations/env.py flips this off for the migration connection only.
+_enforce_sqlite_foreign_keys = True
+
+
+def set_sqlite_foreign_keys(enabled):
+    global _enforce_sqlite_foreign_keys
+    _enforce_sqlite_foreign_keys = enabled
+
+
 @event.listens_for(Engine, 'connect')
 def _set_sqlite_pragmas(dbapi_connection, connection_record):
     """SQLite needs three pragmas set per connection.
@@ -27,7 +38,7 @@ def _set_sqlite_pragmas(dbapi_connection, connection_record):
     """
     if isinstance(dbapi_connection, sqlite3.Connection):
         cursor = dbapi_connection.cursor()
-        cursor.execute('PRAGMA foreign_keys=ON')
+        cursor.execute('PRAGMA foreign_keys=' + ('ON' if _enforce_sqlite_foreign_keys else 'OFF'))
         cursor.execute('PRAGMA journal_mode=WAL')
         cursor.execute('PRAGMA busy_timeout=30000')
         cursor.close()

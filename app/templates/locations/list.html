@@ -10,16 +10,30 @@
   </div>
 </div>
 
+<form method="get" class="filters">
+  <label>Show</label>
+  <select name="show" onchange="this.form.submit()">
+    <option value="active" {{ 'selected' if not show_all }}>Active only</option>
+    <option value="all" {{ 'selected' if show_all }}>All statuses</option>
+  </select>
+</form>
+
 <div class="card">
   <div class="table-wrap">
-    {% if locations %}
+    {% if rows %}
     <table>
-      <thead><tr><th>Name</th><th>Description</th><th>Assets</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Status</th><th>Description</th><th>Assets</th><th></th></tr></thead>
       <tbody>
-        {% for loc in locations %}
+        {% for loc, depth in rows %}
         <tr>
-          <td><a class="row-link" href="{{ url_for('locations.detail', id=loc.id) }}">{{ loc.name }}</a></td>
-          <td>{{ loc.description or '' }}</td>
+          <td>
+            <span class="tree-indent" style="--depth: {{ depth }}">
+              {% if depth %}<span class="tree-branch" aria-hidden="true">└</span>{% endif %}
+              <a class="row-link" href="{{ url_for('locations.detail', id=loc.id) }}">{{ loc.name }}</a>
+            </span>
+          </td>
+          <td><span class="badge {{ loc.status_class }}">{{ loc.status_label }}</span></td>
+          <td>{{ loc.description or '—' }}</td>
           <td>{{ loc.assets.count() }}</td>
           <td><a href="{{ url_for('locations.edit', id=loc.id) }}" class="btn btn-ghost btn-sm">Edit</a></td>
         </tr>
@@ -27,7 +41,10 @@
       </tbody>
     </table>
     {% else %}
-      <div class="card-body text-muted">No locations yet. <a href="{{ url_for('locations.create') }}">Create one.</a></div>
+      <div class="card-body text-muted">
+        No locations{{ ' with Active status' if not show_all }}.
+        <a href="{{ url_for('locations.create') }}">Create one.</a>
+      </div>
     {% endif %}
   </div>
 </div>

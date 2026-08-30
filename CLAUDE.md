@@ -62,6 +62,8 @@ Each entity's list view is the `index` endpoint (`url_for('assets.index')`, etc.
 
 ### Models (`app/models/`)
 All models import from `app/extensions.py` (db). Key relationships:
+- `Location` → `Location` (self-referencing parent/child)
+- `Asset` → `Asset` (self-referencing parent/child, for sub-assemblies)
 - `Asset` → `Location` (many-to-one)
 - `WorkOrder` → `Asset`, `Location`, `JobPlan`, `PM`, `User` (assigned, creator)
 - `PM` → `Asset`, `Location`, `JobPlan`
@@ -70,10 +72,34 @@ All models import from `app/extensions.py` (db). Key relationships:
 
 Timestamps use `utcnow()` from `app/utils.py`, not the deprecated `datetime.utcnow`.
 
+`app/models/mixins.py` holds the two behaviours Locations and Assets share:
+- `LifecycleMixin` — `status` of `active` | `inactive` | `decommissioned`, with
+  `status_label`, `status_class` and `is_operational` (named to avoid colliding with
+  `User.is_active`). Only Active records appear in work order and PM pickers.
+- `HierarchyMixin` — `ancestors`, `descendants`, `depth`, `path_label` and
+  `would_create_cycle()`. Both walks are depth-capped and loop-guarded so corrupt data
+  can't hang a request.
+
 ### Services (`app/services.py`)
 Write paths shared by the routes and the scheduler. **Never insert a `WorkOrder` directly** — go through these, or you skip the WO-number collision retry:
 - `create_work_order(**fields)` — allocates the number, commits, retries on `IntegrityError`.
 - `generate_work_order_for_pm(pm, ...)` — creates the WO *and* advances the PM in one transaction, so a crash between the two can't produce a duplicate on the next tick.
+- `location_delete_blockers(loc)` / `asset_delete_blockers(asset)` — the Maximo rule: a
+  record that work has been logged against is never deleted, because that orphans the
+  history. Returns human-readable reasons; empty means safe to delete. **Both delete
+  routes must consult these**, and the detail templates swap the delete button for a
+  "change status instead" panel when non-empty.
+- `selectable_locations(include_id)` / `selectable_assets(include_id)` — Active-only
+  pickers. `include_id` keeps whatever a record already points at in the list, so
+  editing an old work order whose asset was since decommissioned doesn't silently blank
+  the field on save.
+- `related_attachments(wo)` — documents reachable from a work order's associations: its
+  PM, job plan, asset (plus ancestor assets), and location chain (the WO's own location,
+  or the asset's when it has none). Returns links to the originals, never copies, so
+  updating the asset's manual updates every work order showing it. Labelled with the most
+  specific source.
+- `hierarchy_ordered(nodes)` — depth-first `[(node, depth)]` for indented tree lists.
+  Nodes whose parent was filtered out are promoted to roots so nothing disappears.
 
 ### PM Scheduler (`app/scheduler.py`)
 `run_pm_check(app)` runs hourly. It finds active PMs where `next_due_date <= today` and `last_generated_date` is either NULL or not today (the explicit `IS NULL` matters — SQL treats `NULL != today` as NULL, which would skip brand-new PMs). Each PM commits independently and failures are logged and skipped, so one bad PM can't discard the rest of the pass.
@@ -101,7 +127,17 @@ Three pragmas are set on every connection:
 - `journal_mode=WAL` — lets the hourly scheduler write while requests read
 - `busy_timeout=30000` — wait for a competing writer instead of raising "database is locked"
 
+Foreign key enforcement is **switchable** via `set_sqlite_foreign_keys()`. `migrations/env.py`
+turns it off for the migration connection and disposes the pool so a fresh connection picks
+the setting up: Alembic's batch mode rebuilds each table (create temp → copy → drop → rename),
+which SQLite cannot do with FKs enforced. Leaving it on makes migrations fail partway and
+strand an `_alembic_tmp_<table>` table that blocks every retry. The app's own connections keep
+FKs ON.
+
 Run with a **single** worker in production: SQLite allows one writer, and each extra worker would start its own scheduler and generate duplicate work orders.
+
+**Backups:** copy the database with `VACUUM INTO`, not `cp`. In WAL mode a plain file copy
+misses everything still in `home_cmms.db-wal` and silently yields a stale snapshot.
 
 ### Templates & CSS
 - Base layout: `templates/base.html` — fixed sidebar + topbar + scrollable content area

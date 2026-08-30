@@ -6,30 +6,27 @@ from flask_login import login_required, current_user
 from app.work_orders import bp
 from app.extensions import db
 from app.models.work_order import WorkOrder, WO_STATUSES, WO_PRIORITIES, WO_TYPES
-from app.models.asset import Asset
-from app.models.location import Location
 from app.models.job_plan import JobPlan
 from app.models.user import User
 from app.models.attachment import Attachment
-from app.services import create_work_order
+from app.services import create_work_order, related_attachments, selectable_assets, selectable_locations
 from app.utils import (
     validate_csrf, allowed_file, save_attachment, purge_entity_attachments,
-    parse_date, parse_int, utcnow,
+    parse_date, parse_int, utcnow, choice,
 )
 
 ENTITY = 'work_order'
 
 
-def _choice(value, allowed, default):
-    """Keep posted values inside the model's vocabulary; a forged <select> otherwise
-    stores a status the badge styling and filters know nothing about."""
-    return value if value in allowed else default
+def _form_options(wo=None):
+    """Pickers offer Active assets and locations only.
 
-
-def _form_options():
+    A record that already points at something since retired keeps it listed, so
+    editing an old work order cannot silently blank the field on save.
+    """
     return dict(
-        assets=Asset.query.order_by(Asset.name).all(),
-        locations=Location.query.order_by(Location.name).all(),
+        assets=selectable_assets(include_id=wo.asset_id if wo else None),
+        locations=selectable_locations(include_id=wo.location_id if wo else None),
         job_plans=JobPlan.query.order_by(JobPlan.name).all(),
         users=User.query.filter_by(is_active=True).order_by(User.username).all(),
         statuses=WO_STATUSES, priorities=WO_PRIORITIES, wo_types=WO_TYPES,
@@ -79,12 +76,12 @@ def create():
             flash('Title is required.', 'error')
             return render_template('work_orders/form.html', wo=None, **options)
 
-        status = _choice(request.form.get('status'), WO_STATUSES, 'open')
+        status = choice(request.form.get('status'), WO_STATUSES, 'open')
         wo = create_work_order(
             title=title,
-            wo_type=_choice(request.form.get('wo_type'), WO_TYPES, 'unplanned'),
+            wo_type=choice(request.form.get('wo_type'), WO_TYPES, 'unplanned'),
             status=status,
-            priority=_choice(request.form.get('priority'), WO_PRIORITIES, 'medium'),
+            priority=choice(request.form.get('priority'), WO_PRIORITIES, 'medium'),
             asset_id=parse_int(request.form.get('asset_id')),
             location_id=parse_int(request.form.get('location_id')),
             job_plan_id=parse_int(request.form.get('job_plan_id')),
@@ -113,14 +110,14 @@ def detail(id):
     )
     tasks = wo.job_plan.tasks.all() if wo.job_plan else []
     return render_template('work_orders/detail.html', wo=wo, attachments=attachments,
-                           tasks=tasks, today=date.today())
+                           related=related_attachments(wo), tasks=tasks, today=date.today())
 
 
 @bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit(id):
     wo = db.get_or_404(WorkOrder, id)
-    options = _form_options()
+    options = _form_options(wo)
 
     if request.method == 'POST':
         validate_csrf()
@@ -130,9 +127,9 @@ def edit(id):
             return render_template('work_orders/form.html', wo=wo, **options)
 
         wo.title = title
-        wo.wo_type = _choice(request.form.get('wo_type'), WO_TYPES, wo.wo_type)
-        wo.status = _choice(request.form.get('status'), WO_STATUSES, wo.status)
-        wo.priority = _choice(request.form.get('priority'), WO_PRIORITIES, wo.priority)
+        wo.wo_type = choice(request.form.get('wo_type'), WO_TYPES, wo.wo_type)
+        wo.status = choice(request.form.get('status'), WO_STATUSES, wo.status)
+        wo.priority = choice(request.form.get('priority'), WO_PRIORITIES, wo.priority)
         wo.asset_id = parse_int(request.form.get('asset_id'))
         wo.location_id = parse_int(request.form.get('location_id'))
         wo.job_plan_id = parse_int(request.form.get('job_plan_id'))

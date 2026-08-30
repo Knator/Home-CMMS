@@ -39,6 +39,15 @@ def parse_int(value, minimum=None):
     return parsed
 
 
+def choice(value, allowed, default):
+    """Keep a posted value inside a known vocabulary.
+
+    A forged <select> otherwise stores a status that badge styling, filters and
+    business rules know nothing about.
+    """
+    return value if value in allowed else default
+
+
 def generate_csrf_token():
     if 'csrf_token' not in session:
         session['csrf_token'] = secrets.token_hex(32)

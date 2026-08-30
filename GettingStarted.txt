@@ -187,9 +187,64 @@ This guide takes you from a fresh clone to a running, testable app.
       instance/home_cmms.db     the entire database, one file
       uploads/<type>/<id>/      attachment files, by entity
 
-  Both are gitignored. To BACK UP, copy both. SQLite runs in WAL mode, so you
-  may also see home_cmms.db-wal and home_cmms.db-shm alongside the database;
-  copy those too, or stop the app first so they are folded back in.
+  Both are gitignored.
+
+  TO BACK UP, do NOT just copy the .db file. SQLite runs in WAL mode, so recent
+  writes live in home_cmms.db-wal and a plain copy silently gives you a stale
+  snapshot. Use SQLite's own snapshot instead, which is safe while the app runs:
+
+      sqlite3 instance/home_cmms.db "VACUUM INTO 'backup.db'"
+
+  or from Python:
+
+      python -c "import sqlite3; sqlite3.connect('instance/home_cmms.db')\
+                 .execute('VACUUM INTO ?', ('backup.db',))"
+
+  Then copy uploads/ alongside it.
+
+
+--------------------------------------------------------------------------------
+ 8b. LOCATIONS, ASSETS, STATUS AND DELETION
+--------------------------------------------------------------------------------
+
+  HIERARCHY
+  Locations and Assets both nest. A location can sit inside another
+  ("Coleman House > Basement > Utility Room"), and an asset can be a
+  sub-assembly of another ("HVAC System > Blower Motor"). Set the parent on the
+  edit form; list pages show the tree indented. A record can never be placed
+  beneath one of its own children — the form rejects that with an explanation.
+
+  STATUS
+  Every location and asset has one of three statuses:
+
+      Active           In service. The only status offered when picking an
+                       asset or location for a new work order or PM.
+      Inactive         Temporarily out of service. Existing work is untouched,
+                       but it cannot be chosen for new work.
+      Decommissioned   Retired for good. Kept for history; not selectable.
+
+  Editing an existing work order that already points at an Inactive or
+  Decommissioned record keeps that link in the dropdown, so saving the form
+  never silently clears it.
+
+  DELETION
+  Following Maximo: anything with work recorded against it is never deleted,
+  because that would orphan the history. A location or asset can only be
+  deleted while nothing references it — no child records, no assets in it, no
+  work orders, no PM schedules. When something does reference it, the detail
+  page replaces the Delete button with an explanation of exactly what is in the
+  way and a link to change its status instead.
+
+  So the normal way to retire something is to set it Decommissioned, not to
+  delete it.
+
+  DOCUMENTS ON WORK ORDERS
+  All five record types take file attachments. A work order additionally shows a
+  "Related Documents" section pulling in files held on its PM, job plan, asset
+  (and any parent assets), and its location chain. These are links to the
+  originals, not copies — update the manual on the asset and every work order
+  showing it picks up the new version. A work order created from a PM therefore
+  arrives with the PM checklist and job plan paperwork already attached.
 
 
 --------------------------------------------------------------------------------

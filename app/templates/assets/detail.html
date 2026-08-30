@@ -4,7 +4,14 @@
 
 {% block content %}
 <div class="page-header">
-  <h1>{{ asset.name }}</h1>
+  <div>
+    <h1>{{ asset.name }}</h1>
+    <div class="header-meta">
+      <span class="badge {{ asset.status_class }}">{{ asset.status_label }}</span>
+      {% if asset.ancestors %}<span class="breadcrumb-path">part of {{ asset.ancestors | reverse | map(attribute='name') | join(' › ') }}</span>{% endif %}
+      {% if asset.location %}<span class="breadcrumb-path">at {{ asset.location.path_label }}</span>{% endif %}
+    </div>
+  </div>
   <div class="page-actions">
     <a href="{{ url_for('assets.edit', id=asset.id) }}" class="btn btn-secondary">Edit</a>
     <a href="{{ url_for('assets.index') }}" class="btn btn-ghost">← Back</a>
@@ -15,6 +22,19 @@
   <div class="card-header"><span class="card-title">Asset Details</span></div>
   <div class="card-body">
     <div class="detail-grid">
+      <div class="detail-field">
+        <div class="detail-label">Status</div>
+        <div class="detail-value">
+          <span class="badge {{ asset.status_class }}">{{ asset.status_label }}</span>
+          <div class="field-hint" style="margin-top:4px;">{{ status_help[asset.status] }}</div>
+        </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Parent Asset</div>
+        <div class="detail-value {{ 'empty' if not asset.parent }}">
+          {% if asset.parent %}<a href="{{ url_for('assets.detail', id=asset.parent.id) }}">{{ asset.parent.name }}</a>{% else %}Top level{% endif %}
+        </div>
+      </div>
       <div class="detail-field">
         <div class="detail-label">Category</div>
         <div class="detail-value {{ 'empty' if not asset.category }}">{{ asset.category or 'None' }}</div>
@@ -115,11 +135,44 @@
   </div>
 </div>
 
+{% if asset.children %}
+<div class="card">
+  <div class="card-header"><span class="card-title">Sub-assets</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Status</th><th>Category</th><th>Make / Model</th></tr></thead>
+      <tbody>
+        {% for child in asset.children %}
+        <tr>
+          <td><a class="row-link" href="{{ url_for('assets.detail', id=child.id) }}">{{ child.name }}</a></td>
+          <td><span class="badge {{ child.status_class }}">{{ child.status_label }}</span></td>
+          <td>{{ child.category or '—' }}</td>
+          <td>{{ ((child.make or '') + ' ' + (child.model or '')) | trim or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if blockers %}
+<div class="protected-zone">
+  <h3>This asset is in use</h3>
+  <p>It cannot be deleted because it still has {{ blockers | join(', ') }}. Deleting it
+     would orphan that history.</p>
+  <p>To retire it, edit it and set its status to <strong>Decommissioned</strong> — it keeps
+     all its history but can no longer be chosen for new work orders or PMs.</p>
+  <a href="{{ url_for('assets.edit', id=asset.id) }}" class="btn btn-secondary btn-sm">Change Status</a>
+</div>
+{% else %}
 <div class="danger-zone">
   <h3>Delete Asset</h3>
+  <p class="text-muted" style="margin-bottom:10px;">Nothing references this asset yet, so it can be removed safely. Its attachments will be deleted too.</p>
   <form method="post" action="{{ url_for('assets.delete', id=asset.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this asset?')">Delete Asset</button>
   </form>
 </div>
+{% endif %}
 {% endblock %}

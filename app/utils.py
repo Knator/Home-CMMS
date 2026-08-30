@@ -106,6 +106,52 @@ def save_attachment(file, entity_type, entity_id):
     return stored_filename, original_filename, os.path.getsize(file_path), file.content_type
 
 
+MAX_UPLOAD_ROWS = 10
+
+
+def upload_rows_from_form(prefix='attachment', max_rows=MAX_UPLOAD_ROWS):
+    """Read repeatable [file][optional name] rows off a submitted form.
+
+    Returns [(FileStorage, display_name), ...] for rows that actually carry a
+    file. The row count comes from a hidden field the browser maintains, so it
+    is untrusted: parsed defensively and capped.
+    """
+    count = parse_int(request.form.get(f'{prefix}_count'), minimum=0) or 0
+    rows = []
+    for i in range(min(count, max_rows)):
+        file = request.files.get(f'{prefix}_{i}_file')
+        if not file or not file.filename:
+            continue
+        rows.append((file, request.form.get(f'{prefix}_{i}_name', '').strip() or None))
+    return rows
+
+
+def store_uploads(entity_type, entity_id, rows, uploaded_by):
+    """Validate and persist a batch of uploads. Returns (saved_count, errors).
+
+    Rejected files are reported rather than aborting the batch — one bad
+    extension should not discard the other files or the form submission that
+    carried them.
+    """
+    from app.extensions import db
+    from app.models.attachment import Attachment
+
+    saved, errors = 0, []
+    for file, display_name in rows:
+        if not allowed_file(file.filename):
+            errors.append(f"'{file.filename}' was not saved — that file type is not allowed.")
+            continue
+        stored, original, size, mime = save_attachment(file, entity_type, entity_id)
+        db.session.add(Attachment(
+            entity_type=entity_type, entity_id=entity_id,
+            stored_filename=stored, original_filename=original,
+            display_name=display_name, file_size=size, mime_type=mime,
+            uploaded_by=uploaded_by,
+        ))
+        saved += 1
+    return saved, errors
+
+
 def purge_entity_attachments(entity_type, entity_id):
     """Delete an entity's attachment rows and its upload directory.
 

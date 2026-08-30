@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% import '_attachments.html' as att_ui %}
 {% block title %}{{ location.name }} — Home CMMS{% endblock %}
 {% block page_title %}{{ location.name }}{% endblock %}
 
@@ -115,27 +116,8 @@
 <div class="card">
   <div class="card-header"><span class="card-title">Attachments</span></div>
   <div class="card-body">
-    {% if attachments %}
-    <ul class="attachment-list">
-      {% for att in attachments %}
-      <li class="attachment-item">
-        <a class="attachment-name" href="{{ url_for('attachments.download', id=att.id) }}">{{ att.original_filename }}</a>
-        <span class="attachment-meta">{{ format_file_size(att.file_size) }} · {{ att.uploaded_at.strftime('%Y-%m-%d') }}</span>
-        <form method="post" action="{{ url_for('attachments.delete', id=att.id) }}" style="display:inline;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-ghost btn-sm text-danger" onclick="return confirm('Delete this file?')">Delete</button>
-        </form>
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-      <p class="text-muted">No attachments.</p>
-    {% endif %}
-    <form method="post" action="{{ url_for('locations.upload_attachment', id=location.id) }}" enctype="multipart/form-data" class="upload-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="file" name="file">
-      <button type="submit" class="btn btn-secondary btn-sm">Upload</button>
-    </form>
+    {{ att_ui.attachment_list(attachments) }}
+    {{ att_ui.upload_form(url_for('locations.upload_attachment', id=location.id)) }}
   </div>
 </div>
 

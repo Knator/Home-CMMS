@@ -824,3 +824,75 @@ textarea { resize: vertical; min-height: 90px; }
 
 .protected-zone h3 { font-size: 13px; margin-bottom: 8px; color: var(--text-primary); }
 .protected-zone p { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.5; }
+
+/* ── Attachment naming and form upload rows ── */
+.attachment-item { flex-wrap: wrap; }
+
+.attachment-main {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.attachment-file {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.attachment-rename { position: relative; }
+.attachment-rename summary { list-style: none; cursor: pointer; }
+.attachment-rename summary::-webkit-details-marker { display: none; }
+
+.rename-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+}
+
+.rename-form input[type="text"] { width: auto; flex: 1; min-width: 180px; }
+
+.upload-name { width: auto !important; flex: 1; min-width: 160px; }
+
+.attachment-rows { display: flex; flex-direction: column; gap: 8px; }
+
+.attachment-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 32px;
+  gap: 8px;
+  align-items: center;
+}
+
+.form-subsection {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--card-border);
+}
+
+.form-subsection-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.form-subsection-head h3 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--text-secondary);
+}
+
+.form-subsection .field-hint { display: block; margin-bottom: 10px; }

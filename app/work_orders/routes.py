@@ -11,11 +11,25 @@ from app.models.user import User
 from app.models.attachment import Attachment
 from app.services import create_work_order, related_attachments, selectable_assets, selectable_locations
 from app.utils import (
-    validate_csrf, allowed_file, save_attachment, purge_entity_attachments,
+    validate_csrf, purge_entity_attachments, store_uploads, upload_rows_from_form,
     parse_date, parse_int, utcnow, choice,
 )
 
 ENTITY = 'work_order'
+
+
+def _store_form_uploads(work_order_id, commit=True):
+    """Persist any files attached on the create/edit form."""
+    rows = upload_rows_from_form()
+    if not rows:
+        return
+    saved, errors = store_uploads(ENTITY, work_order_id, rows, current_user.id)
+    for message in errors:
+        flash(message, 'error')
+    if saved and commit:
+        db.session.commit()
+    if saved:
+        flash(f"{saved} file{'' if saved == 1 else 's'} attached.", 'success')
 
 
 def _form_options(wo=None):
@@ -92,6 +106,9 @@ def create():
             notes=request.form.get('notes', '').strip() or None,
             created_by=current_user.id,
         )
+        # Attachments are filed under the work order's id, so they can only be
+        # stored once it exists — create_work_order() has already committed.
+        _store_form_uploads(wo.id)
         flash(f'Work order {wo.wo_number} created.', 'success')
         return redirect(url_for('work_orders.detail', id=wo.id))
 
@@ -143,6 +160,7 @@ def edit(id):
         if wo.status == 'completed' and not wo.completed_date:
             wo.completed_date = utcnow()
 
+        _store_form_uploads(wo.id, commit=False)
         db.session.commit()
         flash('Work order updated.', 'success')
         return redirect(url_for('work_orders.detail', id=id))
@@ -171,17 +189,12 @@ def upload_attachment(id):
     if not file or file.filename == '':
         flash('No file selected.', 'error')
         return redirect(url_for('work_orders.detail', id=id))
-    if not allowed_file(file.filename):
-        flash('File type not allowed.', 'error')
-        return redirect(url_for('work_orders.detail', id=id))
 
-    stored, original, size, mime = save_attachment(file, ENTITY, id)
-    att = Attachment(
-        entity_type=ENTITY, entity_id=id,
-        stored_filename=stored, original_filename=original,
-        file_size=size, mime_type=mime, uploaded_by=current_user.id,
-    )
-    db.session.add(att)
-    db.session.commit()
-    flash('File uploaded.', 'success')
+    display_name = request.form.get('display_name', '').strip() or None
+    saved, errors = store_uploads(ENTITY, id, [(file, display_name)], current_user.id)
+    for message in errors:
+        flash(message, 'error')
+    if saved:
+        db.session.commit()
+        flash('File uploaded.', 'success')
     return redirect(url_for('work_orders.detail', id=id))

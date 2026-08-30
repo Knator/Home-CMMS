@@ -15,7 +15,7 @@
         </div>
         <div class="form-group">
           <label for="parent_id">Parent Location</label>
-          <select id="parent_id" name="parent_id">
+          <select id="parent_id" name="parent_id" data-searchable>
             <option value="">— None (top level) —</option>
             {% for p in parents %}
               <option value="{{ p.id }}"

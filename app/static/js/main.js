@@ -168,3 +168,154 @@ function initAssetLocationLink() {
 }
 
 document.addEventListener('DOMContentLoaded', initAssetLocationLink);
+
+/* ── Type-to-filter dropdowns ──
+   Progressive enhancement over a normal <select data-searchable>. The select
+   stays in the DOM, enabled and named, so it still submits and remains the
+   single source of truth; this only adds a text input that filters the options
+   on a substring match. Without JS you get the plain select. */
+function enhanceSearchableSelect(select) {
+  if (select.dataset.comboReady) return;
+  select.dataset.comboReady = 'true';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'combo';
+  select.parentNode.insertBefore(wrapper, select);
+  wrapper.appendChild(select);
+
+  // Keep the select out of the tab order and the accessibility tree; the input
+  // below stands in for it.
+  select.classList.add('combo-native');
+  select.setAttribute('tabindex', '-1');
+  select.setAttribute('aria-hidden', 'true');
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'combo-input';
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-expanded', 'false');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('autocomplete', 'off');
+  input.placeholder = select.dataset.placeholder || 'Type to filter…';
+  if (select.id) input.setAttribute('aria-label', select.id.replace(/_/g, ' '));
+
+  const list = document.createElement('ul');
+  list.className = 'combo-list';
+  list.setAttribute('role', 'listbox');
+  list.hidden = true;
+
+  wrapper.appendChild(input);
+  wrapper.appendChild(list);
+
+  let options = [];
+  let matches = [];
+  let activeIndex = -1;
+
+  function readOptions() {
+    options = Array.from(select.options).map((o) => ({
+      value: o.value,
+      label: o.textContent.trim(),
+    }));
+  }
+
+  function selectedLabel() {
+    const found = options.find((o) => o.value === select.value);
+    return found ? found.label : '';
+  }
+
+  function showSelected() {
+    input.value = selectedLabel();
+  }
+
+  function close() {
+    list.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    activeIndex = -1;
+  }
+
+  function render(filter) {
+    const needle = (filter || '').trim().toLowerCase();
+    // "contains", not "starts with" — the point is finding an asset by any word
+    // in its name, number or location.
+    matches = needle
+      ? options.filter((o) => o.label.toLowerCase().includes(needle))
+      : options.slice();
+
+    list.innerHTML = '';
+    if (!matches.length) {
+      const li = document.createElement('li');
+      li.className = 'combo-empty';
+      li.textContent = 'No matches';
+      list.appendChild(li);
+    } else {
+      matches.forEach((option, i) => {
+        const li = document.createElement('li');
+        li.className = 'combo-option';
+        li.setAttribute('role', 'option');
+        li.setAttribute('aria-selected', option.value === select.value ? 'true' : 'false');
+        li.textContent = option.label;
+        li.addEventListener('mousedown', (e) => {
+          e.preventDefault();          // keep focus so blur doesn't fire first
+          commit(option.value);
+        });
+        li.addEventListener('mouseenter', () => setActive(i));
+        list.appendChild(li);
+      });
+    }
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+    setActive(matches.length ? 0 : -1);
+  }
+
+  function setActive(i) {
+    activeIndex = i;
+    Array.from(list.querySelectorAll('.combo-option')).forEach((li, idx) => {
+      li.classList.toggle('active', idx === i);
+    });
+    const current = list.querySelector('.combo-option.active');
+    if (current) current.scrollIntoView({ block: 'nearest' });
+  }
+
+  function commit(value) {
+    select.value = value;
+    showSelected();
+    close();
+    // Let anything already listening on the select (the asset -> location
+    // lookup, for one) react exactly as it would to a native change.
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  input.addEventListener('focus', () => { input.select(); render(''); });
+  input.addEventListener('input', () => render(input.value));
+  input.addEventListener('blur', () => { showSelected(); close(); });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (list.hidden) { render(input.value); return; }
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      const next = activeIndex + step;
+      if (next >= 0 && next < matches.length) setActive(next);
+    } else if (e.key === 'Enter') {
+      if (!list.hidden && activeIndex >= 0 && matches[activeIndex]) {
+        e.preventDefault();          // don't submit the form on the first Enter
+        commit(matches[activeIndex].value);
+      }
+    } else if (e.key === 'Escape') {
+      showSelected();
+      close();
+    }
+  });
+
+  // Another script may set select.value or add an option; stay in step.
+  select.addEventListener('change', () => { readOptions(); showSelected(); });
+
+  readOptions();
+  showSelected();
+}
+
+function initSearchableSelects() {
+  document.querySelectorAll('select[data-searchable]').forEach(enhanceSearchableSelect);
+}
+
+document.addEventListener('DOMContentLoaded', initSearchableSelects);

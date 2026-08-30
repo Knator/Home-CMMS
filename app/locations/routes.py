@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
+from app.models.work_order import WorkOrder
 from app.services import location_delete_blockers, hierarchy_ordered, sibling_name_taken
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads,
@@ -112,10 +113,17 @@ def detail(id):
         .order_by(Attachment.uploaded_at.desc())
         .all()
     )
+    work_orders = (
+        location.work_orders
+        .order_by(WorkOrder.created_at.desc())
+        .limit(10)
+        .all()
+    )
     return render_template(
         'locations/detail.html',
         location=location,
         attachments=attachments,
+        work_orders=work_orders,
         blockers=location_delete_blockers(location),
         status_help=STATUS_HELP,
     )

@@ -112,6 +112,35 @@
   </div>
 </div>
 
+<!-- Work Orders -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Work Orders</span>
+    <a href="{{ url_for('work_orders.create') }}" class="btn btn-secondary btn-sm">+ New WO</a>
+  </div>
+  <div class="table-wrap">
+    {% if work_orders %}
+    <table>
+      <thead><tr><th>WO #</th><th>Title</th><th>Status</th><th>Asset</th><th>Due</th><th>Completed</th></tr></thead>
+      <tbody>
+        {% for wo in work_orders %}
+        <tr class="{{ 'overdue-row' if wo.is_overdue }}">
+          <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id) }}">{{ wo.wo_number }}</a></td>
+          <td>{{ wo.title }}</td>
+          <td><span class="badge {{ wo.status_class }}">{{ wo.status | replace('_', ' ') }}</span></td>
+          <td>{% if wo.asset %}<a class="row-link" href="{{ url_for('assets.detail', id=wo.asset.id) }}">{{ wo.asset.name }}</a>{% else %}—{% endif %}</td>
+          <td class="{{ 'text-danger' if wo.is_overdue }}">{{ wo.due_date.strftime('%Y-%m-%d') if wo.due_date else '—' }}</td>
+          <td>{{ wo.completed_date.strftime('%Y-%m-%d') if wo.completed_date else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="card-body text-muted">No work orders for this location.</div>
+    {% endif %}
+  </div>
+</div>
+
 <!-- Attachments -->
 <div class="card">
   <div class="card-header"><span class="card-title">Attachments</span></div>

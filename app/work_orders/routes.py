@@ -12,10 +12,24 @@ from app.models.attachment import Attachment
 from app.services import create_work_order, related_attachments, selectable_assets, selectable_locations
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, upload_rows_from_form,
-    parse_date, parse_int, utcnow, choice,
+    parse_date, parse_int, choice,
 )
 
 ENTITY = 'work_order'
+
+
+def _resolve_completed_date(status, current=None):
+    """Work out the completion date from the form.
+
+    A missing field leaves the existing value alone (so a POST that does not
+    carry the input cannot wipe history); a present-but-empty field clears it.
+    Marking a work order completed with no date falls back to today.
+    """
+    raw = request.form.get('completed_date')
+    completed = parse_date(raw) if raw is not None else current
+    if status == 'completed' and not completed:
+        completed = date.today()
+    return completed
 
 
 def _store_form_uploads(work_order_id, commit=True):
@@ -101,7 +115,7 @@ def create():
             job_plan_id=parse_int(request.form.get('job_plan_id')),
             assigned_to=parse_int(request.form.get('assigned_to')),
             due_date=parse_date(request.form.get('due_date')),
-            completed_date=utcnow() if status == 'completed' else None,
+            completed_date=_resolve_completed_date(status),
             description=request.form.get('description', '').strip() or None,
             notes=request.form.get('notes', '').strip() or None,
             created_by=current_user.id,
@@ -155,10 +169,9 @@ def edit(id):
         wo.description = request.form.get('description', '').strip() or None
         wo.notes = request.form.get('notes', '').strip() or None
 
-        # Stamp the first completion and keep it. Reopening a work order must
-        # not erase the record of when it was finished.
-        if wo.status == 'completed' and not wo.completed_date:
-            wo.completed_date = utcnow()
+        # Manual date wins; blank on a completed work order falls back to today.
+        # Reopening keeps the date, so the record of when it was finished stands.
+        wo.completed_date = _resolve_completed_date(wo.status, wo.completed_date)
 
         _store_form_uploads(wo.id, commit=False)
         db.session.commit()

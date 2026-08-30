@@ -44,7 +44,7 @@
       <thead>
         <tr>
           <th>WO #</th><th>Title</th><th>Type</th><th>Status</th><th>Priority</th>
-          <th>Asset</th><th>Due</th><th></th>
+          <th>Asset</th><th>Location</th><th>Due</th><th>Completed</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -56,7 +56,9 @@
           <td><span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span></td>
           <td><span class="badge {{ wo.priority_class }}">{{ wo.priority }}</span></td>
           <td>{% if wo.asset %}<a class="row-link" href="{{ url_for('assets.detail', id=wo.asset.id) }}">{{ wo.asset.name }}</a> <span class="muted-number">{{ wo.asset.asset_number }}</span>{% else %}—{% endif %}</td>
+          <td>{% if wo.location %}<a class="row-link" href="{{ url_for('locations.detail', id=wo.location.id) }}">{{ wo.location.name }}</a>{% else %}—{% endif %}</td>
           <td class="{{ 'text-danger' if wo.is_overdue }}">{{ wo.due_date.strftime('%Y-%m-%d') if wo.due_date else '—' }}</td>
+          <td>{{ wo.completed_date.strftime('%Y-%m-%d') if wo.completed_date else '—' }}</td>
           <td><a href="{{ url_for('work_orders.edit', id=wo.id) }}" class="btn btn-ghost btn-sm">Edit</a></td>
         </tr>
         {% endfor %}

@@ -37,7 +37,7 @@ class WorkOrder(db.Model):
     pm_id = db.Column(db.Integer, db.ForeignKey('pms.id'), nullable=True)
     assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     due_date = db.Column(db.Date, nullable=True)
-    completed_date = db.Column(db.DateTime, nullable=True)
+    completed_date = db.Column(db.Date, nullable=True)
     description = db.Column(db.Text)
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=utcnow)

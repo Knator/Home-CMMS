@@ -19,7 +19,7 @@
     {% endfor %}
   </select>
   <label>Location</label>
-  <select name="location_id" onchange="this.form.submit()">
+  <select name="location_id" data-searchable onchange="this.form.submit()">
     <option value="">All Locations</option>
     {% for loc in locations %}
       <option value="{{ loc.id }}" {{ 'selected' if selected_location == loc.id|string }}>{{ loc.name }}</option>

@@ -16,7 +16,7 @@
           </div>
           <div class="form-group">
             <label>Asset</label>
-            <select name="asset_id">
+            <select name="asset_id" data-searchable>
               <option value="">— None —</option>
               {% for a in assets %}
                 <option value="{{ a.id }}" {{ 'selected' if is_edit and pm.asset_id == a.id }}>{{ a.name }} ({{ a.asset_number }}){% if a.location %} — {{ a.location.path_label }}{% endif %}</option>
@@ -25,7 +25,7 @@
           </div>
           <div class="form-group">
             <label>Location</label>
-            <select name="location_id">
+            <select name="location_id" data-searchable>
               <option value="">— None —</option>
               {% for loc in locations %}
                 <option value="{{ loc.id }}" {{ 'selected' if is_edit and pm.location_id == loc.id }}>{{ loc.name }}</option>
@@ -34,7 +34,7 @@
           </div>
           <div class="form-group">
             <label>Job Plan</label>
-            <select name="job_plan_id">
+            <select name="job_plan_id" data-searchable>
               <option value="">— None —</option>
               {% for jp in job_plans %}
                 <option value="{{ jp.id }}" {{ 'selected' if is_edit and pm.job_plan_id == jp.id }}>{{ jp.name }}</option>

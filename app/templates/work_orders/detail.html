@@ -60,7 +60,7 @@
       </div>
       <div class="detail-field">
         <div class="detail-label">Completed</div>
-        <div class="detail-value {{ 'empty' if not wo.completed_date }}">{{ wo.completed_date.strftime('%Y-%m-%d %H:%M') if wo.completed_date else '—' }}</div>
+        <div class="detail-value {{ 'empty' if not wo.completed_date }}">{{ wo.completed_date.strftime('%Y-%m-%d') if wo.completed_date else '—' }}</div>
       </div>
       {% if wo.source_pm %}
       <div class="detail-field">

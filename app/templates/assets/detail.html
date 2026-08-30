@@ -85,6 +85,25 @@
   </div>
 </div>
 
+<!-- Photo (display only; managed on the edit form) -->
+{% if asset.image %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Photo</span>
+    <a href="{{ url_for('assets.edit', id=asset.id) }}" class="btn btn-ghost btn-sm">Change</a>
+  </div>
+  <div class="card-body">
+    <figure class="asset-photo">
+      <a href="{{ url_for('attachments.inline', id=asset.image.id) }}" target="_blank" rel="noopener">
+        <img src="{{ url_for('attachments.inline', id=asset.image.id) }}"
+             alt="Photo of {{ asset.name }}" loading="lazy">
+      </a>
+      {% if asset.image.display_name %}<figcaption>{{ asset.image.display_name }}</figcaption>{% endif %}
+    </figure>
+  </div>
+</div>
+{% endif %}
+
 <!-- Work Orders -->
 <div class="card">
   <div class="card-header">

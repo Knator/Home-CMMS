@@ -261,6 +261,12 @@ This guide takes you from a fresh clone to a running, testable app.
   fills in with today's date. Clearing it on a work order that is not completed
   removes it.
 
+  ASSET PHOTOS
+  An asset can carry one optional photo, shown as a card on its detail page
+  (and nowhere else). Add or replace it under Photo; replacing deletes the
+  previous image. PNG, JPG, GIF and WEBP are accepted. Click the photo to open
+  it full size.
+
   ATTACHMENT NAMES
   Every attachment can carry an optional friendly name — "Furnace manual"
   instead of MAN-4471-rev-c.pdf. Set it when uploading, or use Rename on any

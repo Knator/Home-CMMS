@@ -43,7 +43,8 @@ def _store_form_uploads(work_order_id, commit=True):
     if saved and commit:
         db.session.commit()
     if saved:
-        flash(f"{saved} file{'' if saved == 1 else 's'} attached.", 'success')
+        count = len(saved)
+        flash(f"{count} file{'' if count == 1 else 's'} attached.", 'success')
 
 
 def _form_options(wo=None):

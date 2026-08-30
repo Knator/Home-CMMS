@@ -7,7 +7,7 @@
 <div style="max-width:800px;">
   <div class="card">
     <div class="card-body">
-      <form method="post">
+      <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-grid">
           <div class="form-group full">
@@ -80,6 +80,39 @@
             <textarea name="notes" rows="5">{{ asset.notes or '' if is_edit else '' }}</textarea>
           </div>
         </div>
+        <div class="form-subsection">
+          <div class="form-subsection-head">
+            <h3>Photo</h3>
+          </div>
+          {% if is_edit and asset.image %}
+          <div class="photo-edit">
+            <img src="{{ url_for('attachments.inline', id=asset.image.id) }}"
+                 alt="Current photo of {{ asset.name }}" class="photo-thumb">
+            <div class="photo-edit-fields">
+              <label for="image_caption">Caption</label>
+              <input type="text" id="image_caption" name="image_caption" maxlength="255"
+                     value="{{ asset.image.display_name or '' }}" placeholder="Optional caption">
+              <label class="checkbox-label">
+                <input type="checkbox" name="remove_image" value="1"> Remove this photo
+              </label>
+            </div>
+          </div>
+          <label for="image">Replace with</label>
+          {% else %}
+          <label for="image">Add a photo</label>
+          {% endif %}
+          <input type="file" id="image" name="image"
+                 accept="image/png,image/jpeg,image/gif,image/webp">
+          {% if not (is_edit and asset.image) %}
+          <label for="image_caption" class="mt-1">Caption</label>
+          <input type="text" id="image_caption" name="image_caption" maxlength="255"
+                 placeholder="Optional caption">
+          {% endif %}
+          <span class="field-hint">
+            PNG, JPG, GIF or WEBP.{% if is_edit and asset.image %} Saving a new photo removes the previous one.{% endif %}
+          </span>
+        </div>
+
         <div class="form-actions mt-1">
           <button type="submit" class="btn btn-primary">{{ 'Save Changes' if is_edit else 'Create Asset' }}</button>
           {% if is_edit %}

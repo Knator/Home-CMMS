@@ -153,6 +153,14 @@ Work order create/edit accept files inline via repeatable `attachment_<i>_file` 
 parsed defensively and capped at 10). On create the files are stored *after* the work order
 commits, since they are filed under its id.
 
+An asset may have one optional photo: `Asset.image_attachment_id` points at an ordinary
+Attachment row, so upload, storage and deletion reuse the same plumbing. The FK is
+`ON DELETE SET NULL`, so deleting the underlying file — directly or by purging the asset —
+cannot leave a dangling reference. Photos are served by `attachments.inline`, which sends
+the file with `as_attachment=False` and `X-Content-Type-Options: nosniff`, and refuses
+anything outside `IMAGE_EXTENSIONS` (raster only; SVG is excluded because it can carry
+script). The photo renders on the asset detail page only.
+
 The shared `templates/_attachments.html` macros (`attachment_list`, `upload_form`,
 `related_list`) render attachments on every detail page, so naming and renaming behave
 identically everywhere. The `attachments.download` route requires login and resolves paths against `UPLOAD_FOLDER`, refusing anything outside it. Max upload size is 50 MB; exceeding it is caught by a 413 handler that flashes a message instead of showing a raw error page.

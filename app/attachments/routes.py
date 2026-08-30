@@ -6,7 +6,7 @@ from flask_login import login_required
 from app.attachments import bp
 from app.extensions import db
 from app.models.attachment import Attachment
-from app.utils import validate_csrf, entity_upload_dir
+from app.utils import validate_csrf, entity_upload_dir, is_image_file
 
 # Where to send the user after deleting a file, per owning entity.
 ENTITY_ENDPOINTS = {
@@ -50,6 +50,27 @@ def _back_to_entity(entity_type, entity_id):
     if endpoint:
         return redirect(url_for(endpoint, id=entity_id))
     return redirect(url_for('main.dashboard'))
+
+
+@bp.route('/<int:id>/inline')
+@login_required
+def inline(id):
+    """Serve an image for display in an <img> tag rather than as a download.
+
+    Restricted to raster image extensions and sent with nosniff, so a file that
+    is not really an image cannot be coaxed into executing in the page.
+    """
+    att = db.get_or_404(Attachment, id)
+    if not is_image_file(att.original_filename):
+        abort(404)
+
+    file_path = _attachment_path(att)
+    if not os.path.exists(file_path):
+        abort(404)
+
+    response = send_file(file_path, as_attachment=False)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 @bp.route('/<int:id>/rename', methods=['POST'])

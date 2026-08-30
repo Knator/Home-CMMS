@@ -43,8 +43,14 @@
             <input type="date" name="due_date" value="{{ wo.due_date.isoformat() if is_edit and wo.due_date else '' }}">
           </div>
           <div class="form-group">
+            <label for="completed_date">Completed Date</label>
+            <input type="date" id="completed_date" name="completed_date"
+                   value="{{ wo.completed_date.isoformat() if is_edit and wo.completed_date else '' }}">
+            <span class="field-hint">Leave blank and set the status to Completed to use today's date.</span>
+          </div>
+          <div class="form-group">
             <label for="asset_id">Asset</label>
-            <select name="asset_id" id="asset_id"
+            <select name="asset_id" data-searchable id="asset_id"
                     data-summary-url="{{ url_for('assets.summary', id=0) }}">
               <option value="">— None —</option>
               {% for a in assets %}
@@ -54,7 +60,7 @@
           </div>
           <div class="form-group">
             <label for="location_id">Location</label>
-            <select name="location_id" id="location_id">
+            <select name="location_id" data-searchable id="location_id">
               <option value="">— None —</option>
               {% for loc in locations %}
                 <option value="{{ loc.id }}" {{ 'selected' if is_edit and wo.location_id == loc.id }}>{{ loc.name }}</option>
@@ -64,7 +70,7 @@
           </div>
           <div class="form-group">
             <label>Job Plan</label>
-            <select name="job_plan_id">
+            <select name="job_plan_id" data-searchable>
               <option value="">— None —</option>
               {% for jp in job_plans %}
                 <option value="{{ jp.id }}" {{ 'selected' if is_edit and wo.job_plan_id == jp.id }}>{{ jp.name }}</option>

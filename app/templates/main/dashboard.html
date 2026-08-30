@@ -32,14 +32,14 @@
     <div class="table-wrap">
       {% if recent_wos %}
       <table>
-        <thead><tr><th>WO #</th><th>Title</th><th>Status</th><th>Due</th></tr></thead>
+        <thead><tr><th>Title</th><th>Status</th><th>Due</th><th>Completed</th></tr></thead>
         <tbody>
           {% for wo in recent_wos %}
           <tr class="{{ 'overdue-row' if wo.is_overdue }}">
-            <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id) }}">{{ wo.wo_number }}</a></td>
-            <td>{{ wo.title }}</td>
+            <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id) }}">{{ wo.title }}</a></td>
             <td><span class="badge {{ wo.status_class }}">{{ wo.status | replace('_', ' ') }}</span></td>
             <td class="{{ 'text-danger' if wo.is_overdue }}">{{ wo.due_date.strftime('%Y-%m-%d') if wo.due_date else '—' }}</td>
+            <td>{{ wo.completed_date.strftime('%Y-%m-%d') if wo.completed_date else '—' }}</td>
           </tr>
           {% endfor %}
         </tbody>

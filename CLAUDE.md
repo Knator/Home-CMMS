@@ -126,6 +126,18 @@ Write paths shared by the routes and the scheduler. **Never insert a `WorkOrder`
 - Admin-only routes use `@admin_required` from `app/utils.py`; the last active admin can't be demoted or deactivated
 - Posted `status`/`priority`/`wo_type` values are validated against the model's vocabulary; all untrusted ints and dates go through `parse_int`/`parse_date`, which return `None` rather than raising
 
+### Dates
+`WorkOrder.completed_date` is a `Date` (not a timestamp) and user-editable. `_resolve_completed_date()`
+distinguishes a **missing** form field (leave the existing value alone, so a POST that doesn't
+carry the input can't wipe history) from a **present-but-empty** one (clear it). Completing a
+work order with no date falls back to today.
+
+**SQLite gotcha for future migrations:** never change a column to `Date`/`DateTime` with
+`batch_op.alter_column(type_=...)`. Alembic emits `CAST(col AS DATE)`, and SQLite's DATE has
+NUMERIC affinity, so `CAST('2026-08-30' AS DATE)` silently becomes the integer `2026`. Rebuild
+the table with `batch_alter_table(copy_from=<explicit table>, recreate='always')` instead —
+an uncast copy preserves text that isn't a well-formed number. See migration `713382d2c88b`.
+
 ### File Uploads
 Files stored at `UPLOAD_FOLDER/<entity_type>/<entity_id>/<uuid>_<original_name>`.
 
@@ -170,6 +182,11 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
 - CSS custom properties in `static/css/main.css` (`--sidebar-bg`, `--accent`, etc.)
 - Badge classes for WO status and priority are defined on the model (`status_class`, `priority_class`) and applied in templates
 - JS in `static/js/main.js` handles dynamic task rows (job plan form) and attachment rows (work order form); the `task_count` / `attachment_count` hidden fields it maintains are untrusted input, parsed defensively and capped server-side
+- `enhanceSearchableSelect()` upgrades any `<select data-searchable>` into a type-to-filter
+  combobox (substring match, not prefix). It is **progressive enhancement**: the native
+  select stays in the DOM, enabled and named, so it still submits and remains the single
+  source of truth — the widget writes `select.value` and dispatches a `change` event, so
+  existing listeners keep working. Without JS you get a plain select.
 - `initAssetLocationLink()` fetches `/assets/<id>/summary` when the work order form's asset changes and copies the asset's location across, the way Maximo derives location from asset. It only re-derives on asset change, so a location set by hand afterwards survives; if the asset's location is not in the Active-only picker, the option is injected rather than silently failing
 
 ### Tests (`tests/`)

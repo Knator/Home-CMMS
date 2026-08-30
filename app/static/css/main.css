@@ -913,3 +913,60 @@ textarea { resize: vertical; min-height: 90px; }
 }
 
 .muted-number { color: var(--text-muted); }
+
+/* ── Searchable select (type-to-filter) ── */
+.combo { position: relative; }
+
+/* The native select stays in the DOM so the form still submits it; it is just
+   taken out of sight and out of the tab order. */
+.combo-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.combo-input { width: 100%; }
+
+.combo-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.combo-option {
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.combo-option.active { background: var(--accent); color: var(--accent-on); }
+.combo-option[aria-selected="true"] { font-weight: 600; }
+.combo-option[aria-selected="true"]::after { content: ' ✓'; }
+.combo-option.active[aria-selected="true"] { color: var(--accent-on); }
+
+.combo-empty {
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* The filter bar lays its controls out in a row, so the popup needs room. */
+.filters .combo { min-width: 180px; }

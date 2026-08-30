@@ -249,6 +249,18 @@ This guide takes you from a fresh clone to a running, testable app.
   So the normal way to retire something is to set it Decommissioned, not to
   delete it.
 
+  FINDING THINGS IN LONG DROPDOWNS
+  Asset, location, parent and job plan pickers filter as you type. Typing
+  matches anywhere in the entry, not just the start, so "nas" finds
+  "Synology NAS" and "kitchen" finds every asset in the Kitchen. Arrow keys
+  move, Enter picks, Escape cancels.
+
+  COMPLETED DATE
+  Work orders have a Completed Date you can set by hand — useful when logging
+  work after the fact. Leave it blank and set the status to Completed and it
+  fills in with today's date. Clearing it on a work order that is not completed
+  removes it.
+
   ATTACHMENT NAMES
   Every attachment can carry an optional friendly name — "Furnace manual"
   instead of MAN-4471-rev-c.pdf. Set it when uploading, or use Rename on any

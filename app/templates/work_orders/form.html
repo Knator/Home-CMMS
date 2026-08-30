@@ -48,7 +48,7 @@
                     data-summary-url="{{ url_for('assets.summary', id=0) }}">
               <option value="">— None —</option>
               {% for a in assets %}
-                <option value="{{ a.id }}" {{ 'selected' if is_edit and wo.asset_id == a.id }}>{{ a.name }}</option>
+                <option value="{{ a.id }}" {{ 'selected' if is_edit and wo.asset_id == a.id }}>{{ a.name }} ({{ a.asset_number }}){% if a.location %} — {{ a.location.path_label }}{% endif %}</option>
               {% endfor %}
             </select>
           </div>

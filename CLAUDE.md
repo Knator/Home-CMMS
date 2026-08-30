@@ -62,8 +62,16 @@ Each entity's list view is the `index` endpoint (`url_for('assets.index')`, etc.
 
 ### Models (`app/models/`)
 All models import from `app/extensions.py` (db). Key relationships:
-- `Location` → `Location` (self-referencing parent/child)
-- `Asset` → `Asset` (self-referencing parent/child, for sub-assemblies)
+- `Location` → `Location` (self-referencing parent/child). Names are unique **per
+  parent**, not globally, enforced by the `uq_locations_parent_name` functional index on
+  `(coalesce(parent_id, -1), lower(name))`. The COALESCE matters: SQL treats NULLs as
+  distinct, so a plain `UNIQUE(parent_id, name)` would allow two identically named
+  top-level locations. `sibling_name_taken()` mirrors the rule so the form can explain a
+  clash instead of surfacing an IntegrityError.
+- `Asset` → `Asset` (self-referencing parent/child, for sub-assemblies). Assets carry a
+  stable `asset_number` (`AST-00001`); names are deliberately **not** unique, so the number
+  is what distinguishes two assets sharing a name. Pickers render
+  `name (AST-00001) — location path` for that reason.
 - `Asset` → `Location` (many-to-one)
 - `WorkOrder` → `Asset`, `Location`, `JobPlan`, `PM`, `User` (assigned, creator)
 - `PM` → `Asset`, `Location`, `JobPlan`
@@ -83,6 +91,8 @@ Timestamps use `utcnow()` from `app/utils.py`, not the deprecated `datetime.utcn
 ### Services (`app/services.py`)
 Write paths shared by the routes and the scheduler. **Never insert a `WorkOrder` directly** — go through these, or you skip the WO-number collision retry:
 - `create_work_order(**fields)` — allocates the number, commits, retries on `IntegrityError`.
+- `create_asset(**fields)` — same for `asset_number`. **Never construct `Asset()` directly**;
+  `asset_number` is NOT NULL and only this allocates it.
 - `generate_work_order_for_pm(pm, ...)` — creates the WO *and* advances the PM in one transaction, so a crash between the two can't produce a duplicate on the next tick.
 - `location_delete_blockers(loc)` / `asset_delete_blockers(asset)` — the Maximo rule: a
   record that work has been logged against is never deleted, because that orphans the

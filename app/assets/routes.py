@@ -7,7 +7,9 @@ from app.models.asset import Asset, ASSET_CATEGORIES
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
-from app.services import asset_delete_blockers, hierarchy_ordered, selectable_locations
+from app.services import (
+    asset_delete_blockers, create_asset, hierarchy_ordered, selectable_locations,
+)
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads,
     parse_date, parse_int, choice,
@@ -108,16 +110,15 @@ def create():
                 flash(e, 'error')
             return render_template('assets/form.html', **_form_context())
 
-        asset = Asset(
+        asset = create_asset(
             name=name,
             location_id=parse_int(request.form.get('location_id')),
             parent_id=parent.id if parent else None,
             status=status,
         )
         _apply_common_fields(asset)
-        db.session.add(asset)
         db.session.commit()
-        flash('Asset created.', 'success')
+        flash(f'Asset {asset.asset_number} created.', 'success')
         return redirect(url_for('assets.detail', id=asset.id))
 
     return render_template('assets/form.html', **_form_context())

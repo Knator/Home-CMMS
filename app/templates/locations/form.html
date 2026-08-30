@@ -22,7 +22,7 @@
                 {{ 'selected' if location and location.parent_id == p.id }}>{{ p.path_label }}</option>
             {% endfor %}
           </select>
-          <span class="field-hint">A location cannot sit beneath one of its own children.</span>
+          <span class="field-hint">A location cannot sit beneath one of its own children. Names need only be unique among locations sharing the same parent.</span>
         </div>
         <div class="form-group">
           <label for="status">Status</label>

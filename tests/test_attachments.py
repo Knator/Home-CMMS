@@ -5,6 +5,7 @@ import os
 import pytest
 
 from app.models.attachment import Attachment
+from app.services import create_asset
 from app.utils import entity_upload_dir
 from tests.conftest import CSRF
 
@@ -17,11 +18,7 @@ def upload(client, url, filename='manual.pdf', content=b'%PDF-1.4 fake'):
 
 @pytest.fixture
 def asset(db):
-    from app.models.asset import Asset
-    a = Asset(name='Water Heater')
-    db.session.add(a)
-    db.session.commit()
-    return a
+    return create_asset(name='Water Heater')
 
 
 def test_upload_then_download(client, app, asset, user, login):
@@ -56,7 +53,7 @@ def test_deleting_an_asset_purges_its_attachments(client, app, db, asset, user, 
 
 
 def test_deleting_a_work_order_purges_its_attachments(client, app, db, user, login):
-    from app.services import create_work_order
+    from app.services import create_asset, create_work_order
 
     login()
     wo = create_work_order(title='Leaky tap', created_by=user.id)

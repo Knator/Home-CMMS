@@ -13,8 +13,12 @@ ASSET_CATEGORIES = [
 
 class Asset(LifecycleMixin, HierarchyMixin, db.Model):
     __tablename__ = 'assets'
+    __table_args__ = (
+        db.Index('uq_assets_asset_number', 'asset_number', unique=True),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
+    asset_number = db.Column(db.String(20), nullable=False)
     name = db.Column(db.String(120), nullable=False)
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=True, index=True)
@@ -38,8 +42,35 @@ class Asset(LifecycleMixin, HierarchyMixin, db.Model):
                                   order_by='WorkOrder.created_at.desc()')
     pms = db.relationship('PM', backref='asset', lazy='dynamic')
 
+    @staticmethod
+    def generate_asset_number():
+        """Next AST-NNNNN.
+
+        Read-then-write like work order numbers, so the unique index is the real
+        guard; create_asset() in app/services.py retries on collision. Assets are
+        long-lived, so the sequence is not year-scoped.
+        """
+        last = (
+            Asset.query
+            .filter(Asset.asset_number.like('AST-%'))
+            .order_by(Asset.asset_number.desc())
+            .first()
+        )
+        seq = 1
+        if last:
+            try:
+                seq = int(last.asset_number.rsplit('-', 1)[-1]) + 1
+            except ValueError:
+                seq = 1
+        return f'AST-{seq:05d}'
+
+    @property
+    def display_label(self):
+        """Name plus number, for pickers where two assets may share a name."""
+        return f'{self.name} ({self.asset_number})'
+
     def __repr__(self):
-        return f'<Asset {self.name}>'
+        return f'<Asset {self.asset_number} {self.name}>'
 
 
 ASSET_STATUSES = LIFECYCLE_STATUSES

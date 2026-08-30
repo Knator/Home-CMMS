@@ -6,7 +6,7 @@ from app.extensions import db
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
-from app.services import location_delete_blockers, hierarchy_ordered
+from app.services import location_delete_blockers, hierarchy_ordered, sibling_name_taken
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads,
     parse_int, choice,
@@ -35,10 +35,6 @@ def _read_form(location=None):
     errors = []
     if not name:
         errors.append('Name is required.')
-    else:
-        clash = Location.query.filter_by(name=name).first()
-        if clash and (location is None or clash.id != location.id):
-            errors.append('A location with that name already exists.')
 
     parent = None
     if parent_id is not None:
@@ -49,6 +45,13 @@ def _read_form(location=None):
             errors.append(
                 f"'{parent.name}' sits beneath this location, so it cannot also be its parent."
             )
+
+    # Names only have to be unique among siblings, so this is checked against
+    # the parent the form is submitting, not globally.
+    if name and not errors and sibling_name_taken(location, name, parent.id if parent else None):
+        where = f"under '{parent.name}'" if parent else 'at the top level'
+        errors.append(f"A location called '{name}' already exists {where}.")
+
     return name, parent, status, errors
 
 

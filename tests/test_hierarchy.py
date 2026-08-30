@@ -5,7 +5,7 @@ from app.models.asset import Asset
 from app.models.location import Location
 from app.models.mixins import STATUS_ACTIVE, STATUS_INACTIVE, STATUS_DECOMMISSIONED
 from app.services import (
-    asset_delete_blockers, location_delete_blockers, hierarchy_ordered,
+create_asset,     asset_delete_blockers, location_delete_blockers, hierarchy_ordered,
     selectable_assets, selectable_locations, create_work_order,
 )
 from tests.conftest import CSRF
@@ -24,12 +24,8 @@ def tree(db):
     db.session.add(utility)
     db.session.flush()
 
-    furnace = Asset(name='Furnace', location_id=utility.id)
-    db.session.add(furnace)
-    db.session.flush()
-    blower = Asset(name='Blower Motor', parent_id=furnace.id, location_id=utility.id)
-    db.session.add(blower)
-    db.session.commit()
+    furnace = create_asset(name='Furnace', location_id=utility.id)
+    blower = create_asset(name='Blower Motor', parent_id=furnace.id, location_id=utility.id)
     return dict(house=house, basement=basement, utility=utility,
                 furnace=furnace, blower=blower)
 

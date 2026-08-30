@@ -37,7 +37,7 @@
             <select name="parent_id">
               <option value="">— None (top level) —</option>
               {% for p in parents %}
-                <option value="{{ p.id }}" {{ 'selected' if is_edit and asset.parent_id == p.id }}>{{ p.path_label }}</option>
+                <option value="{{ p.id }}" {{ 'selected' if is_edit and asset.parent_id == p.id }}>{{ p.path_label }} ({{ p.asset_number }})</option>
               {% endfor %}
             </select>
             <span class="field-hint">For sub-assemblies, e.g. a compressor inside an HVAC unit. An asset cannot sit beneath one of its own children.</span>

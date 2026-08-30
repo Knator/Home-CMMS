@@ -7,7 +7,7 @@ from app.models.attachment import Attachment
 from app.models.asset import Asset
 from app.models.location import Location
 from app.models.work_order import WorkOrder
-from app.services import create_work_order
+from app.services import create_asset, create_work_order
 from tests.conftest import CSRF
 
 
@@ -115,9 +115,7 @@ def test_friendly_name_is_shown_with_the_real_filename(client, db, user, login):
 
 def test_roll_up_shows_friendly_names(client, db, user, login):
     login()
-    asset = Asset(name='Furnace')
-    db.session.add(asset)
-    db.session.commit()
+    asset = create_asset(name='Furnace')
     client.post(f'/assets/{asset.id}/attachments', data={
         'file': f('MAN-4471.pdf'), 'display_name': 'Furnace manual', 'csrf_token': CSRF,
     }, content_type='multipart/form-data')
@@ -213,9 +211,7 @@ def test_asset_summary_returns_its_location(client, db, user, login):
     basement = Location(name='Basement', parent_id=house.id)
     db.session.add(basement)
     db.session.flush()
-    furnace = Asset(name='Furnace', location_id=basement.id)
-    db.session.add(furnace)
-    db.session.commit()
+    furnace = create_asset(name='Furnace', location_id=basement.id)
 
     login()
     data = client.get(f'/assets/{furnace.id}/summary').get_json()
@@ -225,9 +221,7 @@ def test_asset_summary_returns_its_location(client, db, user, login):
 
 
 def test_asset_summary_handles_no_location(client, db, user, login):
-    asset = Asset(name='Spare')
-    db.session.add(asset)
-    db.session.commit()
+    asset = create_asset(name='Spare')
 
     login()
     data = client.get(f'/assets/{asset.id}/summary').get_json()

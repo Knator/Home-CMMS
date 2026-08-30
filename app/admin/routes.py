@@ -1,9 +1,16 @@
 from flask import render_template, redirect, url_for, flash, request
-from flask_login import login_required
+from flask_login import login_required, current_user
+
 from app.admin import bp
 from app.extensions import db
 from app.models.user import User
 from app.utils import validate_csrf, admin_required
+
+
+def _other_active_admins(user_id):
+    return User.query.filter(
+        User.role == 'admin', User.is_active.is_(True), User.id != user_id
+    ).count()
 
 
 @bp.route('/users')
@@ -24,17 +31,19 @@ def create_user():
         email = request.form.get('email', '').strip()
         password = request.form.get('password', '')
         role = request.form.get('role', 'user')
+        if role not in ('admin', 'user'):
+            role = 'user'
 
         errors = []
         if not username:
             errors.append('Username is required.')
-        if not email:
-            errors.append('Email is required.')
+        if '@' not in email:
+            errors.append('A valid email address is required.')
         if len(password) < 8:
             errors.append('Password must be at least 8 characters.')
-        if User.query.filter_by(username=username).first():
+        if username and User.query.filter_by(username=username).first():
             errors.append('Username already taken.')
-        if User.query.filter_by(email=email).first():
+        if email and User.query.filter_by(email=email).first():
             errors.append('Email already in use.')
 
         if errors:
@@ -56,24 +65,36 @@ def create_user():
 @login_required
 @admin_required
 def edit_user(id):
-    user = User.query.get_or_404(id)
+    user = db.get_or_404(User, id)
     if request.method == 'POST':
         validate_csrf()
         email = request.form.get('email', '').strip()
         role = request.form.get('role', 'user')
+        if role not in ('admin', 'user'):
+            role = 'user'
         new_password = request.form.get('new_password', '')
+
+        if '@' not in email:
+            flash('A valid email address is required.', 'error')
+            return render_template('admin/user_form.html', user=user)
 
         existing = User.query.filter_by(email=email).first()
         if existing and existing.id != id:
             flash('Email already in use.', 'error')
             return render_template('admin/user_form.html', user=user)
 
+        # Losing the last admin would leave user management unreachable.
+        if user.role == 'admin' and role != 'admin' and _other_active_admins(id) == 0:
+            flash('This is the only administrator; assign another admin first.', 'error')
+            return render_template('admin/user_form.html', user=user)
+
+        if new_password and len(new_password) < 8:
+            flash('Password must be at least 8 characters.', 'error')
+            return render_template('admin/user_form.html', user=user)
+
         user.email = email
         user.role = role
         if new_password:
-            if len(new_password) < 8:
-                flash('Password must be at least 8 characters.', 'error')
-                return render_template('admin/user_form.html', user=user)
             user.set_password(new_password)
 
         db.session.commit()
@@ -88,11 +109,15 @@ def edit_user(id):
 @admin_required
 def toggle_user(id):
     validate_csrf()
-    user = User.query.get_or_404(id)
-    from flask_login import current_user
+    user = db.get_or_404(User, id)
+
     if user.id == current_user.id:
         flash('You cannot deactivate your own account.', 'error')
         return redirect(url_for('admin.users'))
+    if user.is_active and user.role == 'admin' and _other_active_admins(id) == 0:
+        flash('This is the only active administrator; assign another admin first.', 'error')
+        return redirect(url_for('admin.users'))
+
     user.is_active = not user.is_active
     db.session.commit()
     state = 'activated' if user.is_active else 'deactivated'

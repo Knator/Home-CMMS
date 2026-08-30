@@ -1,4 +1,5 @@
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
+from app.utils import utcnow
 from app.extensions import db
 
 
@@ -15,18 +16,31 @@ class PM(db.Model):
     last_generated_date = db.Column(db.Date, nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
 
     location = db.relationship('Location', foreign_keys=[location_id], backref='pms')
     creator = db.relationship('User', foreign_keys=[created_by])
     generated_work_orders = db.relationship('WorkOrder', backref='source_pm', lazy='dynamic', foreign_keys='WorkOrder.pm_id')
 
-    def advance_schedule(self):
-        today = date.today()
+    def advance_schedule(self, on_date=None):
+        """Move the schedule to the next occurrence after `on_date`.
+
+        The next due date is anchored to the previous due date, not to the day
+        this happened to run, so a late scheduler tick or a manual "Generate WO
+        Now" does not permanently shift every future occurrence. If the PM is
+        several intervals overdue (the app was off for a while), whole intervals
+        are skipped so exactly one work order is generated to catch up.
+        """
+        today = on_date or date.today()
+        interval = timedelta(days=max(self.interval_days or 1, 1))
         self.last_generated_date = today
-        self.next_due_date = today + timedelta(days=self.interval_days)
+
+        next_due = (self.next_due_date or today) + interval
+        while next_due <= today:
+            next_due += interval
+        self.next_due_date = next_due
 
     @property
     def is_overdue(self):

@@ -1,4 +1,4 @@
-from datetime import datetime
+from app.utils import utcnow
 from app.extensions import db
 
 ASSET_CATEGORIES = [
@@ -22,8 +22,8 @@ class Asset(db.Model):
     install_date = db.Column(db.Date)
     warranty_expiry = db.Column(db.Date)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
 
     work_orders = db.relationship('WorkOrder', backref='asset', lazy='dynamic',
                                   order_by='WorkOrder.created_at.desc()')

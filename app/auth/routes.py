@@ -1,10 +1,10 @@
-from datetime import datetime
 from flask import render_template, redirect, url_for, flash, request, session
 from flask_login import login_user, logout_user, login_required, current_user
+
 from app.auth import bp
 from app.extensions import db
 from app.models.user import User
-from app.utils import validate_csrf
+from app.utils import validate_csrf, safe_redirect, utcnow
 
 
 @bp.route('/login', methods=['GET', 'POST'])
@@ -21,10 +21,11 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and user.is_active and user.check_password(password):
             login_user(user, remember=remember)
-            user.last_login = datetime.utcnow()
+            user.last_login = utcnow()
             db.session.commit()
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('main.dashboard'))
+            # Only same-origin relative paths; an absolute URL here would turn
+            # the login page into an open redirect.
+            return safe_redirect(request.args.get('next'))
 
         flash('Invalid username or password.', 'error')
 

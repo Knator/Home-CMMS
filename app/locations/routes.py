@@ -1,15 +1,18 @@
 from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
+
 from app.locations import bp
 from app.extensions import db
 from app.models.location import Location
 from app.models.attachment import Attachment
-from app.utils import validate_csrf, allowed_file, save_attachment
+from app.utils import validate_csrf, allowed_file, save_attachment, purge_entity_attachments
+
+ENTITY = 'location'
 
 
 @bp.route('/')
 @login_required
-def list():
+def index():
     locations = Location.query.order_by(Location.name).all()
     return render_template('locations/list.html', locations=locations)
 
@@ -43,15 +46,20 @@ def create():
 @bp.route('/<int:id>')
 @login_required
 def detail(id):
-    location = Location.query.get_or_404(id)
-    attachments = Attachment.query.filter_by(entity_type='location', entity_id=id).order_by(Attachment.uploaded_at.desc()).all()
+    location = db.get_or_404(Location, id)
+    attachments = (
+        Attachment.query
+        .filter_by(entity_type=ENTITY, entity_id=id)
+        .order_by(Attachment.uploaded_at.desc())
+        .all()
+    )
     return render_template('locations/detail.html', location=location, attachments=attachments)
 
 
 @bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit(id):
-    location = Location.query.get_or_404(id)
+    location = db.get_or_404(Location, id)
     if request.method == 'POST':
         validate_csrf()
         name = request.form.get('name', '').strip()
@@ -77,18 +85,19 @@ def edit(id):
 @login_required
 def delete(id):
     validate_csrf()
-    location = Location.query.get_or_404(id)
+    location = db.get_or_404(Location, id)
+    purge_entity_attachments(ENTITY, id)
     db.session.delete(location)
     db.session.commit()
     flash('Location deleted.', 'success')
-    return redirect(url_for('locations.list'))
+    return redirect(url_for('locations.index'))
 
 
 @bp.route('/<int:id>/attachments', methods=['POST'])
 @login_required
 def upload_attachment(id):
     validate_csrf()
-    location = Location.query.get_or_404(id)
+    db.get_or_404(Location, id)
     file = request.files.get('file')
     if not file or file.filename == '':
         flash('No file selected.', 'error')
@@ -97,9 +106,9 @@ def upload_attachment(id):
         flash('File type not allowed.', 'error')
         return redirect(url_for('locations.detail', id=id))
 
-    stored, original, size, mime = save_attachment(file, 'location', id)
+    stored, original, size, mime = save_attachment(file, ENTITY, id)
     att = Attachment(
-        entity_type='location', entity_id=id,
+        entity_type=ENTITY, entity_id=id,
         stored_filename=stored, original_filename=original,
         file_size=size, mime_type=mime, uploaded_by=current_user.id,
     )

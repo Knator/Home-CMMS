@@ -1,4 +1,4 @@
-from datetime import datetime
+from app.utils import utcnow
 from app.extensions import db
 
 ENTITY_TYPES = ['location', 'asset', 'work_order', 'job_plan', 'pm']
@@ -15,7 +15,7 @@ class Attachment(db.Model):
     file_size = db.Column(db.Integer)
     mime_type = db.Column(db.String(100))
     uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    uploaded_at = db.Column(db.DateTime, default=utcnow)
 
     uploader = db.relationship('User', backref='uploads')
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from app.utils import utcnow
 from app.extensions import db
 
 
@@ -19,8 +19,8 @@ class JobPlan(db.Model):
     name = db.Column(db.String(120), nullable=False)
     description = db.Column(db.Text)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
 
     tasks = db.relationship(

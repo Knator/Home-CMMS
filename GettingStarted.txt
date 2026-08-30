@@ -6,6 +6,8 @@ A self-hosted Flask CMMS for home maintenance: Locations, Assets, Work Orders
 (planned & unplanned), Job Plans, and Preventive Maintenance (PM) schedules that
 auto-generate work orders on a fixed-day interval.
 
+The database is SQLite — a single file, no database server to install or run.
+
 This guide takes you from a fresh clone to a running, testable app.
 
 
@@ -13,117 +15,93 @@ This guide takes you from a fresh clone to a running, testable app.
  0. PREREQUISITES
 --------------------------------------------------------------------------------
 
-  - Python 3.14 (already set up in .venv)
-  - PostgreSQL 13+ installed and running
+  - Python 3.11 or newer (the checked-in .venv uses 3.14)
 
-  Verify PostgreSQL is installed and running:
-
-      psql --version
-      pg_isready
-
-  If pg_isready says "no response", start it:
-      Linux (systemd):   sudo systemctl start postgresql
-      macOS (Homebrew):  brew services start postgresql
+  That is the whole list. SQLite ships with Python, so there is no database
+  server to install, start, or configure.
 
 
 --------------------------------------------------------------------------------
- 1. CREATE THE DATABASE
---------------------------------------------------------------------------------
-
-  Create a database and a user. From a shell:
-
-      sudo -u postgres psql
-
-  Then inside the psql prompt, run (change the password):
-
-      CREATE DATABASE home_cmms;
-      CREATE USER cmms_user WITH PASSWORD 'changeme';
-      GRANT ALL PRIVILEGES ON DATABASE home_cmms TO cmms_user;
-      \c home_cmms
-      GRANT ALL ON SCHEMA public TO cmms_user;
-      \q
-
-  (The last GRANT is needed on PostgreSQL 15+ so the user can create tables.)
-
-
---------------------------------------------------------------------------------
- 2. CONFIGURE ENVIRONMENT VARIABLES
---------------------------------------------------------------------------------
-
-  Copy the example env file:
-
-      cp .env.example .env
-
-  Edit .env and set:
-
-      FLASK_ENV=development
-      SECRET_KEY=<paste a long random string>
-      DATABASE_URL=postgresql://cmms_user:changeme@localhost/home_cmms
-      UPLOAD_FOLDER=<absolute path to the project's uploads/ folder>
-
-  Generate a strong SECRET_KEY with:
-
-      python -c "import secrets; print(secrets.token_hex(32))"
-
-  For UPLOAD_FOLDER, use the absolute path, e.g.:
-      /home/kevin/PycharmProjects/Home-CMMS/uploads
-
-
---------------------------------------------------------------------------------
- 3. ACTIVATE THE VIRTUALENV & INSTALL DEPENDENCIES
+ 1. ACTIVATE THE VIRTUALENV & INSTALL DEPENDENCIES
 --------------------------------------------------------------------------------
 
       source .venv/bin/activate
       pip install -r requirements.txt
 
-  (Dependencies are already installed if you ran this during setup, but this is
-  safe to re-run.)
+  If .venv does not exist or is broken, recreate it:
+
+      python -m venv .venv
+      source .venv/bin/activate
+      pip install -r requirements.txt
 
 
 --------------------------------------------------------------------------------
- 4. CREATE THE DATABASE TABLES (MIGRATIONS)
+ 2. CONFIGURE ENVIRONMENT VARIABLES (OPTIONAL)
+--------------------------------------------------------------------------------
+
+  Every setting has a working default for local development, so you can skip
+  this step entirely on a first run. To customise:
+
+      cp .env.example .env
+
+  The settings that matter:
+
+      FLASK_ENV=development
+      SECRET_KEY=<a long random string>
+      DATABASE_URL=sqlite:///instance/home_cmms.db   (default)
+      UPLOAD_FOLDER=<absolute path>                  (defaults to ./uploads)
+
+  Generate a strong SECRET_KEY with:
+
+      python -c "import secrets; print(secrets.token_hex(32))"
+
+  SECRET_KEY has a development fallback, but the app REFUSES TO START with
+  FLASK_ENV=production unless you set a real one. Sessions are signed with it,
+  so changing it later logs everybody out.
+
+  Relative sqlite:/// paths resolve against the project root, so the CLI and
+  the app always open the same file no matter where you launch them from.
+
+
+--------------------------------------------------------------------------------
+ 3. CREATE THE DATABASE TABLES (MIGRATIONS)
 --------------------------------------------------------------------------------
 
   The Flask CLI finds the app automatically via .flaskenv (FLASK_APP=run.py).
-
-  First time only — initialize the migrations folder:
-
-      flask db init
-
-  Generate the initial migration from the models:
-
-      flask db migrate -m "initial schema"
-
-  Apply it to the database:
+  The migrations/ folder is checked in, so all you need is:
 
       flask db upgrade
 
-  This creates all 8 tables: users, locations, assets, job_plans,
-  job_plan_tasks, work_orders, pms, attachments.
+  That creates instance/home_cmms.db with all 8 tables: users, locations,
+  assets, job_plans, job_plan_tasks, work_orders, pms, attachments.
 
-  NOTE: Any time you change a model in app/models/, re-run:
+  NOTE: Any time you change a model in app/models/, run:
       flask db migrate -m "describe your change"
       flask db upgrade
 
+  Migrations run in Alembic "batch mode" because SQLite cannot ALTER most
+  things in place — it rebuilds the table instead. This is already configured;
+  you do not have to do anything for it.
+
 
 --------------------------------------------------------------------------------
- 5. CREATE THE FIRST ADMIN USER
+ 4. CREATE THE FIRST ADMIN USER
 --------------------------------------------------------------------------------
 
       python create_admin.py
 
-  It will prompt for username, email, and password (min 8 characters).
-  This account has the 'admin' role and can manage other users.
+  It prompts for username, email, and password (min 8 characters, entered
+  twice, not echoed to the screen). This account has the 'admin' role and can
+  manage other users. Safe to re-run — it refuses duplicate usernames/emails.
 
 
 --------------------------------------------------------------------------------
- 6. RUN THE APPLICATION
+ 5. RUN THE APPLICATION
 --------------------------------------------------------------------------------
 
       flask run
 
-  Open http://127.0.0.1:5000 in your browser and log in with the admin
-  account you just created.
+  Open http://127.0.0.1:5000 and log in with the admin account you created.
 
   To make it reachable from other devices on your LAN (phone, tablet):
 
@@ -133,7 +111,21 @@ This guide takes you from a fresh clone to a running, testable app.
 
 
 --------------------------------------------------------------------------------
- 7. TEST THE APPLICATION (suggested walkthrough)
+ 6. RUN THE TESTS
+--------------------------------------------------------------------------------
+
+      pytest
+
+  48 tests covering auth and access control, CSRF, input validation, PM
+  schedule maths, the hourly scheduler, attachment cleanup, work order
+  numbering and status lifecycle, and that every page renders.
+
+  Tests build their own throwaway SQLite database in a temp directory and
+  never touch instance/home_cmms.db.
+
+
+--------------------------------------------------------------------------------
+ 7. TEST THE APPLICATION BY HAND (suggested walkthrough)
 --------------------------------------------------------------------------------
 
   Work through the features in this order — each builds on the last:
@@ -164,6 +156,7 @@ This guide takes you from a fresh clone to a running, testable app.
      - Type "unplanned", link it to the Water Heater asset, set a priority
        and a due date in the past to see the red "overdue" highlight. Save.
      - Edit it, set status to "completed" — note the completed timestamp.
+       Reopen it; the timestamp is kept as a record of when it was finished.
 
   f) CREATE A PM SCHEDULE (the core automation)
      - Sidebar > Preventive Maintenance > "+ New PM"
@@ -176,7 +169,7 @@ This guide takes you from a fresh clone to a running, testable app.
          * "Last Generated" is now today
      - The same generation happens automatically: a background scheduler
        checks every hour and creates planned work orders for any active PM
-       whose Next Due Date has arrived. (See note below.)
+       whose Next Due Date has arrived. (See section 9.)
 
   g) ADMIN: ADD A SECOND USER
      - Sidebar > Admin > Users > "+ New User"
@@ -188,7 +181,19 @@ This guide takes you from a fresh clone to a running, testable app.
 
 
 --------------------------------------------------------------------------------
- 8. HOW THE PM SCHEDULER WORKS
+ 8. WHERE YOUR DATA LIVES
+--------------------------------------------------------------------------------
+
+      instance/home_cmms.db     the entire database, one file
+      uploads/<type>/<id>/      attachment files, by entity
+
+  Both are gitignored. To BACK UP, copy both. SQLite runs in WAL mode, so you
+  may also see home_cmms.db-wal and home_cmms.db-shm alongside the database;
+  copy those too, or stop the app first so they are folded back in.
+
+
+--------------------------------------------------------------------------------
+ 9. HOW THE PM SCHEDULER WORKS
 --------------------------------------------------------------------------------
 
   - A background scheduler (APScheduler) starts inside the Flask process and
@@ -197,70 +202,90 @@ This guide takes you from a fresh clone to a running, testable app.
     has not already generated a work order today, then:
         * creates a PLANNED work order (carrying over the asset, location,
           and job plan), and
-        * advances the PM: next_due_date = today + interval_days,
-          last_generated_date = today.
+        * advances the PM: last_generated_date = today, and next_due_date
+          moves forward by one interval FROM THE PREVIOUS DUE DATE.
+  - Anchoring to the due date rather than to "today" is deliberate: a late
+    scheduler tick or a manual "Generate WO Now" therefore does not shift the
+    anniversary of every future occurrence. If a PM is several intervals
+    overdue (the app was off for a while), whole intervals are skipped so you
+    get one catch-up work order, not a backlog of them.
+  - The work order and the schedule advance commit as ONE transaction, so a
+    crash between them cannot produce a duplicate on the next tick.
   - Because it only runs hourly, a newly-due PM may take up to an hour to fire
     on its own. Use "Generate WO Now" on the PM page to trigger it instantly.
-  - The scheduler only runs while `flask run` (the app) is running. For
-    always-on generation, keep the app running (see Production note).
+  - A PM that fails to generate is logged and skipped; the others in that pass
+    still go through.
+  - The scheduler only runs while the app is running. Set SCHEDULER_ENABLED=0
+    to turn it off (create_admin.py and the tests do this automatically).
 
 
 --------------------------------------------------------------------------------
- 9. RESETTING THE DATABASE (during testing)
+ 10. RESETTING THE DATABASE (during testing)
 --------------------------------------------------------------------------------
 
   To wipe all data and start clean:
 
-      sudo -u postgres psql -c "DROP DATABASE home_cmms;"
-      sudo -u postgres psql -c "CREATE DATABASE home_cmms;"
-      sudo -u postgres psql -d home_cmms -c "GRANT ALL ON SCHEMA public TO cmms_user;"
+      rm -f instance/home_cmms.db*
+      rm -rf uploads/*/                # optional: also drop attachment files
       flask db upgrade
       python create_admin.py
 
 
 --------------------------------------------------------------------------------
- 10. TROUBLESHOOTING
+ 11. TROUBLESHOOTING
 --------------------------------------------------------------------------------
 
-  "could not connect to server" / OperationalError
-      - PostgreSQL isn't running, or DATABASE_URL is wrong. Check pg_isready
-        and the credentials in .env.
-
-  "permission denied for schema public" during flask db upgrade
-      - Run the schema GRANT from step 1 (needed on PostgreSQL 15+).
+  "no such table: users"
+      - You have not run the migrations yet. Run:  flask db upgrade
 
   "Target database is not up to date" / table already exists
       - You changed models without migrating. Run:
             flask db migrate -m "change"  &&  flask db upgrade
 
+  "database is locked"
+      - Two processes are writing at once. The app sets a 30-second busy
+        timeout and WAL mode, so this should be rare; it usually means a
+        second copy of the app is running. Stop the extra one.
+
+  "SECRET_KEY must be set when FLASK_ENV=production"
+      - Working as intended. Put a real SECRET_KEY in .env.
+
   flask: command not found
       - The virtualenv isn't active. Run:  source .venv/bin/activate
 
   Uploaded files don't save
-      - UPLOAD_FOLDER in .env must be an absolute path that exists and is
-        writable. The app auto-creates it on startup, but the parent dir must
-        be writable.
+      - UPLOAD_FOLDER must be a path the app can write to. It is created on
+        startup, but the parent directory must exist and be writable.
 
   Changes to .env not taking effect
-      - Restart `flask run`. Environment is read at startup.
+      - Restart the app. Environment is read at startup.
 
 
 --------------------------------------------------------------------------------
- 11. PRODUCTION / EXPOSING TO THE INTERNET (later)
+ 12. PRODUCTION / EXPOSING TO THE INTERNET (later)
 --------------------------------------------------------------------------------
 
   The auth layer (Flask-Login sessions, hashed passwords, CSRF tokens, secure
-  cookie flags) is built to be internet-ready, but before exposing it:
+  cookie flags, same-origin-only login redirects) is built to be
+  internet-ready, but before exposing it:
 
   - Set FLASK_ENV=production in .env. This flips SESSION_COOKIE_SECURE on, so
-    cookies are only sent over HTTPS.
+    cookies are only sent over HTTPS, and makes SECRET_KEY mandatory.
   - Do NOT use `flask run` in production. Use a WSGI server, e.g.:
         pip install gunicorn
-        gunicorn -w 4 "run:app"
-    (Note: with multiple workers, run ONE dedicated scheduler process to avoid
-    duplicate PM generation — or run the app single-worker for now.)
+        gunicorn -w 1 "run:app"
+    Use ONE worker. SQLite allows a single writer, and each extra worker would
+    start its own PM scheduler and generate duplicate work orders. For a
+    household-sized instance one worker is plenty. If you ever outgrow it, run
+    the app with SCHEDULER_ENABLED=0 across several workers and run one
+    dedicated scheduler process alongside them.
   - Put it behind a reverse proxy (nginx / Caddy) terminating TLS.
-  - Use a strong, unique SECRET_KEY and a strong database password.
+  - Use a strong, unique SECRET_KEY.
+  - There is no login rate limiting; if you expose this publicly, add it at the
+    proxy (nginx limit_req, Caddy rate_limit) or with Flask-Limiter.
+  - Every signed-in user can view and edit every record. The 'admin' role only
+    gates user management. Only give accounts to people you trust with all of
+    the data.
 
 ================================================================================
  You're ready. Start at step 1 and work down.

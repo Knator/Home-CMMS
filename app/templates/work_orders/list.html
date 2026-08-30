@@ -33,7 +33,7 @@
     {% endfor %}
   </select>
   {% if selected_status or selected_type or selected_priority %}
-    <a href="{{ url_for('work_orders.list') }}" class="btn btn-ghost btn-sm">Clear</a>
+    <a href="{{ url_for('work_orders.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}
 </form>
 

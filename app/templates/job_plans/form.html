@@ -59,7 +59,7 @@
           {% if is_edit %}
             <a href="{{ url_for('job_plans.detail', id=job_plan.id) }}" class="btn btn-secondary">Cancel</a>
           {% else %}
-            <a href="{{ url_for('job_plans.list') }}" class="btn btn-secondary">Cancel</a>
+            <a href="{{ url_for('job_plans.index') }}" class="btn btn-secondary">Cancel</a>
           {% endif %}
         </div>
       </form>

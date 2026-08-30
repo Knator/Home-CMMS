@@ -1,4 +1,5 @@
-from datetime import datetime, date
+from datetime import date
+from app.utils import utcnow
 from app.extensions import db
 
 WO_STATUSES = ['open', 'in_progress', 'on_hold', 'completed', 'cancelled']
@@ -39,8 +40,8 @@ class WorkOrder(db.Model):
     completed_date = db.Column(db.DateTime, nullable=True)
     description = db.Column(db.Text)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
 
     assignee = db.relationship('User', foreign_keys=[assigned_to], backref='assigned_work_orders')
@@ -48,6 +49,12 @@ class WorkOrder(db.Model):
 
     @staticmethod
     def generate_wo_number():
+        """Next WO-YYYY-NNNNN for the current year.
+
+        This is a read-then-write, so two concurrent creates can pick the same
+        number. The unique constraint catches that; create_work_order() in
+        app/services.py retries. Do not insert a work order without it.
+        """
         year = date.today().year
         prefix = f"WO-{year}-"
         last = (
@@ -56,7 +63,12 @@ class WorkOrder(db.Model):
             .order_by(WorkOrder.wo_number.desc())
             .first()
         )
-        seq = int(last.wo_number.split('-')[-1]) + 1 if last else 1
+        seq = 1
+        if last:
+            try:
+                seq = int(last.wo_number.rsplit('-', 1)[-1]) + 1
+            except ValueError:
+                seq = 1
         return f"{prefix}{seq:05d}"
 
     @property

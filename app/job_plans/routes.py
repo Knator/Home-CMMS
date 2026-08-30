@@ -1,15 +1,21 @@
 from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
+
 from app.job_plans import bp
 from app.extensions import db
 from app.models.job_plan import JobPlan, JobPlanTask
 from app.models.attachment import Attachment
-from app.utils import validate_csrf, allowed_file, save_attachment
+from app.utils import (
+    validate_csrf, allowed_file, save_attachment, purge_entity_attachments, parse_int,
+)
+
+ENTITY = 'job_plan'
+MAX_TASKS = 200
 
 
 @bp.route('/')
 @login_required
-def list():
+def index():
     job_plans = JobPlan.query.order_by(JobPlan.name).all()
     return render_template('job_plans/list.html', job_plans=job_plans)
 
@@ -44,16 +50,21 @@ def create():
 @bp.route('/<int:id>')
 @login_required
 def detail(id):
-    job_plan = JobPlan.query.get_or_404(id)
+    job_plan = db.get_or_404(JobPlan, id)
     tasks = job_plan.tasks.all()
-    attachments = Attachment.query.filter_by(entity_type='job_plan', entity_id=id).order_by(Attachment.uploaded_at.desc()).all()
+    attachments = (
+        Attachment.query
+        .filter_by(entity_type=ENTITY, entity_id=id)
+        .order_by(Attachment.uploaded_at.desc())
+        .all()
+    )
     return render_template('job_plans/detail.html', job_plan=job_plan, tasks=tasks, attachments=attachments)
 
 
 @bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit(id):
-    job_plan = JobPlan.query.get_or_404(id)
+    job_plan = db.get_or_404(JobPlan, id)
     if request.method == 'POST':
         validate_csrf()
         name = request.form.get('name', '').strip()
@@ -65,8 +76,12 @@ def edit(id):
         job_plan.description = request.form.get('description', '').strip() or None
         job_plan.notes = request.form.get('notes', '').strip() or None
 
-        # Replace all tasks
-        JobPlanTask.query.filter_by(job_plan_id=id).delete()
+        # Replace all tasks. Deleted through the session rather than a bulk
+        # query so the delete-orphan cascade and the identity map stay in sync.
+        for task in job_plan.tasks.all():
+            db.session.delete(task)
+        db.session.flush()
+
         _save_tasks(job_plan)
         db.session.commit()
         flash('Job plan updated.', 'success')
@@ -76,38 +91,44 @@ def edit(id):
 
 
 def _save_tasks(job_plan):
-    task_count = int(request.form.get('task_count', 0))
-    for i in range(task_count):
+    """Read the dynamic task rows off the submitted form.
+
+    task_count comes from a hidden field the browser maintains, so it is
+    untrusted: parse it defensively and cap the loop.
+    """
+    task_count = parse_int(request.form.get('task_count'), minimum=0) or 0
+    sequence = 1
+    for i in range(min(task_count, MAX_TASKS)):
         desc = request.form.get(f'task_{i}_description', '').strip()
         if not desc:
             continue
-        mins_raw = request.form.get(f'task_{i}_minutes', '').strip()
-        mins = int(mins_raw) if mins_raw.isdigit() else None
         task = JobPlanTask(
             job_plan_id=job_plan.id,
-            sequence=i + 1,
+            sequence=sequence,
             description=desc,
-            estimated_minutes=mins,
+            estimated_minutes=parse_int(request.form.get(f'task_{i}_minutes'), minimum=1),
         )
         db.session.add(task)
+        sequence += 1
 
 
 @bp.route('/<int:id>/delete', methods=['POST'])
 @login_required
 def delete(id):
     validate_csrf()
-    job_plan = JobPlan.query.get_or_404(id)
+    job_plan = db.get_or_404(JobPlan, id)
+    purge_entity_attachments(ENTITY, id)
     db.session.delete(job_plan)
     db.session.commit()
     flash('Job plan deleted.', 'success')
-    return redirect(url_for('job_plans.list'))
+    return redirect(url_for('job_plans.index'))
 
 
 @bp.route('/<int:id>/attachments', methods=['POST'])
 @login_required
 def upload_attachment(id):
     validate_csrf()
-    JobPlan.query.get_or_404(id)
+    db.get_or_404(JobPlan, id)
     file = request.files.get('file')
     if not file or file.filename == '':
         flash('No file selected.', 'error')
@@ -116,9 +137,9 @@ def upload_attachment(id):
         flash('File type not allowed.', 'error')
         return redirect(url_for('job_plans.detail', id=id))
 
-    stored, original, size, mime = save_attachment(file, 'job_plan', id)
+    stored, original, size, mime = save_attachment(file, ENTITY, id)
     att = Attachment(
-        entity_type='job_plan', entity_id=id,
+        entity_type=ENTITY, entity_id=id,
         stored_filename=stored, original_filename=original,
         file_size=size, mime_type=mime, uploaded_by=current_user.id,
     )

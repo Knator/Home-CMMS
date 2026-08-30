@@ -28,7 +28,7 @@
           {% if is_edit %}
             <a href="{{ url_for('locations.detail', id=location.id) }}" class="btn btn-secondary">Cancel</a>
           {% else %}
-            <a href="{{ url_for('locations.list') }}" class="btn btn-secondary">Cancel</a>
+            <a href="{{ url_for('locations.index') }}" class="btn btn-secondary">Cancel</a>
           {% endif %}
         </div>
       </form>

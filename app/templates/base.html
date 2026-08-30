@@ -18,11 +18,11 @@
     <a href="{{ url_for('main.dashboard') }}" class="{{ 'active' if request.endpoint == 'main.dashboard' }}">Dashboard</a>
 
     <div class="sidebar-section">Manage</div>
-    <a href="{{ url_for('locations.list') }}" class="{{ 'active' if request.blueprint == 'locations' }}">Locations</a>
-    <a href="{{ url_for('assets.list') }}" class="{{ 'active' if request.blueprint == 'assets' }}">Assets</a>
-    <a href="{{ url_for('work_orders.list') }}" class="{{ 'active' if request.blueprint == 'work_orders' }}">Work Orders</a>
-    <a href="{{ url_for('job_plans.list') }}" class="{{ 'active' if request.blueprint == 'job_plans' }}">Job Plans</a>
-    <a href="{{ url_for('pms.list') }}" class="{{ 'active' if request.blueprint == 'pms' }}">Preventive Maintenance</a>
+    <a href="{{ url_for('locations.index') }}" class="{{ 'active' if request.blueprint == 'locations' }}">Locations</a>
+    <a href="{{ url_for('assets.index') }}" class="{{ 'active' if request.blueprint == 'assets' }}">Assets</a>
+    <a href="{{ url_for('work_orders.index') }}" class="{{ 'active' if request.blueprint == 'work_orders' }}">Work Orders</a>
+    <a href="{{ url_for('job_plans.index') }}" class="{{ 'active' if request.blueprint == 'job_plans' }}">Job Plans</a>
+    <a href="{{ url_for('pms.index') }}" class="{{ 'active' if request.blueprint == 'pms' }}">Preventive Maintenance</a>
 
     {% if current_user.is_admin %}
     <div class="sidebar-section">Admin</div>

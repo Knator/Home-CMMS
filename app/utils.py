@@ -1,10 +1,42 @@
-import secrets
 import os
+import secrets
+import shutil
 import uuid
+from datetime import date, datetime, timezone
 from functools import wraps
+from urllib.parse import urlparse
+
 from flask import session, request, abort, redirect, url_for, flash, current_app
 from flask_login import current_user
 from werkzeug.utils import secure_filename
+
+
+def utcnow():
+    """Naive UTC timestamp.
+
+    datetime.utcnow() is deprecated from Python 3.12 on; this keeps the same
+    stored value (naive, UTC) without the warning.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def parse_date(value):
+    """ISO date string -> date, or None if absent/malformed."""
+    try:
+        return date.fromisoformat(value) if value else None
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_int(value, minimum=None):
+    """Int from untrusted input, or None. Never raises on junk query strings."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if minimum is not None and parsed < minimum:
+        return None
+    return parsed
 
 
 def generate_csrf_token():
@@ -15,8 +47,23 @@ def generate_csrf_token():
 
 def validate_csrf():
     token = request.form.get('csrf_token')
-    if not token or token != session.get('csrf_token'):
+    expected = session.get('csrf_token')
+    if not token or not expected or not secrets.compare_digest(token, expected):
         abort(403)
+
+
+def is_safe_redirect_url(target):
+    """True only for same-origin relative paths, so ?next= cannot send a user off-site."""
+    if not target:
+        return False
+    parsed = urlparse(target)
+    return not parsed.scheme and not parsed.netloc and target.startswith('/') and not target.startswith('//')
+
+
+def safe_redirect(target, fallback_endpoint='main.dashboard'):
+    if is_safe_redirect_url(target):
+        return redirect(target)
+    return redirect(url_for(fallback_endpoint))
 
 
 def admin_required(f):
@@ -36,14 +83,34 @@ def allowed_file(filename):
     )
 
 
+def entity_upload_dir(entity_type, entity_id):
+    return os.path.join(current_app.config['UPLOAD_FOLDER'], entity_type, str(entity_id))
+
+
 def save_attachment(file, entity_type, entity_id):
-    original_filename = secure_filename(file.filename)
+    original_filename = secure_filename(file.filename) or 'upload'
     stored_filename = f"{uuid.uuid4().hex}_{original_filename}"
-    upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], entity_type, str(entity_id))
+    upload_dir = entity_upload_dir(entity_type, entity_id)
     os.makedirs(upload_dir, exist_ok=True)
     file_path = os.path.join(upload_dir, stored_filename)
     file.save(file_path)
     return stored_filename, original_filename, os.path.getsize(file_path), file.content_type
+
+
+def purge_entity_attachments(entity_type, entity_id):
+    """Delete an entity's attachment rows and its upload directory.
+
+    Attachments are polymorphic (entity_type + entity_id, no foreign key), so
+    nothing in the database cleans them up when the parent row goes away. Every
+    entity delete route must call this or the rows and files are orphaned.
+    """
+    from app.extensions import db
+    from app.models.attachment import Attachment
+
+    Attachment.query.filter_by(entity_type=entity_type, entity_id=entity_id).delete(
+        synchronize_session=False
+    )
+    shutil.rmtree(entity_upload_dir(entity_type, entity_id), ignore_errors=True)
 
 
 def format_file_size(size_bytes):

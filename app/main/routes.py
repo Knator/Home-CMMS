@@ -20,7 +20,7 @@ def dashboard():
         WorkOrder.due_date.isnot(None),
     ).count()
     pms_due_count = PM.query.filter(
-        PM.is_active == True,
+        PM.is_active.is_(True),
         PM.next_due_date <= soon,
     ).count()
     asset_count = Asset.query.count()
@@ -28,7 +28,7 @@ def dashboard():
     recent_wos = WorkOrder.query.order_by(WorkOrder.created_at.desc()).limit(10).all()
     pms_due_soon = (
         PM.query
-        .filter(PM.is_active == True, PM.next_due_date <= soon)
+        .filter(PM.is_active.is_(True), PM.next_due_date <= soon)
         .order_by(PM.next_due_date)
         .limit(10)
         .all()

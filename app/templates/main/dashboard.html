@@ -27,7 +27,7 @@
   <div class="card mb-0">
     <div class="card-header">
       <span class="card-title">Recent Work Orders</span>
-      <a href="{{ url_for('work_orders.list') }}" class="btn btn-secondary btn-sm">View all</a>
+      <a href="{{ url_for('work_orders.index') }}" class="btn btn-secondary btn-sm">View all</a>
     </div>
     <div class="table-wrap">
       {% if recent_wos %}
@@ -53,7 +53,7 @@
   <div class="card mb-0">
     <div class="card-header">
       <span class="card-title">PMs Due Soon</span>
-      <a href="{{ url_for('pms.list') }}" class="btn btn-secondary btn-sm">View all</a>
+      <a href="{{ url_for('pms.index') }}" class="btn btn-secondary btn-sm">View all</a>
     </div>
     <div class="table-wrap">
       {% if pms_due_soon %}

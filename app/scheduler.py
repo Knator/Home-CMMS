@@ -1,47 +1,56 @@
+import atexit
+import logging
 from datetime import date
+
 from apscheduler.schedulers.background import BackgroundScheduler
+
+log = logging.getLogger(__name__)
 
 
 def run_pm_check(app):
+    """Generate work orders for every PM that has come due."""
     with app.app_context():
         from app.extensions import db
         from app.models.pm import PM
-        from app.models.work_order import WorkOrder
+        from app.services import generate_work_order_for_pm
 
         today = date.today()
         # NULL last_generated_date (brand-new PM) must still match, so guard the
         # "already generated today" check with an explicit IS NULL — SQL treats
         # `NULL != today` as NULL, which would silently exclude new PMs.
         due_pms = PM.query.filter(
-            PM.is_active == True,
+            PM.is_active.is_(True),
             PM.next_due_date <= today,
             db.or_(PM.last_generated_date.is_(None), PM.last_generated_date != today),
         ).all()
 
+        generated = 0
         for pm in due_pms:
-            wo_number = WorkOrder.generate_wo_number()
-            wo = WorkOrder(
-                wo_number=wo_number,
-                title=pm.name,
-                wo_type='planned',
-                status='open',
-                priority='medium',
-                asset_id=pm.asset_id,
-                location_id=pm.location_id,
-                job_plan_id=pm.job_plan_id,
-                pm_id=pm.id,
-                due_date=pm.next_due_date,
-                description=f"Auto-generated from PM schedule: {pm.name}",
-            )
-            db.session.add(wo)
-            pm.advance_schedule()
+            # Each PM commits on its own so one failure cannot discard the work
+            # orders already generated in this pass.
+            try:
+                wo = generate_work_order_for_pm(pm, on_date=today)
+                generated += 1
+                log.info("PM %s (%s) generated work order %s", pm.id, pm.name, wo.wo_number)
+            except Exception:
+                db.session.rollback()
+                log.exception("Failed to generate a work order for PM %s (%s)", pm.id, pm.name)
 
-        if due_pms:
-            db.session.commit()
+        if generated:
+            log.info("PM check generated %d work order(s)", generated)
+        return generated
 
 
 def start_scheduler(app):
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(run_pm_check, 'interval', hours=1, args=[app], id='pm_check', replace_existing=True)
+    scheduler = BackgroundScheduler(daemon=True)
+    scheduler.add_job(
+        run_pm_check, 'interval', hours=1, args=[app], id='pm_check',
+        replace_existing=True,
+        # If the process was busy or asleep, run once on resume rather than
+        # firing every missed hour.
+        coalesce=True, max_instances=1, misfire_grace_time=3600,
+    )
     scheduler.start()
+    atexit.register(lambda: scheduler.shutdown(wait=False))
+    log.info("PM scheduler started (hourly)")
     return scheduler

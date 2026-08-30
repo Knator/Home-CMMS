@@ -2,6 +2,11 @@
 __pycache__/
 *.pyc
 .env
+.pytest_cache/
+instance/
+*.db
+*.db-wal
+*.db-shm
 uploads/*
 !uploads/.gitkeep
 .idea/

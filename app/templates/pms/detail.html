@@ -25,7 +25,7 @@
       <button type="submit" class="btn btn-secondary">{{ 'Deactivate' if pm.is_active else 'Activate' }}</button>
     </form>
     <a href="{{ url_for('pms.edit', id=pm.id) }}" class="btn btn-secondary">Edit</a>
-    <a href="{{ url_for('pms.list') }}" class="btn btn-ghost">← Back</a>
+    <a href="{{ url_for('pms.index') }}" class="btn btn-ghost">← Back</a>
   </div>
 </div>
 

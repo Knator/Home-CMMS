@@ -896,3 +896,20 @@ textarea { resize: vertical; min-height: 90px; }
 }
 
 .form-subsection .field-hint { display: block; margin-bottom: 10px; }
+
+/* ── Asset numbers ── */
+.mono-cell,
+.asset-number,
+.muted-number {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.asset-number {
+  padding: 2px 8px;
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.muted-number { color: var(--text-muted); }

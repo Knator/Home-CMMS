@@ -35,6 +35,46 @@ def create_work_order(**fields):
     raise RuntimeError('Could not allocate a unique work order number.')
 
 
+def create_asset(**fields):
+    """Insert and commit one asset, assigning the next AST- number.
+
+    Same read-then-write race as work order numbers: the unique constraint
+    rejects a duplicate and we retry with a freshly read number.
+    """
+    from app.models.asset import Asset
+
+    for attempt in range(MAX_NUMBER_ATTEMPTS):
+        asset = Asset(asset_number=Asset.generate_asset_number(), **fields)
+        db.session.add(asset)
+        try:
+            db.session.commit()
+            return asset
+        except IntegrityError:
+            db.session.rollback()
+            log.warning(
+                "Asset number collision (attempt %d/%d), retrying",
+                attempt + 1, MAX_NUMBER_ATTEMPTS,
+            )
+    raise RuntimeError('Could not allocate a unique asset number.')
+
+
+def sibling_name_taken(location, name, parent_id):
+    """True if another location under the same parent already uses this name.
+
+    Mirrors the uq_locations_parent_name index (per-parent, case-insensitive) so
+    the form can explain the clash instead of surfacing an IntegrityError.
+    """
+    from app.models.location import Location
+
+    q = Location.query.filter(
+        db.func.lower(Location.name) == name.lower(),
+        Location.parent_id.is_(None) if parent_id is None else Location.parent_id == parent_id,
+    )
+    if location is not None and location.id is not None:
+        q = q.filter(Location.id != location.id)
+    return db.session.query(q.exists()).scalar()
+
+
 def generate_work_order_for_pm(pm, created_by=None, description=None, on_date=None):
     """Create the PM's next work order and advance the schedule in one transaction.
 

@@ -7,7 +7,7 @@ from app.models.asset import Asset
 from app.models.job_plan import JobPlan
 from app.models.location import Location
 from app.models.pm import PM
-from app.services import create_work_order, related_attachments
+from app.services import create_asset, create_work_order, related_attachments
 from tests.conftest import CSRF
 
 
@@ -21,12 +21,10 @@ def world(db, user):
     db.session.add(basement)
     db.session.flush()
 
-    hvac = Asset(name='HVAC System', location_id=basement.id)
-    db.session.add(hvac)
-    db.session.flush()
-    furnace = Asset(name='Furnace', parent_id=hvac.id, location_id=basement.id)
+    hvac = create_asset(name='HVAC System', location_id=basement.id)
+    furnace = create_asset(name='Furnace', parent_id=hvac.id, location_id=basement.id)
     plan = JobPlan(name='Filter change')
-    db.session.add_all([furnace, plan])
+    db.session.add(plan)
     db.session.flush()
 
     from datetime import date

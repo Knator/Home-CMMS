@@ -10,16 +10,16 @@ def seeded(db, admin):
     from app.models.asset import Asset
     from app.models.job_plan import JobPlan, JobPlanTask
     from app.models.pm import PM
-    from app.services import create_work_order
+    from app.services import create_asset, create_work_order
     from datetime import date
 
     loc = Location(name='Garage')
     db.session.add(loc)
     db.session.flush()
 
-    asset = Asset(name='Water Heater', location_id=loc.id, category='Plumbing')
+    asset = create_asset(name='Water Heater', location_id=loc.id, category='Plumbing')
     plan = JobPlan(name='Flush', created_by=admin.id)
-    db.session.add_all([asset, plan])
+    db.session.add(plan)
     db.session.flush()
 
     db.session.add(JobPlanTask(job_plan_id=plan.id, sequence=1, description='Drain'))

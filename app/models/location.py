@@ -7,9 +7,24 @@ from app.models.mixins import (
 
 class Location(LifecycleMixin, HierarchyMixin, db.Model):
     __tablename__ = 'locations'
+    __table_args__ = (
+        # Names are unique among siblings, not globally, so "Basement > Bathroom"
+        # and "Main Floor > Bathroom" can coexist.
+        #
+        # COALESCE is required: SQL treats NULLs as distinct, so a plain
+        # UNIQUE(parent_id, name) would happily allow two top-level locations
+        # with the same name. lower() makes the rule case-insensitive, matching
+        # what the form checks.
+        db.Index(
+            'uq_locations_parent_name',
+            db.func.coalesce(db.text('parent_id'), db.text('-1')),
+            db.func.lower(db.text('name')),
+            unique=True,
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), unique=True, nullable=False)
+    name = db.Column(db.String(120), nullable=False)
     parent_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True, index=True)
     status = db.Column(db.String(20), nullable=False, default=STATUS_ACTIVE,
                        server_default=STATUS_ACTIVE)

@@ -39,10 +39,11 @@
   <div class="table-wrap">
     {% if rows %}
     <table>
-      <thead><tr><th>Name</th><th>Status</th><th>Category</th><th>Location</th><th>Make / Model</th><th>Install Date</th><th></th></tr></thead>
+      <thead><tr><th>Asset #</th><th>Name</th><th>Status</th><th>Category</th><th>Location</th><th>Make / Model</th><th>Install Date</th><th></th></tr></thead>
       <tbody>
         {% for a, depth in rows %}
         <tr>
+          <td class="mono-cell">{{ a.asset_number }}</td>
           <td>
             <span class="tree-indent" style="--depth: {{ depth }}">
               {% if depth %}<span class="tree-branch" aria-hidden="true">└</span>{% endif %}

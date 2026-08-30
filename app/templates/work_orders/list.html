@@ -55,7 +55,7 @@
           <td><span class="badge badge-type-{{ wo.wo_type }}">{{ wo.wo_type }}</span></td>
           <td><span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span></td>
           <td><span class="badge {{ wo.priority_class }}">{{ wo.priority }}</span></td>
-          <td>{{ wo.asset.name if wo.asset else '—' }}</td>
+          <td>{% if wo.asset %}<a class="row-link" href="{{ url_for('assets.detail', id=wo.asset.id) }}">{{ wo.asset.name }}</a> <span class="muted-number">{{ wo.asset.asset_number }}</span>{% else %}—{% endif %}</td>
           <td class="{{ 'text-danger' if wo.is_overdue }}">{{ wo.due_date.strftime('%Y-%m-%d') if wo.due_date else '—' }}</td>
           <td><a href="{{ url_for('work_orders.edit', id=wo.id) }}" class="btn btn-ghost btn-sm">Edit</a></td>
         </tr>

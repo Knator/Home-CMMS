@@ -19,7 +19,7 @@
             <select name="asset_id">
               <option value="">— None —</option>
               {% for a in assets %}
-                <option value="{{ a.id }}" {{ 'selected' if is_edit and pm.asset_id == a.id }}>{{ a.name }}</option>
+                <option value="{{ a.id }}" {{ 'selected' if is_edit and pm.asset_id == a.id }}>{{ a.name }} ({{ a.asset_number }}){% if a.location %} — {{ a.location.path_label }}{% endif %}</option>
               {% endfor %}
             </select>
           </div>

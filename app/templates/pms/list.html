@@ -27,7 +27,7 @@
         {% for pm in pms %}
         <tr class="{{ 'overdue-row' if pm.is_overdue }}">
           <td><a class="row-link" href="{{ url_for('pms.detail', id=pm.id) }}">{{ pm.name }}</a></td>
-          <td>{{ pm.asset.name if pm.asset else '—' }}</td>
+          <td>{% if pm.asset %}<a class="row-link" href="{{ url_for('assets.detail', id=pm.asset.id) }}">{{ pm.asset.name }}</a> <span class="muted-number">{{ pm.asset.asset_number }}</span>{% else %}—{% endif %}</td>
           <td>Every {{ pm.interval_days }} days</td>
           <td class="{{ 'text-danger' if pm.is_overdue }}">{{ pm.next_due_date.strftime('%Y-%m-%d') }}</td>
           <td>{{ pm.last_generated_date.strftime('%Y-%m-%d') if pm.last_generated_date else '—' }}</td>

@@ -214,6 +214,17 @@ This guide takes you from a fresh clone to a running, testable app.
   edit form; list pages show the tree indented. A record can never be placed
   beneath one of its own children — the form rejects that with an explanation.
 
+  NAMES AND NUMBERS
+  Every asset gets a permanent number (AST-00001, AST-00002, ...) shown in
+  lists, on the detail page and in every picker. Asset names do NOT have to be
+  unique — two "Router" entries are fine, and the number plus the location tells
+  them apart when you are choosing one.
+
+  Location names must be unique among locations sharing the same parent, and the
+  check ignores capitalisation. So "Basement > Bathroom" and "Main Floor >
+  Bathroom" can both exist, but two "Bathroom"s directly under Basement cannot,
+  and neither can two top-level locations with the same name.
+
   STATUS
   Every location and asset has one of three statuses:
 

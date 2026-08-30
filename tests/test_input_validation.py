@@ -1,4 +1,5 @@
 """Untrusted query-string and form values must not raise 500s."""
+from app.services import create_asset
 from tests.conftest import CSRF
 
 
@@ -16,9 +17,8 @@ def test_asset_filter_with_valid_location_id(client, db, user, login):
     garage = Location(name='Garage')
     db.session.add(garage)
     db.session.commit()
-    db.session.add(Asset(name='Water Heater', location_id=garage.id))
-    db.session.add(Asset(name='Mower'))
-    db.session.commit()
+    create_asset(name='Water Heater', location_id=garage.id)
+    create_asset(name='Mower')
 
     login()
     response = client.get(f'/assets/?location_id={garage.id}')

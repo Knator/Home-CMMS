@@ -9,7 +9,10 @@ from app.models.work_order import WorkOrder, WO_STATUSES, WO_PRIORITIES, WO_TYPE
 from app.models.job_plan import JobPlan
 from app.models.user import User
 from app.models.attachment import Attachment
-from app.services import create_work_order, related_attachments, selectable_assets, selectable_locations
+from app.services import (
+    create_work_order, related_attachments, selectable_assets, selectable_locations,
+    sync_pm_schedule,
+)
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, upload_rows_from_form,
     parse_date, parse_int, choice,
@@ -124,6 +127,8 @@ def create():
         # Attachments are filed under the work order's id, so they can only be
         # stored once it exists — create_work_order() has already committed.
         _store_form_uploads(wo.id)
+        if sync_pm_schedule(wo):
+            db.session.commit()
         flash(f'Work order {wo.wo_number} created.', 'success')
         return redirect(url_for('work_orders.detail', id=wo.id))
 
@@ -175,6 +180,8 @@ def edit(id):
         wo.completed_date = _resolve_completed_date(wo.status, wo.completed_date)
 
         _store_form_uploads(wo.id, commit=False)
+        # A floating PM re-anchors to this completion date.
+        sync_pm_schedule(wo)
         db.session.commit()
         flash('Work order updated.', 'success')
         return redirect(url_for('work_orders.detail', id=id))

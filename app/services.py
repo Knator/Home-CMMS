@@ -35,6 +35,22 @@ def create_work_order(**fields):
     raise RuntimeError('Could not allocate a unique work order number.')
 
 
+def sync_pm_schedule(work_order):
+    """Re-anchor a floating PM after its work order's completion changed.
+
+    Called from the work order create and edit paths. Needs the work order's
+    completion date already flushed, because the PM re-reads it from the
+    database to find the latest completion across all its work orders.
+    """
+    if work_order.pm_id is None:
+        return False
+    pm = work_order.source_pm
+    if pm is None:
+        return False
+    db.session.flush()
+    return pm.reschedule_from_completion()
+
+
 def create_asset(**fields):
     """Insert and commit one asset, assigning the next AST- number.
 

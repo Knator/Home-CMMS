@@ -970,3 +970,66 @@ textarea { resize: vertical; min-height: 90px; }
 
 /* The filter bar lays its controls out in a row, so the popup needs room. */
 .filters .combo { min-width: 180px; }
+
+/* ── Asset photo ── */
+.asset-photo { margin: 0 0 14px; }
+
+.asset-photo img {
+  display: block;
+  max-width: 100%;
+  /* Big enough to be useful, capped so a large upload cannot dominate the page. */
+  max-height: 420px;
+  width: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--card-border);
+  background: var(--surface-subtle);
+}
+
+.asset-photo figcaption {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+a.asset-link { color: var(--accent); text-decoration: none; }
+a.asset-link:hover { text-decoration: underline; }
+
+/* ── Photo controls on the asset edit form ── */
+.photo-edit {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.photo-thumb {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--card-border);
+  background: var(--surface-subtle);
+}
+
+.photo-edit-fields {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+}
+
+.checkbox-label input { width: auto; }

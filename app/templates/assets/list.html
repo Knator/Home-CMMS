@@ -43,7 +43,7 @@
       <tbody>
         {% for a, depth in rows %}
         <tr>
-          <td class="mono-cell">{{ a.asset_number }}</td>
+          <td><a class="mono-cell asset-link" href="{{ url_for('assets.detail', id=a.id) }}">{{ a.asset_number }}</a></td>
           <td>
             <span class="tree-indent" style="--depth: {{ depth }}">
               {% if depth %}<span class="tree-branch" aria-hidden="true">└</span>{% endif %}

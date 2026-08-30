@@ -24,6 +24,13 @@ class Asset(LifecycleMixin, HierarchyMixin, db.Model):
     parent_id = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=True, index=True)
     status = db.Column(db.String(20), nullable=False, default=STATUS_ACTIVE,
                        server_default=STATUS_ACTIVE)
+    # Optional photo. ON DELETE SET NULL so removing the underlying attachment
+    # (or purging the asset's files) cannot leave a dangling reference.
+    image_attachment_id = db.Column(
+        db.Integer,
+        db.ForeignKey('attachments.id', ondelete='SET NULL', name='fk_assets_image_attachment'),
+        nullable=True,
+    )
     category = db.Column(db.String(50))
     make = db.Column(db.String(100))
     model = db.Column(db.String(100))
@@ -38,6 +45,7 @@ class Asset(LifecycleMixin, HierarchyMixin, db.Model):
     parent = db.relationship(
         'Asset', remote_side=[id], backref=db.backref('children', order_by='Asset.name'),
     )
+    image = db.relationship('Attachment', foreign_keys=[image_attachment_id])
     work_orders = db.relationship('WorkOrder', backref='asset', lazy='dynamic',
                                   order_by='WorkOrder.created_at.desc()')
     pms = db.relationship('PM', backref='asset', lazy='dynamic')

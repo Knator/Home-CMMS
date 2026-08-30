@@ -1,3 +1,5 @@
+import os
+
 from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 
@@ -11,7 +13,8 @@ from app.services import (
     asset_delete_blockers, create_asset, hierarchy_ordered, selectable_locations,
 )
 from app.utils import (
-    validate_csrf, purge_entity_attachments, store_uploads,
+    validate_csrf, purge_entity_attachments, store_uploads, is_image_file,
+    entity_upload_dir,
     parse_date, parse_int, choice,
 )
 
@@ -60,6 +63,13 @@ def _read_form(asset=None):
             errors.append(
                 f"'{parent.name}' sits beneath this asset, so it cannot also be its parent."
             )
+
+    # Checked here so a bad file stops the submission before anything is
+    # written, rather than leaving a new asset behind with no photo.
+    image = request.files.get('image')
+    if image and image.filename and not is_image_file(image.filename):
+        errors.append('That file is not an image. Use a PNG, JPG, GIF or WEBP.')
+
     return name, parent, status, errors
 
 
@@ -117,6 +127,9 @@ def create():
             status=status,
         )
         _apply_common_fields(asset)
+        # The photo is filed under the asset's id, so it can only be stored once
+        # the asset exists — create_asset() has already committed.
+        _apply_photo(asset)
         db.session.commit()
         flash(f'Asset {asset.asset_number} created.', 'success')
         return redirect(url_for('assets.detail', id=asset.id))
@@ -172,6 +185,9 @@ def edit(id):
         asset.parent_id = parent.id if parent else None
         asset.status = status
         _apply_common_fields(asset)
+        if not _apply_photo(asset):
+            db.session.rollback()
+            return render_template('assets/form.html', **_form_context(asset))
         db.session.commit()
         flash('Asset updated.', 'success')
         return redirect(url_for('assets.detail', id=id))
@@ -200,6 +216,56 @@ def delete(id):
     db.session.commit()
     flash('Asset deleted.', 'success')
     return redirect(url_for('assets.index'))
+
+
+def _discard_image(asset):
+    """Remove the current photo's attachment row and file, if any."""
+    old = asset.image
+    asset.image_attachment_id = None
+    db.session.flush()
+    if old is None:
+        return
+    path = os.path.join(entity_upload_dir(old.entity_type, old.entity_id), old.stored_filename)
+    if os.path.exists(path):
+        os.remove(path)
+    db.session.delete(old)
+
+
+def _apply_photo(asset):
+    """Apply the photo controls on the edit form.
+
+    Ticking "remove" clears it; choosing a file replaces whatever was there.
+    Both happen inside the edit transaction, so a failed save changes nothing.
+    Returns False if the upload was rejected.
+    """
+    if request.form.get('remove_image'):
+        _discard_image(asset)
+        return True
+
+    file = request.files.get('image')
+    if not file or not file.filename:
+        # No new file: just let a caption edit through, if there is a photo.
+        caption = request.form.get('image_caption')
+        if caption is not None and asset.image is not None:
+            asset.image.display_name = caption.strip() or None
+        return True
+
+    if not is_image_file(file.filename):
+        flash('That file is not an image. Use a PNG, JPG, GIF or WEBP.', 'error')
+        return False
+
+    _discard_image(asset)
+    saved, errors = store_uploads(
+        ENTITY, asset.id,
+        [(file, request.form.get('image_caption', '').strip() or None)],
+        current_user.id,
+    )
+    for message in errors:
+        flash(message, 'error')
+    if saved:
+        db.session.flush()          # assign the new attachment an id
+        asset.image_attachment_id = saved[0].id
+    return True
 
 
 @bp.route('/<int:id>/attachments', methods=['POST'])

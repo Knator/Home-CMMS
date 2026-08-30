@@ -92,6 +92,13 @@ def allowed_file(filename):
     )
 
 
+def is_image_file(filename):
+    return (
+        '.' in filename and
+        filename.rsplit('.', 1)[1].lower() in current_app.config['IMAGE_EXTENSIONS']
+    )
+
+
 def entity_upload_dir(entity_type, entity_id):
     return os.path.join(current_app.config['UPLOAD_FOLDER'], entity_type, str(entity_id))
 
@@ -127,28 +134,30 @@ def upload_rows_from_form(prefix='attachment', max_rows=MAX_UPLOAD_ROWS):
 
 
 def store_uploads(entity_type, entity_id, rows, uploaded_by):
-    """Validate and persist a batch of uploads. Returns (saved_count, errors).
+    """Validate and persist a batch of uploads. Returns (attachments, errors).
 
-    Rejected files are reported rather than aborting the batch — one bad
+    The created rows come back so a caller can reference one (the asset photo
+    does). Rejected files are reported rather than aborting the batch — one bad
     extension should not discard the other files or the form submission that
     carried them.
     """
     from app.extensions import db
     from app.models.attachment import Attachment
 
-    saved, errors = 0, []
+    saved, errors = [], []
     for file, display_name in rows:
         if not allowed_file(file.filename):
             errors.append(f"'{file.filename}' was not saved — that file type is not allowed.")
             continue
         stored, original, size, mime = save_attachment(file, entity_type, entity_id)
-        db.session.add(Attachment(
+        attachment = Attachment(
             entity_type=entity_type, entity_id=entity_id,
             stored_filename=stored, original_filename=original,
             display_name=display_name, file_size=size, mime_type=mime,
             uploaded_by=uploaded_by,
-        ))
-        saved += 1
+        )
+        db.session.add(attachment)
+        saved.append(attachment)
     return saved, errors
 
 

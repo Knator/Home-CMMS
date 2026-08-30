@@ -587,16 +587,6 @@ textarea { resize: vertical; min-height: 90px; }
 .task-mins { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
 
 /* ── Dynamic task form rows ── */
-.task-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-
-.task-row {
-  display: grid;
-  grid-template-columns: 1fr 90px 32px;
-  gap: 8px;
-  align-items: center;
-}
-
-.task-row input { width: 100%; }
 
 .btn-remove-task {
   background: none;
@@ -864,14 +854,6 @@ textarea { resize: vertical; min-height: 90px; }
 
 .upload-name { width: auto !important; flex: 1; min-width: 160px; }
 
-.attachment-rows { display: flex; flex-direction: column; gap: 8px; }
-
-.attachment-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 32px;
-  gap: 8px;
-  align-items: center;
-}
 
 .form-subsection {
   margin-top: 18px;
@@ -1033,3 +1015,91 @@ a.asset-link:hover { text-decoration: underline; }
 }
 
 .checkbox-label input { width: auto; }
+
+/* ── Repeatable form rows (tasks, materials, tools, attachments) ── */
+.repeat-rows { display: flex; flex-direction: column; gap: 8px; }
+
+.repeat-row,
+.repeat-head {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Column layouts per row kind: handle, fields…, controls */
+.repeat-row[data-row-kind="task"],
+.repeat-head[data-row-kind="task"],
+.repeat-row[data-row-kind="material"],
+.repeat-head[data-row-kind="material"] { grid-template-columns: 20px 1fr 130px 78px; }
+
+.repeat-row[data-row-kind="tool"],
+.repeat-head[data-row-kind="tool"] { grid-template-columns: 20px 1fr 78px; }
+
+.repeat-row[data-row-kind="attachment"] { grid-template-columns: 1fr 1fr 32px; }
+
+.repeat-head {
+  margin: 8px 0 2px;
+  padding: 0 2px;
+}
+
+.repeat-head span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+.repeat-row { background: var(--card-bg); border-radius: var(--radius); }
+.repeat-row.dragging { opacity: .4; }
+
+.drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+  user-select: none;
+  line-height: 1;
+}
+
+.repeat-row.dragging .drag-handle { cursor: grabbing; }
+
+.row-controls { display: flex; align-items: center; gap: 2px; justify-content: flex-end; }
+
+.btn-row-move {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+  padding: 4px 3px;
+  border-radius: var(--radius);
+}
+
+.btn-row-move:hover { background: var(--surface-muted); color: var(--text-primary); }
+
+.empty-hint { font-size: 13px; margin-top: 8px; }
+
+/* ── Materials and tools on the detail page ── */
+.spec-list { list-style: none; }
+
+.spec-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+}
+
+.spec-item:last-child { border-bottom: none; }
+.spec-desc { color: var(--text-primary); }
+
+.spec-qty {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}

@@ -3,14 +3,18 @@ from flask_login import login_required, current_user
 
 from app.job_plans import bp
 from app.extensions import db
-from app.models.job_plan import JobPlan, JobPlanTask
+from app.models.job_plan import (
+    JobPlan, JobPlanTask, JobPlanItem, ITEM_MATERIAL, ITEM_TOOL,
+)
 from app.models.attachment import Attachment
 from app.utils import (
-    validate_csrf, purge_entity_attachments, store_uploads, parse_int,
+    validate_csrf, purge_entity_attachments, store_uploads, upload_rows_from_form,
+    parse_int,
 )
 
 ENTITY = 'job_plan'
 MAX_TASKS = 200
+MAX_ITEMS = 200
 
 
 @bp.route('/')
@@ -40,6 +44,9 @@ def create():
         db.session.flush()  # get job_plan.id before committing
 
         _save_tasks(job_plan)
+        _save_items(job_plan)
+        # Attachments are filed under the job plan's id, available after the flush.
+        _store_form_uploads(job_plan.id)
         db.session.commit()
         flash('Job plan created.', 'success')
         return redirect(url_for('job_plans.detail', id=job_plan.id))
@@ -58,7 +65,9 @@ def detail(id):
         .order_by(Attachment.uploaded_at.desc())
         .all()
     )
-    return render_template('job_plans/detail.html', job_plan=job_plan, tasks=tasks, attachments=attachments)
+    return render_template('job_plans/detail.html', job_plan=job_plan, tasks=tasks,
+                           materials=job_plan.materials, tools=job_plan.tools,
+                           attachments=attachments)
 
 
 @bp.route('/<int:id>/edit', methods=['GET', 'POST'])
@@ -76,13 +85,16 @@ def edit(id):
         job_plan.description = request.form.get('description', '').strip() or None
         job_plan.notes = request.form.get('notes', '').strip() or None
 
-        # Replace all tasks. Deleted through the session rather than a bulk
-        # query so the delete-orphan cascade and the identity map stay in sync.
-        for task in job_plan.tasks.all():
-            db.session.delete(task)
+        # Replace tasks, materials and tools. Deleted through the session rather
+        # than a bulk query so the delete-orphan cascade and the identity map
+        # stay in sync.
+        for row in list(job_plan.tasks.all()) + list(job_plan.items.all()):
+            db.session.delete(row)
         db.session.flush()
 
         _save_tasks(job_plan)
+        _save_items(job_plan)
+        _store_form_uploads(job_plan.id)
         db.session.commit()
         flash('Job plan updated.', 'success')
         return redirect(url_for('job_plans.detail', id=id))
@@ -110,6 +122,42 @@ def _save_tasks(job_plan):
         )
         db.session.add(task)
         sequence += 1
+
+
+def _save_items(job_plan):
+    """Read the material and tool rows off the submitted form.
+
+    Same shape as the task rows: a browser-maintained count, so untrusted and
+    capped. Rows with no description are skipped and the sequence stays gapless.
+    """
+    for kind, prefix in ((ITEM_MATERIAL, 'material'), (ITEM_TOOL, 'tool')):
+        count = parse_int(request.form.get(f'{prefix}_count'), minimum=0) or 0
+        sequence = 1
+        for i in range(min(count, MAX_ITEMS)):
+            description = request.form.get(f'{prefix}_{i}_description', '').strip()
+            if not description:
+                continue
+            db.session.add(JobPlanItem(
+                job_plan_id=job_plan.id,
+                kind=kind,
+                sequence=sequence,
+                description=description,
+                quantity=request.form.get(f'{prefix}_{i}_quantity', '').strip() or None,
+            ))
+            sequence += 1
+
+
+def _store_form_uploads(job_plan_id):
+    """Persist any files attached on the create/edit form."""
+    rows = upload_rows_from_form()
+    if not rows:
+        return
+    saved, errors = store_uploads(ENTITY, job_plan_id, rows, current_user.id)
+    for message in errors:
+        flash(message, 'error')
+    if saved:
+        count = len(saved)
+        flash(f"{count} file{'' if count == 1 else 's'} attached.", 'success')
 
 
 @bp.route('/<int:id>/delete', methods=['POST'])

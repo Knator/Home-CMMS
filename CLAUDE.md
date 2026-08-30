@@ -75,7 +75,11 @@ All models import from `app/extensions.py` (db). Key relationships:
 - `Asset` → `Location` (many-to-one)
 - `WorkOrder` → `Asset`, `Location`, `JobPlan`, `PM`, `User` (assigned, creator)
 - `PM` → `Asset`, `Location`, `JobPlan`
-- `JobPlan` → `JobPlanTask` (cascade delete)
+- `JobPlan` → `JobPlanTask` (cascade delete) and `JobPlanItem` (cascade delete).
+  `JobPlanItem` carries required **materials and tools** in one table with a `kind`
+  discriminator — they are structurally identical (ordered line, description, optional
+  quantity), so one table beats two near-duplicate models. `JobPlan.materials` /
+  `.tools` filter by kind; `JobPlan.total_minutes` sums the task estimates.
 - `Attachment` — polymorphic via `entity_type` ('location'|'asset'|'work_order'|'job_plan'|'pm') + `entity_id`
 
 Timestamps use `utcnow()` from `app/utils.py`, not the deprecated `datetime.utcnow`.
@@ -189,7 +193,12 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
 - Base layout: `templates/base.html` — fixed sidebar + topbar + scrollable content area
 - CSS custom properties in `static/css/main.css` (`--sidebar-bg`, `--accent`, etc.)
 - Badge classes for WO status and priority are defined on the model (`status_class`, `priority_class`) and applied in templates
-- JS in `static/js/main.js` handles dynamic task rows (job plan form) and attachment rows (work order form); the `task_count` / `attachment_count` hidden fields it maintains are untrusted input, parsed defensively and capped server-side
+- JS in `static/js/main.js` drives **repeatable form rows** — tasks, materials, tools and
+  attachments — from one `ROW_TYPES` config rather than four near-copies. Inputs are named
+  `<kind>_<index>_<field>` with a hidden `<kind>_count`; the server re-reads them in DOM
+  order, so **reordering rows is what reorders the saved sequence**. Rows are drag-reorderable
+  and also carry ▲▼ buttons, since drag alone is unreachable from a keyboard. Every
+  `<kind>_count` is untrusted input, parsed defensively and capped server-side
 - `enhanceSearchableSelect()` upgrades any `<select data-searchable>` into a type-to-filter
   combobox (substring match, not prefix). It is **progressive enhancement**: the native
   select stays in the DOM, enabled and named, so it still submits and remains the single

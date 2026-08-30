@@ -14,12 +14,15 @@
   <div class="table-wrap">
     {% if job_plans %}
     <table>
-      <thead><tr><th>Name</th><th>Tasks</th><th>Description</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Tasks</th><th>Duration</th><th>Materials</th><th>Tools</th><th>Description</th><th></th></tr></thead>
       <tbody>
         {% for jp in job_plans %}
         <tr>
           <td><a class="row-link" href="{{ url_for('job_plans.detail', id=jp.id) }}">{{ jp.name }}</a></td>
           <td>{{ jp.tasks.count() }}</td>
+          <td>{{ format_duration(jp.total_minutes) }}</td>
+          <td>{{ jp.materials | length or '—' }}</td>
+          <td>{{ jp.tools | length or '—' }}</td>
           <td>{{ jp.description or '' }}</td>
           <td><a href="{{ url_for('job_plans.edit', id=jp.id) }}" class="btn btn-ghost btn-sm">Edit</a></td>
         </tr>

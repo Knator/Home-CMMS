@@ -177,6 +177,18 @@ def purge_entity_attachments(entity_type, entity_id):
     shutil.rmtree(entity_upload_dir(entity_type, entity_id), ignore_errors=True)
 
 
+def format_duration(minutes):
+    """Minutes as a short human duration: 45m, 1h 30m, 2h."""
+    if not minutes:
+        return '—'
+    hours, mins = divmod(int(minutes), 60)
+    if hours and mins:
+        return f'{hours}h {mins}m'
+    if hours:
+        return f'{hours}h'
+    return f'{mins}m'
+
+
 def format_file_size(size_bytes):
     if size_bytes is None:
         return '—'

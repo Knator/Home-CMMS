@@ -4,7 +4,7 @@ import os
 from flask import Flask, flash, redirect, request, url_for
 
 from app.extensions import db, migrate, login_manager
-from app.utils import generate_csrf_token, format_file_size
+from app.utils import generate_csrf_token, format_file_size, format_duration
 from config import Config
 
 
@@ -48,6 +48,7 @@ def create_app(config_class=Config, config_overrides=None):
 
     app.jinja_env.globals['csrf_token'] = generate_csrf_token
     app.jinja_env.globals['format_file_size'] = format_file_size
+    app.jinja_env.globals['format_duration'] = format_duration
 
     from app.auth import bp as auth_bp
     from app.main import bp as main_bp

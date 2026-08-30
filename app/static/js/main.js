@@ -1,59 +1,214 @@
-// Dynamic task rows for job plan form
-let taskCount = 0;
+/* ── Repeatable form rows ──
+   Tasks, materials, tools and file attachments are all "a list of rows the user
+   can add to, remove from and reorder". One implementation, configured per kind,
+   rather than four near-copies.
 
-function initTaskRows() {
-  const container = document.getElementById('task-rows');
-  if (!container) return;
+   Each row's inputs are named <kind>_<index>_<field> and a hidden <kind>_count
+   field carries how many there are; the server re-reads them in DOM order, so
+   reordering rows is what reorders the saved sequence. */
 
-  const existingRows = container.querySelectorAll('.task-row');
-  taskCount = existingRows.length;
-  updateTaskCount();
+const ROW_TYPES = {
+  task: {
+    fields: [
+      { name: 'description', type: 'text', placeholder: 'Task description', required: true },
+      { name: 'minutes', type: 'number', placeholder: 'Minutes', min: '1' },
+    ],
+    reorderable: true,
+  },
+  material: {
+    fields: [
+      { name: 'description', type: 'text', placeholder: 'Material', required: true },
+      { name: 'quantity', type: 'text', placeholder: 'Qty (e.g. 2 rolls)', maxlength: '60' },
+    ],
+    reorderable: true,
+  },
+  tool: {
+    fields: [
+      { name: 'description', type: 'text', placeholder: 'Tool', required: true },
+    ],
+    reorderable: true,
+  },
+  attachment: {
+    fields: [
+      { name: 'file', type: 'file' },
+      { name: 'name', type: 'text', placeholder: 'Friendly name (optional)', maxlength: '255' },
+    ],
+    reorderable: false,
+  },
+};
+
+function rowContainer(kind) {
+  return document.getElementById(`${kind}-rows`);
 }
 
-function addTaskRow() {
-  const container = document.getElementById('task-rows');
-  if (!container) return;
-
-  const i = taskCount;
+function buildRow(kind, index) {
+  const config = ROW_TYPES[kind];
   const row = document.createElement('div');
-  row.className = 'task-row';
-  row.dataset.index = i;
-  row.innerHTML = `
-    <input type="text" name="task_${i}_description" placeholder="Task description" required>
-    <input type="number" name="task_${i}_minutes" placeholder="Minutes" min="1">
-    <button type="button" class="btn-remove-task" onclick="removeTaskRow(this)">×</button>
-  `;
+  row.className = 'repeat-row';
+  row.dataset.rowKind = kind;
+
+  if (config.reorderable) {
+    row.setAttribute('draggable', 'true');
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.setAttribute('aria-hidden', 'true');
+    handle.textContent = '⠿';
+    row.appendChild(handle);
+  }
+
+  config.fields.forEach((field) => {
+    const input = document.createElement('input');
+    input.type = field.type;
+    input.name = `${kind}_${index}_${field.name}`;
+    if (field.placeholder) input.placeholder = field.placeholder;
+    if (field.required) input.required = true;
+    if (field.min) input.min = field.min;
+    if (field.maxlength) input.maxLength = Number(field.maxlength);
+    input.setAttribute('aria-label', `${kind} ${field.name}`);
+    row.appendChild(input);
+  });
+
+  const controls = document.createElement('div');
+  controls.className = 'row-controls';
+  if (config.reorderable) {
+    // Drag needs a pointer; these keep reordering reachable from the keyboard.
+    controls.appendChild(moveButton('▲', -1, 'Move up'));
+    controls.appendChild(moveButton('▼', 1, 'Move down'));
+  }
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'btn-remove-task';
+  remove.setAttribute('aria-label', 'Remove row');
+  remove.innerHTML = '&times;';
+  remove.addEventListener('click', () => removeRow(remove));
+  controls.appendChild(remove);
+  row.appendChild(controls);
+
+  return row;
+}
+
+function moveButton(glyph, direction, label) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'btn-row-move';
+  button.textContent = glyph;
+  button.setAttribute('aria-label', label);
+  button.addEventListener('click', () => moveRow(button, direction));
+  return button;
+}
+
+function addRow(kind) {
+  const container = rowContainer(kind);
+  if (!container) return;
+  const row = buildRow(kind, container.children.length);
   container.appendChild(row);
-  taskCount++;
-  updateTaskCount();
-  row.querySelector('input').focus();
+  reindexRows(kind);
+  const first = row.querySelector('input');
+  if (first) first.focus();
 }
 
-function removeTaskRow(btn) {
-  const row = btn.closest('.task-row');
+function removeRow(button) {
+  const row = button.closest('.repeat-row');
+  if (!row) return;
+  const kind = row.dataset.rowKind;
   row.remove();
-  reindexTaskRows();
+  reindexRows(kind);
 }
 
-function reindexTaskRows() {
-  const rows = document.querySelectorAll('#task-rows .task-row');
-  taskCount = rows.length;
+function moveRow(button, direction) {
+  const row = button.closest('.repeat-row');
+  if (!row) return;
+  const target = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+  if (!target) return;
+  if (direction < 0) row.parentNode.insertBefore(row, target);
+  else row.parentNode.insertBefore(target, row);
+  reindexRows(row.dataset.rowKind);
+  button.focus();
+}
+
+function reindexRows(kind) {
+  const container = rowContainer(kind);
+  if (!container) return;
+  const rows = Array.from(container.querySelectorAll('.repeat-row'));
   rows.forEach((row, i) => {
     row.dataset.index = i;
-    row.querySelectorAll('input').forEach(input => {
-      input.name = input.name.replace(/task_\d+_/, `task_${i}_`);
+    ROW_TYPES[kind].fields.forEach((field) => {
+      const input = row.querySelector(`[name$="_${field.name}"]`);
+      if (input) input.name = `${kind}_${i}_${field.name}`;
     });
   });
-  updateTaskCount();
+  const counter = document.getElementById(`${kind}-count`);
+  if (counter) counter.value = rows.length;
+  const empty = document.getElementById(`${kind}-empty`);
+  if (empty) empty.hidden = rows.length > 0;
 }
 
-function updateTaskCount() {
-  const input = document.getElementById('task-count');
-  if (input) input.value = taskCount;
+/* Drag to reorder. The drop position is worked out from the pointer's Y
+   against each row's midpoint, so the row follows the cursor as it moves. */
+function initRowDragging(container) {
+  const kind = container.dataset.rowKind;
+  let dragging = null;
+
+  container.addEventListener('dragstart', (e) => {
+    const row = e.target.closest('.repeat-row');
+    if (!row) return;
+    dragging = row;
+    row.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    // Firefox will not start a drag without data being set.
+    e.dataTransfer.setData('text/plain', '');
+  });
+
+  container.addEventListener('dragend', () => {
+    if (!dragging) return;
+    dragging.classList.remove('dragging');
+    dragging = null;
+    reindexRows(kind);
+  });
+
+  container.addEventListener('dragover', (e) => {
+    if (!dragging) return;
+    e.preventDefault();
+    const after = rowAfterPointer(container, e.clientY);
+    if (after == null) container.appendChild(dragging);
+    else container.insertBefore(dragging, after);
+  });
 }
+
+function rowAfterPointer(container, y) {
+  const rows = Array.from(container.querySelectorAll('.repeat-row:not(.dragging)'));
+  for (const row of rows) {
+    const box = row.getBoundingClientRect();
+    if (y < box.top + box.height / 2) return row;
+  }
+  return null;
+}
+
+function initRepeatRows() {
+  Object.keys(ROW_TYPES).forEach((kind) => {
+    const container = rowContainer(kind);
+    if (!container) return;
+    container.dataset.rowKind = kind;
+
+    // Server-rendered rows need their buttons wired up too.
+    container.querySelectorAll('.repeat-row').forEach((row) => {
+      row.querySelectorAll('.btn-remove-task').forEach((b) =>
+        b.addEventListener('click', () => removeRow(b)));
+      row.querySelectorAll('.btn-row-move').forEach((b) =>
+        b.addEventListener('click', () => moveRow(b, b.dataset.direction === 'up' ? -1 : 1)));
+    });
+
+    if (ROW_TYPES[kind].reorderable) initRowDragging(container);
+    reindexRows(kind);
+  });
+}
+
+/* Kept because the templates call them from inline onclick handlers. */
+function addTaskRow() { addRow('task'); }
+function addAttachmentRow() { addRow('attachment'); }
 
 document.addEventListener('DOMContentLoaded', () => {
-  initTaskRows();
+  initRepeatRows();
 
   // Auto-dismiss alerts after 4 seconds
   document.querySelectorAll('.alert').forEach(el => {
@@ -61,52 +216,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => el.remove(), 4400);
   });
 });
-
-/* ── Attachment rows on the work order form ── */
-let attachmentCount = 0;
-
-function addAttachmentRow() {
-  const container = document.getElementById('attachment-rows');
-  if (!container) return;
-
-  const i = attachmentCount;
-  const row = document.createElement('div');
-  row.className = 'attachment-row';
-  row.innerHTML = `
-    <input type="file" name="attachment_${i}_file" aria-label="File">
-    <input type="text" name="attachment_${i}_name" maxlength="255"
-           placeholder="Friendly name (optional)" aria-label="Friendly name">
-    <button type="button" class="btn-remove-task" onclick="removeAttachmentRow(this)"
-            aria-label="Remove file">&times;</button>
-  `;
-  container.appendChild(row);
-  attachmentCount++;
-  syncAttachmentCount();
-  row.querySelector('input').focus();
-}
-
-function removeAttachmentRow(btn) {
-  const row = btn.closest('.attachment-row');
-  if (row) row.remove();
-  reindexAttachmentRows();
-}
-
-function reindexAttachmentRows() {
-  const rows = document.querySelectorAll('#attachment-rows .attachment-row');
-  attachmentCount = rows.length;
-  rows.forEach((row, i) => {
-    const file = row.querySelector('input[type="file"]');
-    const name = row.querySelector('input[type="text"]');
-    if (file) file.name = `attachment_${i}_file`;
-    if (name) name.name = `attachment_${i}_name`;
-  });
-  syncAttachmentCount();
-}
-
-function syncAttachmentCount() {
-  const input = document.getElementById('attachment-count');
-  if (input) input.value = attachmentCount;
-}
 
 /* ── Work order form: inherit the asset's location ──
    Picking an asset pulls its location across, the way Maximo derives location

@@ -30,12 +30,22 @@
     {% if not job_plan.description and not job_plan.notes %}
       <p class="text-muted">No description or notes.</p>
     {% endif %}
+    <div class="detail-grid" style="margin-top:14px;">
+      <div class="detail-field">
+        <div class="detail-label">Total Duration</div>
+        <div class="detail-value">{{ format_duration(job_plan.total_minutes) }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Tasks</div>
+        <div class="detail-value">{{ tasks | length }}</div>
+      </div>
+    </div>
   </div>
 </div>
 
 <div class="card">
   <div class="card-header">
-    <span class="card-title">Tasks ({{ tasks | length }})</span>
+    <span class="card-title">Tasks ({{ tasks | length }}) · {{ format_duration(job_plan.total_minutes) }} total</span>
     <a href="{{ url_for('job_plans.edit', id=job_plan.id) }}" class="btn btn-secondary btn-sm">Edit Tasks</a>
   </div>
   <div class="card-body">
@@ -57,12 +67,50 @@
   </div>
 </div>
 
+<!-- Materials and tools -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Required Materials ({{ materials | length }})</span>
+  </div>
+  <div class="card-body">
+    {% if materials %}
+    <ul class="spec-list">
+      {% for item in materials %}
+      <li class="spec-item">
+        <span class="spec-desc">{{ item.description }}</span>
+        {% if item.quantity %}<span class="spec-qty">{{ item.quantity }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="text-muted">No materials listed.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Required Tools ({{ tools | length }})</span>
+  </div>
+  <div class="card-body">
+    {% if tools %}
+    <ul class="spec-list">
+      {% for item in tools %}
+      <li class="spec-item"><span class="spec-desc">{{ item.description }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="text-muted">No tools listed.</p>
+    {% endif %}
+  </div>
+</div>
+
 <!-- Attachments -->
 <div class="card">
-  <div class="card-header"><span class="card-title">Attachments</span></div>
+  <div class="card-header"><span class="card-title">Attachments</span>
+    <a href="{{ url_for('job_plans.edit', id=job_plan.id) }}" class="btn btn-ghost btn-sm">Add files</a></div>
   <div class="card-body">
     {{ att_ui.attachment_list(attachments) }}
-    {{ att_ui.upload_form(url_for('job_plans.upload_attachment', id=job_plan.id)) }}
   </div>
 </div>
 

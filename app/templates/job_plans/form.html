@@ -3,55 +3,130 @@
 {% block title %}{{ 'Edit' if is_edit else 'New' }} Job Plan — Home CMMS{% endblock %}
 {% block page_title %}{{ 'Edit' if is_edit else 'New' }} Job Plan{% endblock %}
 
+{% macro row_controls(reorderable=true) %}
+  <div class="row-controls">
+    {% if reorderable %}
+    <button type="button" class="btn-row-move" data-direction="up" aria-label="Move up">▲</button>
+    <button type="button" class="btn-row-move" data-direction="down" aria-label="Move down">▼</button>
+    {% endif %}
+    <button type="button" class="btn-remove-task" aria-label="Remove row">&times;</button>
+  </div>
+{% endmacro %}
+
 {% block content %}
-<div style="max-width:800px;">
+<div style="max-width:860px;">
   <div class="card">
     <div class="card-body">
-      <form method="post">
+      <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="task_count" id="task-count" value="0">
+        <input type="hidden" name="material_count" id="material-count" value="0">
+        <input type="hidden" name="tool_count" id="tool-count" value="0">
+        <input type="hidden" name="attachment_count" id="attachment-count" value="0">
+
         <div class="form-grid">
           <div class="form-group full">
-            <label>Name *</label>
-            <input type="text" name="name" value="{{ job_plan.name if is_edit else '' }}" required>
+            <label for="name">Name *</label>
+            <input type="text" id="name" name="name" value="{{ job_plan.name if is_edit else '' }}" required>
           </div>
           <div class="form-group full">
-            <label>Description</label>
-            <textarea name="description" rows="3">{{ job_plan.description or '' if is_edit else '' }}</textarea>
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="3">{{ job_plan.description or '' if is_edit else '' }}</textarea>
           </div>
           <div class="form-group full">
-            <label>Notes</label>
-            <textarea name="notes" rows="4">{{ job_plan.notes or '' if is_edit else '' }}</textarea>
+            <label for="notes">Notes</label>
+            <textarea id="notes" name="notes" rows="4">{{ job_plan.notes or '' if is_edit else '' }}</textarea>
           </div>
         </div>
 
-        <div style="margin-top:20px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <label style="margin-bottom:0;">Tasks</label>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="addTaskRow()">+ Add Task</button>
+        <!-- Tasks -->
+        <div class="form-subsection">
+          <div class="form-subsection-head">
+            <h3>Tasks</h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addRow('task')">+ Add Task</button>
           </div>
-
-          <div style="display:grid;grid-template-columns:1fr 90px 32px;gap:8px;margin-bottom:6px;padding:0 2px;">
-            <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;">Description</span>
-            <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;">Minutes</span>
-            <span></span>
+          <span class="field-hint">Drag the handle, or use the arrows, to reorder. Sequence follows this order.</span>
+          <div class="repeat-head" data-row-kind="task">
+            <span></span><span>Description</span><span>Minutes</span><span></span>
           </div>
-
-          <div id="task-rows" class="task-rows">
+          <div id="task-rows" class="repeat-rows">
             {% if is_edit %}
               {% for task in job_plan.tasks.all() %}
-              <div class="task-row" data-index="{{ loop.index0 }}">
-                <input type="text" name="task_{{ loop.index0 }}_description" value="{{ task.description }}" placeholder="Task description" required>
-                <input type="number" name="task_{{ loop.index0 }}_minutes" value="{{ task.estimated_minutes or '' }}" placeholder="Minutes" min="1">
-                <button type="button" class="btn-remove-task" onclick="removeTaskRow(this)">×</button>
+              <div class="repeat-row" data-row-kind="task" draggable="true">
+                <span class="drag-handle" aria-hidden="true">⠿</span>
+                <input type="text" name="task_{{ loop.index0 }}_description" value="{{ task.description }}"
+                       placeholder="Task description" aria-label="task description" required>
+                <input type="number" name="task_{{ loop.index0 }}_minutes" value="{{ task.estimated_minutes or '' }}"
+                       placeholder="Minutes" min="1" aria-label="task minutes">
+                {{ row_controls() }}
               </div>
               {% endfor %}
             {% endif %}
           </div>
+          <p class="text-muted empty-hint" id="task-empty" hidden>No tasks yet.</p>
+        </div>
 
-          <p class="text-muted" id="no-tasks-msg" style="font-size:13px;{{ 'display:none' if is_edit and job_plan.tasks.count() > 0 }}">
-            No tasks added. Click "+ Add Task" to add work steps.
-          </p>
+        <!-- Materials -->
+        <div class="form-subsection">
+          <div class="form-subsection-head">
+            <h3>Required Materials</h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addRow('material')">+ Add Material</button>
+          </div>
+          <div class="repeat-head" data-row-kind="material">
+            <span></span><span>Material</span><span>Quantity</span><span></span>
+          </div>
+          <div id="material-rows" class="repeat-rows">
+            {% if is_edit %}
+              {% for item in job_plan.materials %}
+              <div class="repeat-row" data-row-kind="material" draggable="true">
+                <span class="drag-handle" aria-hidden="true">⠿</span>
+                <input type="text" name="material_{{ loop.index0 }}_description" value="{{ item.description }}"
+                       placeholder="Material" aria-label="material description" required>
+                <input type="text" name="material_{{ loop.index0 }}_quantity" value="{{ item.quantity or '' }}"
+                       placeholder="Qty (e.g. 2 rolls)" maxlength="60" aria-label="material quantity">
+                {{ row_controls() }}
+              </div>
+              {% endfor %}
+            {% endif %}
+          </div>
+          <p class="text-muted empty-hint" id="material-empty" hidden>No materials listed.</p>
+        </div>
+
+        <!-- Tools -->
+        <div class="form-subsection">
+          <div class="form-subsection-head">
+            <h3>Required Tools</h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addRow('tool')">+ Add Tool</button>
+          </div>
+          <div class="repeat-head" data-row-kind="tool">
+            <span></span><span>Tool</span><span></span>
+          </div>
+          <div id="tool-rows" class="repeat-rows">
+            {% if is_edit %}
+              {% for item in job_plan.tools %}
+              <div class="repeat-row" data-row-kind="tool" draggable="true">
+                <span class="drag-handle" aria-hidden="true">⠿</span>
+                <input type="text" name="tool_{{ loop.index0 }}_description" value="{{ item.description }}"
+                       placeholder="Tool" aria-label="tool description" required>
+                {{ row_controls() }}
+              </div>
+              {% endfor %}
+            {% endif %}
+          </div>
+          <p class="text-muted empty-hint" id="tool-empty" hidden>No tools listed.</p>
+        </div>
+
+        <!-- Attachments -->
+        <div class="form-subsection">
+          <div class="form-subsection-head">
+            <h3>Attachments</h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addRow('attachment')">+ Add file</button>
+          </div>
+          <span class="field-hint">
+            {% if is_edit %}Files are added when you save. Existing attachments are listed on the job plan page.
+            {% else %}Files are attached once the job plan is created.{% endif %}
+          </span>
+          <div id="attachment-rows" class="repeat-rows"></div>
         </div>
 
         <div class="form-actions mt-1">
@@ -66,20 +141,4 @@
     </div>
   </div>
 </div>
-
-<script>
-// Hide the "no tasks" hint whenever at least one task row is present.
-function syncNoTasksMsg() {
-  const msg = document.getElementById('no-tasks-msg');
-  if (msg) msg.style.display =
-    document.querySelectorAll('#task-rows .task-row').length > 0 ? 'none' : '';
-}
-document.addEventListener('DOMContentLoaded', syncNoTasksMsg);
-document.addEventListener('click', (e) => {
-  // Re-check after add/remove task buttons fire.
-  if (e.target.matches('[onclick*="addTaskRow"], .btn-remove-task')) {
-    setTimeout(syncNoTasksMsg, 0);
-  }
-});
-</script>
 {% endblock %}

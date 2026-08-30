@@ -261,6 +261,19 @@ This guide takes you from a fresh clone to a running, testable app.
   fills in with today's date. Clearing it on a work order that is not completed
   removes it.
 
+  JOB PLANS
+  A job plan holds three lists: the tasks to perform, the materials required and
+  the tools required. Materials can carry a quantity ("2 rolls"). The plan's
+  total duration is the sum of the task estimates, shown on the detail page and
+  in the Duration column of the list.
+
+  Tasks, materials and tools can be reordered by dragging the handle at the left
+  of each row, or with the up/down arrows next to it. Saving writes the sequence
+  in the order shown, so dropping a new task into the middle works as expected.
+
+  Job plan attachments are added on the create and edit screens rather than the
+  detail page.
+
   ASSET PHOTOS
   An asset can carry one optional photo, shown as a card on its detail page
   (and nowhere else). Add or replace it under Photo; replacing deletes the

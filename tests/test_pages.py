@@ -81,3 +81,18 @@ def test_change_password_requires_the_current_one(client, db, user, login):
         'csrf_token': CSRF,
     })
     assert user.check_password('password123')
+
+
+def test_login_page_is_self_contained(client):
+    """The login page renders outside base.html, so it needs its own theme wiring."""
+    body = client.get('/auth/login').get_data(as_text=True)
+    assert 'js/theme.js' in body
+    assert 'theme-toggle' in body
+    assert 'name="viewport"' in body
+
+
+def test_signed_in_pages_carry_the_theme_toggle(client, seeded, login):
+    login('admin')
+    body = client.get('/').get_data(as_text=True)
+    assert 'js/theme.js' in body
+    assert 'theme-toggle' in body

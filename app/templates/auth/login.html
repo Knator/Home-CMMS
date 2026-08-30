@@ -2,11 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login — Home CMMS</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </head>
 <body>
 <div class="login-wrap">
+  <div class="login-toggle">
+    <button type="button" class="theme-toggle" onclick="toggleTheme()"
+            aria-pressed="false" aria-label="Switch between light and dark mode"
+            title="Switch to dark mode">
+      <span class="icon-light" aria-hidden="true">&#9788;</span>
+      <span class="icon-dark" aria-hidden="true">&#9790;</span>
+    </button>
+  </div>
   <div class="login-card">
     <div class="login-title">Home CMMS</div>
     <div class="login-subtitle">Sign in to your account</div>

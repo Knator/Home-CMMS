@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Home CMMS{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </head>
 <body>
 
@@ -40,6 +41,13 @@
       <a href="{{ url_for('auth.change_password') }}">Change Password</a>
       &nbsp;·&nbsp;
       <a href="{{ url_for('auth.logout') }}">Logout</a>
+      &nbsp;
+      <button type="button" class="theme-toggle" onclick="toggleTheme()"
+              aria-pressed="false" aria-label="Switch between light and dark mode"
+              title="Switch to dark mode">
+        <span class="icon-light" aria-hidden="true">&#9788;</span>
+        <span class="icon-dark" aria-hidden="true">&#9790;</span>
+      </button>
     </div>
   </header>
 

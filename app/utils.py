@@ -116,20 +116,33 @@ def save_attachment(file, entity_type, entity_id):
 MAX_UPLOAD_ROWS = 10
 
 
-def upload_rows_from_form(prefix='attachment', max_rows=MAX_UPLOAD_ROWS):
-    """Read repeatable [file][optional name] rows off a submitted form.
+def named_uploads(files, display_name=None):
+    """Pair uploaded files with a friendly name.
 
-    Returns [(FileStorage, display_name), ...] for rows that actually carry a
-    file. The row count comes from a hidden field the browser maintains, so it
-    is untrusted: parsed defensively and capped.
+    A name only makes sense for a single file — applying one label to a whole
+    selection would be misleading — so it is dropped when several were chosen
+    and those keep their filenames.
+    """
+    real = [f for f in files if f and f.filename]
+    if not real:
+        return []
+    if display_name and len(real) == 1:
+        return [(real[0], display_name)]
+    return [(f, None) for f in real]
+
+
+def upload_rows_from_form(prefix='attachment', max_rows=MAX_UPLOAD_ROWS):
+    """Read repeatable [files][optional name] rows off a submitted form.
+
+    Each row's input accepts several files at once, so one row can carry a whole
+    selection. The row count comes from a hidden field the browser maintains, so
+    it is untrusted: parsed defensively and capped.
     """
     count = parse_int(request.form.get(f'{prefix}_count'), minimum=0) or 0
     rows = []
     for i in range(min(count, max_rows)):
-        file = request.files.get(f'{prefix}_{i}_file')
-        if not file or not file.filename:
-            continue
-        rows.append((file, request.form.get(f'{prefix}_{i}_name', '').strip() or None))
+        files = request.files.getlist(f'{prefix}_{i}_file')
+        rows.extend(named_uploads(files, request.form.get(f'{prefix}_{i}_name', '').strip() or None))
     return rows
 
 

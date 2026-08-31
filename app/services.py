@@ -106,7 +106,7 @@ def generate_work_order_for_pm(pm, created_by=None, description=None, on_date=No
             title=pm.name,
             wo_type='planned',
             status='open',
-            priority='medium',
+            priority=pm.wo_priority or 'medium',
             asset_id=pm.asset_id,
             location_id=pm.location_id,
             job_plan_id=pm.job_plan_id,

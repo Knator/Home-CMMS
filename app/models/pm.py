@@ -18,6 +18,9 @@ class PM(db.Model):
     generate_lead_days = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     # Days past the due date before it counts as overdue.
     overdue_grace_days = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    # Priority stamped on the work orders this PM generates.
+    wo_priority = db.Column(db.String(20), nullable=False, default='medium',
+                            server_default='medium')
     next_due_date = db.Column(db.Date, nullable=False)
     last_generated_date = db.Column(db.Date, nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
@@ -54,6 +57,11 @@ class PM(db.Model):
         while next_due <= today:
             next_due += interval
         self.next_due_date = next_due
+
+    @property
+    def priority_class(self):
+        from app.models.work_order import PRIORITY_COLORS
+        return PRIORITY_COLORS.get(self.wo_priority, '')
 
     @property
     def generation_date(self):

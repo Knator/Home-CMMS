@@ -57,6 +57,22 @@
         <div class="detail-value">Every {{ pm.interval_days }} days</div>
       </div>
       <div class="detail-field">
+        <div class="detail-label">Generate Ahead</div>
+        <div class="detail-value">
+          {% if pm.generate_lead_days %}{{ pm.generate_lead_days }} day{{ '' if pm.generate_lead_days == 1 else 's' }} before due
+            <div class="field-hint" style="margin-top:4px;">Next generates {{ pm.generation_date.strftime('%Y-%m-%d') }}</div>
+          {% else %}On the due date{% endif %}
+        </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Overdue Grace</div>
+        <div class="detail-value">
+          {% if pm.overdue_grace_days %}{{ pm.overdue_grace_days }} day{{ '' if pm.overdue_grace_days == 1 else 's' }}
+            <div class="field-hint" style="margin-top:4px;">Overdue from {{ pm.overdue_from.strftime('%Y-%m-%d') }}</div>
+          {% else %}None — overdue the day after it is due{% endif %}
+        </div>
+      </div>
+      <div class="detail-field">
         <div class="detail-label">Schedule Basis</div>
         <div class="detail-value">
           {{ pm.schedule_basis }}

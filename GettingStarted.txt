@@ -311,6 +311,17 @@ This guide takes you from a fresh clone to a running, testable app.
           and job plan), and
         * advances the PM: last_generated_date = today, and next_due_date
           moves forward by one interval FROM THE PREVIOUS DUE DATE.
+  - "Generate Ahead (days)" creates the work order early, so there is time to
+    order parts or book a slot. A PM due on the 30th with 14 days' lead starts
+    generating on the 16th; the work order still shows the 30th as its due
+    date. This must be less than the interval, or the PM would generate every
+    day.
+
+  - "Overdue Grace (days)" is how long past the due date something can sit
+    before it is flagged overdue in red. It exists on both PMs and work orders,
+    and a work order generated from a PM inherits the PM's setting. A work
+    order due on the 1st with 5 days' grace is not overdue until the 7th.
+
   - Each PM chooses how its next due date is worked out, via the "Schedule Based
     on Last Completed" checkbox:
         * OFF (default) — fixed rhythm. The next due date is one interval after

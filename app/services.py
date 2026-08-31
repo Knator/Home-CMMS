@@ -112,6 +112,7 @@ def generate_work_order_for_pm(pm, created_by=None, description=None, on_date=No
             job_plan_id=pm.job_plan_id,
             pm_id=pm.id,
             due_date=due_date,
+            overdue_grace_days=pm.overdue_grace_days or 0,
             description=description or f"Auto-generated from PM schedule: {pm.name}",
             created_by=created_by,
         )

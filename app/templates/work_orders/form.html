@@ -43,6 +43,12 @@
             <input type="date" name="due_date" value="{{ wo.due_date.isoformat() if is_edit and wo.due_date else '' }}">
           </div>
           <div class="form-group">
+            <label for="overdue_grace_days">Overdue Grace (days)</label>
+            <input type="number" id="overdue_grace_days" name="overdue_grace_days" min="0" max="365"
+                   value="{{ wo.overdue_grace_days if is_edit else 0 }}">
+            <span class="field-hint">Days past the due date before this is flagged overdue.</span>
+          </div>
+          <div class="form-group">
             <label for="completed_date">Completed Date</label>
             <input type="date" id="completed_date" name="completed_date"
                    value="{{ wo.completed_date.isoformat() if is_edit and wo.completed_date else '' }}">

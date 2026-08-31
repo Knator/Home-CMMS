@@ -119,6 +119,7 @@ def create():
             job_plan_id=parse_int(request.form.get('job_plan_id')),
             assigned_to=parse_int(request.form.get('assigned_to')),
             due_date=parse_date(request.form.get('due_date')),
+            overdue_grace_days=parse_int(request.form.get('overdue_grace_days'), minimum=0) or 0,
             completed_date=_resolve_completed_date(status),
             description=request.form.get('description', '').strip() or None,
             notes=request.form.get('notes', '').strip() or None,
@@ -172,6 +173,7 @@ def edit(id):
         wo.job_plan_id = parse_int(request.form.get('job_plan_id'))
         wo.assigned_to = parse_int(request.form.get('assigned_to'))
         wo.due_date = parse_date(request.form.get('due_date'))
+        wo.overdue_grace_days = parse_int(request.form.get('overdue_grace_days'), minimum=0) or 0
         wo.description = request.form.get('description', '').strip() or None
         wo.notes = request.form.get('notes', '').strip() or None
 

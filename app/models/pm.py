@@ -12,6 +12,12 @@ class PM(db.Model):
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)
     job_plan_id = db.Column(db.Integer, db.ForeignKey('job_plans.id'), nullable=True)
     interval_days = db.Column(db.Integer, nullable=False)
+    # Generate the work order this many days before it falls due, so there is
+    # time to prepare. Must stay below interval_days or the next occurrence
+    # would come due for generation again immediately.
+    generate_lead_days = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    # Days past the due date before it counts as overdue.
+    overdue_grace_days = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     next_due_date = db.Column(db.Date, nullable=False)
     last_generated_date = db.Column(db.Date, nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
@@ -48,6 +54,20 @@ class PM(db.Model):
         while next_due <= today:
             next_due += interval
         self.next_due_date = next_due
+
+    @property
+    def generation_date(self):
+        """The day this PM starts generating: its due date, minus the lead."""
+        return self.next_due_date - timedelta(days=self.generate_lead_days or 0)
+
+    def is_due_for_generation(self, on_date=None):
+        today = on_date or date.today()
+        return bool(self.is_active) and self.generation_date <= today
+
+    @property
+    def overdue_from(self):
+        """First day this PM counts as overdue."""
+        return self.next_due_date + timedelta(days=(self.overdue_grace_days or 0) + 1)
 
     def last_completion_date(self):
         """Most recent completion among the work orders this PM generated."""
@@ -88,7 +108,7 @@ class PM(db.Model):
 
     @property
     def is_overdue(self):
-        return self.is_active and self.next_due_date < date.today()
+        return bool(self.is_active) and date.today() >= self.overdue_from
 
     def __repr__(self):
         return f'<PM {self.name}>'

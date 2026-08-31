@@ -51,6 +51,18 @@
             <label>Next Due Date *</label>
             <input type="date" name="next_due_date" value="{{ pm.next_due_date.isoformat() if is_edit else '' }}" required>
           </div>
+          <div class="form-group">
+            <label for="generate_lead_days">Generate Ahead (days)</label>
+            <input type="number" id="generate_lead_days" name="generate_lead_days" min="0" max="365"
+                   value="{{ pm.generate_lead_days if is_edit else 0 }}">
+            <span class="field-hint">Create the work order this many days before it falls due. Must be less than the interval. 0 generates on the due date.</span>
+          </div>
+          <div class="form-group">
+            <label for="overdue_grace_days">Overdue Grace (days)</label>
+            <input type="number" id="overdue_grace_days" name="overdue_grace_days" min="0" max="365"
+                   value="{{ pm.overdue_grace_days if is_edit else 0 }}">
+            <span class="field-hint">Days past the due date before this PM is flagged overdue. Generated work orders inherit it.</span>
+          </div>
           <div class="form-group full">
             <label class="checkbox-label" for="schedule_from_completion">
               <input type="checkbox" id="schedule_from_completion" name="schedule_from_completion"

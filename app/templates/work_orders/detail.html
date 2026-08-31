@@ -59,6 +59,14 @@
         <div class="detail-value">{{ wo.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
       </div>
       <div class="detail-field">
+        <div class="detail-label">Overdue Grace</div>
+        <div class="detail-value {{ 'empty' if not wo.overdue_grace_days }}">
+          {% if wo.overdue_grace_days %}{{ wo.overdue_grace_days }} day{{ '' if wo.overdue_grace_days == 1 else 's' }}
+            {% if wo.overdue_from %}<div class="field-hint" style="margin-top:4px;">Overdue from {{ wo.overdue_from.strftime('%Y-%m-%d') }}</div>{% endif %}
+          {% else %}None{% endif %}
+        </div>
+      </div>
+      <div class="detail-field">
         <div class="detail-label">Completed</div>
         <div class="detail-value {{ 'empty' if not wo.completed_date }}">{{ wo.completed_date.strftime('%Y-%m-%d') if wo.completed_date else '—' }}</div>
       </div>

@@ -1,10 +1,13 @@
 import atexit
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
 log = logging.getLogger(__name__)
+
+# Upper bound on a PM's generate-ahead window; also the cap the form enforces.
+MAX_LEAD_DAYS = 365
 
 
 def run_pm_check(app):
@@ -15,14 +18,20 @@ def run_pm_check(app):
         from app.services import generate_work_order_for_pm
 
         today = date.today()
+        # Coarse SQL filter, then the exact per-PM lead time in Python — the
+        # lead is a column, so `next_due_date - lead <= today` is awkward to
+        # express portably in SQL and there are few enough PMs for it not to
+        # matter.
+        #
         # NULL last_generated_date (brand-new PM) must still match, so guard the
         # "already generated today" check with an explicit IS NULL — SQL treats
         # `NULL != today` as NULL, which would silently exclude new PMs.
-        due_pms = PM.query.filter(
+        candidates = PM.query.filter(
             PM.is_active.is_(True),
-            PM.next_due_date <= today,
+            PM.next_due_date <= today + timedelta(days=MAX_LEAD_DAYS),
             db.or_(PM.last_generated_date.is_(None), PM.last_generated_date != today),
         ).all()
+        due_pms = [pm for pm in candidates if pm.is_due_for_generation(today)]
 
         generated = 0
         for pm in due_pms:

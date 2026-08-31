@@ -14,11 +14,17 @@ def dashboard():
     soon = today + timedelta(days=30)
 
     open_wo_count = WorkOrder.query.filter(WorkOrder.status.in_(['open', 'in_progress'])).count()
-    overdue_count = WorkOrder.query.filter(
-        WorkOrder.status.in_(['open', 'in_progress']),
-        WorkOrder.due_date < today,
-        WorkOrder.due_date.isnot(None),
-    ).count()
+    # Grace periods are per-record, so the count is settled in Python using the
+    # same is_overdue the pages display. `due_date < today` is a superset of
+    # what can be overdue, so it stays a cheap SQL prefilter.
+    overdue_count = sum(
+        1 for wo in WorkOrder.query.filter(
+            WorkOrder.status.in_(['open', 'in_progress']),
+            WorkOrder.due_date < today,
+            WorkOrder.due_date.isnot(None),
+        ).all()
+        if wo.is_overdue
+    )
     pms_due_count = PM.query.filter(
         PM.is_active.is_(True),
         PM.next_due_date <= soon,

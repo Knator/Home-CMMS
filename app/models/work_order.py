@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from app.utils import utcnow
 from app.extensions import db
 
@@ -37,6 +37,9 @@ class WorkOrder(db.Model):
     pm_id = db.Column(db.Integer, db.ForeignKey('pms.id'), nullable=True)
     assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     due_date = db.Column(db.Date, nullable=True)
+    # Days past the due date before this counts as overdue. Copied from the PM
+    # when the work order is generated from one.
+    overdue_grace_days = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     completed_date = db.Column(db.Date, nullable=True)
     description = db.Column(db.Text)
     notes = db.Column(db.Text)
@@ -72,11 +75,18 @@ class WorkOrder(db.Model):
         return f"{prefix}{seq:05d}"
 
     @property
+    def overdue_from(self):
+        """First day this work order counts as overdue, or None if never."""
+        if self.due_date is None:
+            return None
+        return self.due_date + timedelta(days=(self.overdue_grace_days or 0) + 1)
+
+    @property
     def is_overdue(self):
         return (
-            self.due_date is not None and
+            self.overdue_from is not None and
             self.status not in ('completed', 'cancelled') and
-            self.due_date < date.today()
+            date.today() >= self.overdue_from
         )
 
     @property

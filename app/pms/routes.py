@@ -9,6 +9,7 @@ from app.models.pm import PM
 from app.models.job_plan import JobPlan
 from app.models.work_order import WorkOrder
 from app.models.attachment import Attachment
+from app.scheduler import MAX_LEAD_DAYS
 from app.services import generate_work_order_for_pm, selectable_assets, selectable_locations
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads,
@@ -33,6 +34,8 @@ def _read_form():
     interval = parse_int(request.form.get('interval_days', '').strip(), minimum=1)
     next_due = parse_date(request.form.get('next_due_date', '').strip())
     from_completion = bool(request.form.get('schedule_from_completion'))
+    lead = parse_int(request.form.get('generate_lead_days', '').strip() or '0', minimum=0)
+    grace = parse_int(request.form.get('overdue_grace_days', '').strip() or '0', minimum=0)
 
     errors = []
     if not name:
@@ -41,7 +44,15 @@ def _read_form():
         errors.append('Interval must be a positive number of days.')
     if not next_due:
         errors.append('Next due date is required.')
-    return name, interval, next_due, from_completion, errors
+    if lead is None or lead > MAX_LEAD_DAYS:
+        errors.append(f'Generate-ahead days must be between 0 and {MAX_LEAD_DAYS}.')
+    elif interval is not None and lead >= interval:
+        # Otherwise the next occurrence would already be inside its own lead
+        # window the moment it is scheduled, and generate again the next day.
+        errors.append('Generate-ahead days must be less than the interval.')
+    if grace is None or grace > MAX_LEAD_DAYS:
+        errors.append(f'Overdue grace days must be between 0 and {MAX_LEAD_DAYS}.')
+    return name, interval, next_due, from_completion, lead, grace, errors
 
 
 @bp.route('/')
@@ -62,7 +73,7 @@ def create():
 
     if request.method == 'POST':
         validate_csrf()
-        name, interval, next_due, from_completion, errors = _read_form()
+        name, interval, next_due, from_completion, lead, grace, errors = _read_form()
         if errors:
             for e in errors:
                 flash(e, 'error')
@@ -76,6 +87,8 @@ def create():
             interval_days=interval,
             next_due_date=next_due,
             schedule_from_completion=from_completion,
+            generate_lead_days=lead,
+            overdue_grace_days=grace,
             is_active=True,
             notes=request.form.get('notes', '').strip() or None,
             created_by=current_user.id,
@@ -111,7 +124,7 @@ def edit(id):
 
     if request.method == 'POST':
         validate_csrf()
-        name, interval, next_due, from_completion, errors = _read_form()
+        name, interval, next_due, from_completion, lead, grace, errors = _read_form()
         if errors:
             for e in errors:
                 flash(e, 'error')
@@ -124,6 +137,8 @@ def edit(id):
         pm.interval_days = interval
         pm.next_due_date = next_due
         pm.schedule_from_completion = from_completion
+        pm.generate_lead_days = lead
+        pm.overdue_grace_days = grace
         pm.is_active = bool(request.form.get('is_active'))
         pm.notes = request.form.get('notes', '').strip() or None
         # Switching to a floating schedule re-anchors straight away, so the

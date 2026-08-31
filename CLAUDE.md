@@ -128,6 +128,19 @@ Last Completed"):
   the scheduler: `sync_pm_schedule()` is called from the work order create and edit paths,
   and by the PM edit route so switching the flag on takes effect immediately.
 
+`generate_lead_days` opens the generation window early: a PM becomes eligible on
+`next_due_date - lead`, while the work order still carries the real due date. The form
+enforces `lead < interval_days`, because a lead at or above the interval would put the
+next occurrence inside its own window the moment it was scheduled and generate again the
+following day. `run_pm_check` prefilters in SQL with a `MAX_LEAD_DAYS` window and applies
+each PM's exact lead in Python, since the lead is a column.
+
+`overdue_grace_days` (on both PM and WorkOrder) delays the overdue flag: `overdue_from` is
+`due_date + grace + 1`. A work order generated from a PM inherits the PM's grace. The
+dashboard's overdue count is settled in Python from the same `is_overdue` the pages use —
+`due_date < today` remains a cheap SQL prefilter, since grace can only ever make fewer
+records overdue.
+
 Generation still advances the due date in both modes — otherwise a floating PM would
 regenerate every day until someone completed the work.
 

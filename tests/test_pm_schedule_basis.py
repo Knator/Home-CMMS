@@ -204,7 +204,7 @@ def test_basis_is_shown_on_detail_and_list(client, db, user, login):
 
     assert 'Last completion' in client.get(f'/pms/{pm.id}').get_data(as_text=True)
     listing = client.get('/pms/').get_data(as_text=True)
-    assert '<th>Basis</th>' in listing
+    assert '>Basis</th>' in listing
     assert 'Last completion' in listing
 
 

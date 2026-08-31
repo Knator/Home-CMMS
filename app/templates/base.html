@@ -9,7 +9,13 @@
 </head>
 <body>
 
-<div class="sidebar">
+<button type="button" class="nav-toggle" id="nav-toggle"
+        aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+  <span class="nav-toggle-bars" aria-hidden="true"></span>
+</button>
+<div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
+
+<div class="sidebar" id="sidebar">
   <div class="sidebar-brand">
     Home CMMS
     <span>Maintenance Management</span>
@@ -36,11 +42,9 @@
   <header class="topbar">
     <div class="topbar-title">{% block page_title %}{% endblock %}</div>
     <div class="topbar-right">
-      {{ current_user.username }}
-      &nbsp;·&nbsp;
-      <a href="{{ url_for('auth.change_password') }}">Change Password</a>
-      &nbsp;·&nbsp;
-      <a href="{{ url_for('auth.logout') }}">Logout</a>
+      <span class="topbar-user">{{ current_user.username }}</span>
+      <a href="{{ url_for('auth.change_password') }}" class="topbar-link">Change Password</a>
+      <a href="{{ url_for('auth.logout') }}" class="topbar-link">Logout</a>
       &nbsp;
       <button type="button" class="theme-toggle" onclick="toggleTheme()"
               aria-pressed="false" aria-label="Switch between light and dark mode"

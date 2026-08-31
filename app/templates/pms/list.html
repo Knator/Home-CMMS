@@ -22,16 +22,16 @@
   <div class="table-wrap">
     {% if pms %}
     <table>
-      <thead><tr><th>Name</th><th>Asset</th><th>Interval</th><th>Basis</th><th>Next Due</th><th>Last Generated</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Asset</th><th class="col-hide-sm">Interval</th><th class="col-hide-sm">Basis</th><th>Next Due</th><th class="col-hide-sm">Last Generated</th><th>Status</th><th></th></tr></thead>
       <tbody>
         {% for pm in pms %}
         <tr class="{{ 'overdue-row' if pm.is_overdue }}">
           <td><a class="row-link" href="{{ url_for('pms.detail', id=pm.id) }}">{{ pm.name }}</a></td>
           <td>{% if pm.asset %}<a class="row-link" href="{{ url_for('assets.detail', id=pm.asset.id) }}">{{ pm.asset.name }}</a> <span class="muted-number">{{ pm.asset.asset_number }}</span>{% else %}—{% endif %}</td>
-          <td>Every {{ pm.interval_days }} days</td>
-          <td><span class="badge {{ 'badge-type-planned' if pm.schedule_from_completion else 'badge-inactive' }}">{{ pm.schedule_basis }}</span></td>
+          <td class="col-hide-sm">Every {{ pm.interval_days }} days</td>
+          <td class="col-hide-sm"><span class="badge {{ 'badge-type-planned' if pm.schedule_from_completion else 'badge-inactive' }}">{{ pm.schedule_basis }}</span></td>
           <td class="{{ 'text-danger' if pm.is_overdue }}">{{ pm.next_due_date.strftime('%Y-%m-%d') }}</td>
-          <td>{{ pm.last_generated_date.strftime('%Y-%m-%d') if pm.last_generated_date else '—' }}</td>
+          <td class="col-hide-sm">{{ pm.last_generated_date.strftime('%Y-%m-%d') if pm.last_generated_date else '—' }}</td>
           <td>
             {% if pm.is_active %}
               <span class="badge badge-active">Active</span>

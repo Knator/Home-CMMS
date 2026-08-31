@@ -39,7 +39,7 @@
   <div class="table-wrap">
     {% if rows %}
     <table>
-      <thead><tr><th>Asset #</th><th>Name</th><th>Status</th><th>Category</th><th>Location</th><th>Make / Model</th><th>Install Date</th><th></th></tr></thead>
+      <thead><tr><th>Asset #</th><th>Name</th><th>Status</th><th class="col-hide-sm">Category</th><th>Location</th><th class="col-hide-sm">Make / Model</th><th class="col-hide-sm">Install Date</th><th></th></tr></thead>
       <tbody>
         {% for a, depth in rows %}
         <tr>
@@ -51,10 +51,10 @@
             </span>
           </td>
           <td><span class="badge {{ a.status_class }}">{{ a.status_label }}</span></td>
-          <td>{{ a.category or '—' }}</td>
+          <td class="col-hide-sm">{{ a.category or '—' }}</td>
           <td>{{ a.location.name if a.location else '—' }}</td>
-          <td>{{ ((a.make or '') + ' ' + (a.model or '')) | trim or '—' }}</td>
-          <td>{{ a.install_date.strftime('%Y-%m-%d') if a.install_date else '—' }}</td>
+          <td class="col-hide-sm">{{ ((a.make or '') + ' ' + (a.model or '')) | trim or '—' }}</td>
+          <td class="col-hide-sm">{{ a.install_date.strftime('%Y-%m-%d') if a.install_date else '—' }}</td>
           <td><a href="{{ url_for('assets.edit', id=a.id) }}" class="btn btn-ghost btn-sm">Edit</a></td>
         </tr>
         {% endfor %}

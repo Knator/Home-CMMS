@@ -187,6 +187,7 @@ body {
   background: var(--content-bg);
   display: flex;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -199,6 +200,7 @@ body {
   flex-direction: column;
   overflow-y: auto;
   height: 100vh;
+  height: 100dvh;
 }
 
 .sidebar-brand {
@@ -668,6 +670,7 @@ textarea { resize: vertical; min-height: 90px; }
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   padding: 24px;
   /* body is overflow:hidden, so scroll here or a short window clips the card */
@@ -1102,4 +1105,178 @@ a.asset-link:hover { text-decoration: underline; }
   font-weight: 600;
   color: var(--text-secondary);
   white-space: nowrap;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Responsive layout
+
+   Desktop keeps the fixed sidebar. Below --bp-nav the sidebar becomes an
+   off-canvas drawer behind a hamburger, because a 220px fixed column leaves
+   almost nothing for content on a phone.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.form-shell { max-width: var(--shell-max, 900px); }
+
+.split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* Hamburger: hidden on desktop, shown once the sidebar goes off-canvas. */
+.nav-toggle {
+  display: none;
+  position: fixed;
+  top: 9px;
+  left: 10px;
+  z-index: 60;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  cursor: pointer;
+}
+
+.nav-toggle-bars,
+.nav-toggle-bars::before,
+.nav-toggle-bars::after {
+  position: absolute;
+  left: 50%;
+  width: 18px;
+  height: 2px;
+  margin-left: -9px;
+  background: var(--text-primary);
+  border-radius: 2px;
+  transition: transform .2s, opacity .2s;
+}
+
+.nav-toggle-bars { top: 50%; margin-top: -1px; }
+.nav-toggle-bars::before { content: ''; top: -6px; margin-left: 0; left: 0; }
+.nav-toggle-bars::after  { content: ''; top: 6px;  margin-left: 0; left: 0; }
+
+body.nav-open .nav-toggle-bars { background: transparent; }
+body.nav-open .nav-toggle-bars::before { transform: translateY(6px) rotate(45deg); }
+body.nav-open .nav-toggle-bars::after  { transform: translateY(-6px) rotate(-45deg); }
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, .5);
+  border: 0;
+}
+
+@media (max-width: 860px) {
+  .nav-toggle { display: block; }
+
+  /* Drawer: off-screen until opened, above the content when it is. */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform .22s ease;
+    box-shadow: var(--shadow-lg);
+  }
+
+  body.nav-open .sidebar { transform: translateX(0); }
+
+  /* The drawer overlaps the content, so the main column takes the full width. */
+  .main-content { width: 100%; }
+
+  /* Leave room for the hamburger. */
+  .topbar { padding: 0 12px 0 58px; gap: 8px; }
+  .topbar-title { font-size: 15px; }
+  .topbar-right { gap: 10px; font-size: 12px; }
+  .topbar-user { display: none; }
+
+  .content { padding: 14px 12px; }
+
+  /* Anything laid out in two columns becomes one. */
+  .split-grid,
+  .detail-grid { grid-template-columns: 1fr; }
+
+  .stat-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .stat-card { padding: 14px; }
+  .stat-value { font-size: 24px; }
+
+  /* Header actions wrap under the title instead of squeezing it. */
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .page-actions { width: 100%; flex-wrap: wrap; }
+
+  .card-header { flex-wrap: wrap; }
+
+  .filters { padding: 10px 12px; }
+  .filters .combo { min-width: 0; flex: 1 1 100%; }
+  .filters select, .filters input { width: 100%; }
+  .filters label { width: 100%; }
+
+  /* Tables scroll sideways rather than crushing every column to nothing. */
+  .table-wrap { -webkit-overflow-scrolling: touch; }
+  .table-wrap table { min-width: 560px; }
+  thead th, tbody td { padding: 9px 10px; }
+
+  /* Repeatable rows stack; the drag handle and controls sit on their own line. */
+  .repeat-row,
+  .repeat-head { grid-template-columns: 1fr !important; }
+  .repeat-head { display: none; }
+  .repeat-row {
+    gap: 6px;
+    padding: 10px;
+    border: 1px solid var(--card-border);
+  }
+  .repeat-row .drag-handle { justify-self: start; }
+  .row-controls { justify-content: flex-start; }
+  .btn-row-move { padding: 8px 10px; font-size: 12px; }
+
+  .form-actions { flex-wrap: wrap; }
+  .form-actions .btn { flex: 1 1 auto; justify-content: center; }
+
+  .photo-edit { flex-direction: column; }
+  .photo-thumb { width: 100%; height: auto; max-height: 240px; object-fit: contain; }
+
+  .upload-form { flex-wrap: wrap; }
+  .upload-form input[type="file"], .upload-name { flex: 1 1 100%; }
+
+  .attachment-item { gap: 8px; }
+  .rename-form input[type="text"] { flex: 1 1 100%; }
+
+  .combo-list { max-height: 50vh; }
+
+  /* iOS zooms the page when focusing a field under 16px. */
+  input[type="text"], input[type="email"], input[type="password"],
+  input[type="date"], input[type="number"], input[type="search"],
+  select, textarea, .combo-input { font-size: 16px; }
+
+  /* Comfortable touch targets. */
+  .btn { padding: 9px 14px; }
+  .btn-sm { padding: 7px 12px; }
+  .sidebar-nav a { padding: 11px 16px; }
+}
+
+@media (max-width: 480px) {
+  .content { padding: 12px 10px; }
+  .card-body { padding: 14px; }
+  .page-header h1 { font-size: 18px; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .page-actions .btn { flex: 1 1 100%; }
+  .detail-grid { gap: 4px 0; }
+}
+
+/* A pointer-less device gets no hover affordances, so keep the drag handle
+   visible and the controls large enough to hit. */
+@media (hover: none) {
+  .drag-handle { font-size: 18px; }
+}
+
+/* Secondary table columns. Below this width even a scrolling table is painful,
+   so the least important columns drop out and the rest fit without scrolling.
+   Nothing is lost — the detail page still shows every field. */
+@media (max-width: 700px) {
+  .col-hide-sm { display: none; }
+  .table-wrap table { min-width: 0; }
 }

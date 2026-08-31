@@ -4,7 +4,7 @@
 {% block page_title %}{{ 'Edit WO ' + wo.wo_number if is_edit else 'New Work Order' }}{% endblock %}
 
 {% block content %}
-<div style="max-width:900px;">
+<div class="form-shell" style="--shell-max: 900px;">
   <div class="card">
     <div class="card-body">
       <form method="post" enctype="multipart/form-data">

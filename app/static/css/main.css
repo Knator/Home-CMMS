@@ -1280,3 +1280,102 @@ body.nav-open .nav-toggle-bars::after  { transform: translateY(-6px) rotate(-45d
   .col-hide-sm { display: none; }
   .table-wrap table { min-width: 0; }
 }
+
+/* ── Attachment thumbnails and lightbox ── */
+.attachment-thumb {
+  flex: 0 0 auto;
+  display: block;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  background: var(--surface-subtle);
+}
+
+.attachment-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.attachment-thumb:hover { border-color: var(--accent); }
+
+/* Non-image files get a small extension chip in the same slot, so the rows
+   stay aligned whatever the mix of file types. */
+.attachment-icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius);
+  border: 1px solid var(--card-border);
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, .82);
+}
+
+.lightbox figure {
+  margin: 0;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.lightbox img {
+  max-width: 100%;
+  /* Leave room for the caption under a full-height image. */
+  max-height: calc(100vh - 110px);
+  max-height: calc(100dvh - 110px);
+  object-fit: contain;
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.lightbox figcaption {
+  color: #f1f5f9;
+  font-size: 13px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, .12);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lightbox-close:hover { background: rgba(255, 255, 255, .22); }
+
+@media (max-width: 860px) {
+  .lightbox { padding: 12px; }
+  .attachment-thumb, .attachment-icon { width: 40px; height: 40px; }
+}

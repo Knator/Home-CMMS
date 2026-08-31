@@ -517,3 +517,77 @@ function initMobileNav() {
 }
 
 document.addEventListener('DOMContentLoaded', initMobileNav);
+
+/* ── Image lightbox ──
+   Thumbnails link to the full image, so without JS a click opens it in a new
+   tab. With JS, view it in place instead. */
+function initLightbox() {
+  const links = document.querySelectorAll('a[data-lightbox]');
+  if (!links.length) return;
+
+  let overlay = null;
+  let lastFocus = null;
+
+  function close() {
+    if (!overlay) return;
+    overlay.remove();
+    overlay = null;
+    document.body.style.overflow = '';
+    if (lastFocus) lastFocus.focus();
+  }
+
+  function open(href, caption) {
+    close();
+    lastFocus = document.activeElement;
+
+    overlay = document.createElement('div');
+    overlay.className = 'lightbox';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', caption || 'Image');
+
+    const figure = document.createElement('figure');
+    const img = document.createElement('img');
+    img.src = href;
+    img.alt = caption || '';
+    figure.appendChild(img);
+
+    if (caption) {
+      const cap = document.createElement('figcaption');
+      cap.textContent = caption;
+      figure.appendChild(cap);
+    }
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'lightbox-close';
+    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.innerHTML = '&times;';
+    closeBtn.addEventListener('click', close);
+
+    overlay.appendChild(closeBtn);
+    overlay.appendChild(figure);
+    // A click anywhere off the image closes; clicks on it should not.
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    figure.addEventListener('click', (e) => e.stopPropagation());
+
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+    closeBtn.focus();
+  }
+
+  links.forEach((link) => {
+    link.addEventListener('click', (e) => {
+      // Let modified clicks (new tab, save) behave normally.
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      open(link.getAttribute('href'), link.dataset.caption || '');
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initLightbox);

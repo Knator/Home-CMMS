@@ -1,11 +1,32 @@
-{# Shared attachment UI. Used by every entity detail page so naming, renaming
-   and deleting behave identically wherever files are shown. #}
+{# Shared attachment UI. Used by every entity detail page so naming, previews,
+   renaming and deleting behave identically wherever files are shown. #}
+
+{% macro preview(att) %}
+  {% if att.is_image and thumbnails_available %}
+    {# href works without JS (opens the full image in a tab); the lightbox
+       intercepts the click when JS is available. #}
+    <a class="attachment-thumb" href="{{ url_for('attachments.inline', id=att.id) }}"
+       data-lightbox data-caption="{{ att.label }}" target="_blank" rel="noopener"
+       aria-label="View {{ att.label }} full size">
+      {# If the preview cannot be produced the request 404s; swap in the
+         extension chip rather than leaving a broken image. #}
+      <img src="{{ url_for('attachments.thumbnail', id=att.id) }}"
+           alt="Preview of {{ att.label }}" loading="lazy" decoding="async"
+           onerror="this.closest('.attachment-thumb').outerHTML =
+                    '<span class=\'attachment-icon\' aria-hidden=\'true\'>{{ att.extension | upper or 'FILE' }}</span>';">
+    </a>
+  {% else %}
+    <span class="attachment-icon" aria-hidden="true">{{ att.extension | upper or 'FILE' }}</span>
+  {% endif %}
+{% endmacro %}
+
 
 {% macro attachment_list(attachments) %}
   {% if attachments %}
   <ul class="attachment-list">
     {% for att in attachments %}
     <li class="attachment-item">
+      {{ preview(att) }}
       <div class="attachment-main">
         <a class="attachment-name" href="{{ url_for('attachments.download', id=att.id) }}">{{ att.label }}</a>
         {% if att.display_name %}
@@ -52,6 +73,7 @@
   <ul class="attachment-list">
     {% for item in related %}
     <li class="attachment-item">
+      {{ preview(item.attachment) }}
       <div class="attachment-main">
         <a class="attachment-name" href="{{ url_for('attachments.download', id=item.attachment.id) }}">{{ item.attachment.label }}</a>
         {% if item.attachment.display_name %}

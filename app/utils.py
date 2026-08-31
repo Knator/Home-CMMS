@@ -174,6 +174,90 @@ def store_uploads(entity_type, entity_id, rows, uploaded_by):
     return saved, errors
 
 
+# Longest edge of a generated thumbnail. Rendered around 96px, so this keeps a
+# high-DPI screen sharp without shipping the original.
+THUMBNAIL_MAX_PX = 320
+
+# When a thumbnail cannot be produced we may serve the original instead, but
+# only if it is small. Sending a 13 MB photo to fill a 48px box makes scrolling
+# stall for seconds — far worse than showing no preview at all.
+THUMBNAIL_FALLBACK_MAX_BYTES = 1024 * 1024
+
+# Pillow refuses images above ~179 MP as suspected decompression bombs. Phone
+# panorama and super-resolution modes legitimately exceed that (a 16320x12240
+# shot is 200 MP), and these are files an authenticated user uploaded to their
+# own instance. Raised, but still bounded — and draft() below means such a file
+# is never decoded at full size anyway.
+THUMBNAIL_MAX_PIXELS = 600_000_000
+
+
+def thumbnails_available():
+    """Whether Pillow is importable, so previews can actually be generated."""
+    try:
+        import PIL  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def thumbnail_dir():
+    return os.path.join(current_app.config['UPLOAD_FOLDER'], '.thumbnails')
+
+
+def thumbnail_path(attachment_id):
+    return os.path.join(thumbnail_dir(), f'{attachment_id}.jpg')
+
+
+def build_thumbnail(source_path, attachment_id):
+    """Generate and cache a thumbnail, returning its path (None if it can't be made).
+
+    Cached on disk because resizing a phone photo on every page view is wasteful
+    and the source never changes — a new upload is a new attachment id.
+    """
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:          # Pillow is optional; callers fall back
+        return None
+
+    target = thumbnail_path(attachment_id)
+    if os.path.exists(target):
+        return target
+
+    if Image.MAX_IMAGE_PIXELS is not None and Image.MAX_IMAGE_PIXELS < THUMBNAIL_MAX_PIXELS:
+        Image.MAX_IMAGE_PIXELS = THUMBNAIL_MAX_PIXELS
+
+    try:
+        os.makedirs(thumbnail_dir(), exist_ok=True)
+        with Image.open(source_path) as img:
+            # Ask the JPEG decoder for a reduced-scale read before anything
+            # touches the pixels. A 200 MP photo would otherwise need ~600 MB of
+            # RAM to decode; drafting brings that down by up to 64x.
+            img.draft('RGB', (THUMBNAIL_MAX_PX, THUMBNAIL_MAX_PX))
+            # Phone photos carry their rotation in EXIF; without this they come
+            # out sideways.
+            img = ImageOps.exif_transpose(img)
+            if img.mode not in ('RGB', 'L'):
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                img = background
+            img.thumbnail((THUMBNAIL_MAX_PX, THUMBNAIL_MAX_PX), Image.LANCZOS)
+            img.save(target, 'JPEG', quality=82, optimize=True)
+        return target
+    except Exception:
+        current_app.logger.exception('Could not thumbnail attachment %s', attachment_id)
+        return None
+
+
+def discard_thumbnail(attachment_id):
+    """Drop a cached thumbnail. Safe to call for non-images."""
+    try:
+        path = thumbnail_path(attachment_id)
+    except RuntimeError:         # outside an app context
+        return
+    if os.path.exists(path):
+        os.remove(path)
+
+
 def purge_entity_attachments(entity_type, entity_id):
     """Delete an entity's attachment rows and its upload directory.
 
@@ -183,6 +267,10 @@ def purge_entity_attachments(entity_type, entity_id):
     """
     from app.extensions import db
     from app.models.attachment import Attachment
+
+    doomed = Attachment.query.filter_by(entity_type=entity_type, entity_id=entity_id).all()
+    for attachment in doomed:
+        discard_thumbnail(attachment.id)
 
     Attachment.query.filter_by(entity_type=entity_type, entity_id=entity_id).delete(
         synchronize_session=False

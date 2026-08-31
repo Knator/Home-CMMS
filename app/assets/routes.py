@@ -14,7 +14,7 @@ from app.services import (
 )
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads, is_image_file,
-    entity_upload_dir,
+    entity_upload_dir, discard_thumbnail,
     parse_date, parse_int, choice,
 )
 
@@ -228,6 +228,7 @@ def _discard_image(asset):
     path = os.path.join(entity_upload_dir(old.entity_type, old.entity_id), old.stored_filename)
     if os.path.exists(path):
         os.remove(path)
+    discard_thumbnail(old.id)
     db.session.delete(old)
 
 

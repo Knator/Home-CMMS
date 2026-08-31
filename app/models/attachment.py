@@ -27,6 +27,12 @@ class Attachment(db.Model):
         return self.display_name or self.original_filename
 
     @property
+    def is_image(self):
+        """True for the raster formats we can render and thumbnail."""
+        from flask import current_app
+        return self.extension in current_app.config['IMAGE_EXTENSIONS']
+
+    @property
     def extension(self):
         _, _, ext = self.original_filename.rpartition('.')
         return ext.lower() if ext else ''

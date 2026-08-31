@@ -128,6 +128,8 @@ Last Completed"):
   the scheduler: `sync_pm_schedule()` is called from the work order create and edit paths,
   and by the PM edit route so switching the flag on takes effect immediately.
 
+`wo_priority` is the priority stamped on the work orders a PM generates (default `medium`).
+
 `generate_lead_days` opens the generation window early: a PM becomes eligible on
 `next_due_date - lead`, while the work order still carries the real due date. The form
 enforces `lead < interval_days`, because a lead at or above the interval would put the
@@ -174,6 +176,11 @@ Files stored at `UPLOAD_FOLDER/<entity_type>/<entity_id>/<uuid>_<original_name>`
 `Attachment.display_name` is an optional friendly label; `att.label` renders it (falling
 back to the filename) and `att.download_name` appends the original extension so a label
 like "Furnace manual" still saves as a `.pdf`. Rename via `attachments.rename`.
+
+Every file input accepts a **selection**, not just one file. `named_uploads(files, name)`
+pairs them up and drops the friendly name when more than one file was chosen, since one
+label cannot describe a whole selection — those keep their filenames. Repeatable form rows
+take a selection per row too.
 
 All upload paths go through `store_uploads(entity_type, entity_id, rows, user_id)` in
 `app/utils.py`, which validates extensions and returns `(saved, errors)` — a rejected file

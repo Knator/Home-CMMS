@@ -9,7 +9,7 @@ from app.models.attachment import Attachment
 from app.models.work_order import WorkOrder
 from app.services import location_delete_blockers, hierarchy_ordered, sibling_name_taken
 from app.utils import (
-    validate_csrf, purge_entity_attachments, store_uploads,
+    validate_csrf, purge_entity_attachments, store_uploads, named_uploads,
     parse_int, choice,
 )
 
@@ -181,16 +181,17 @@ def delete(id):
 def upload_attachment(id):
     validate_csrf()
     db.get_or_404(Location, id)
-    file = request.files.get('file')
-    if not file or file.filename == '':
+    rows = named_uploads(request.files.getlist('file'),
+                         request.form.get('display_name', '').strip() or None)
+    if not rows:
         flash('No file selected.', 'error')
         return redirect(url_for('locations.detail', id=id))
 
-    display_name = request.form.get('display_name', '').strip() or None
-    saved, errors = store_uploads(ENTITY, id, [(file, display_name)], current_user.id)
+    saved, errors = store_uploads(ENTITY, id, rows, current_user.id)
     for message in errors:
         flash(message, 'error')
     if saved:
         db.session.commit()
-        flash('File uploaded.', 'success')
+        count = len(saved)
+        flash(f"{count} file{'' if count == 1 else 's'} uploaded.", 'success')
     return redirect(url_for('locations.detail', id=id))

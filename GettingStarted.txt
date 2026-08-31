@@ -284,6 +284,11 @@ This guide takes you from a fresh clone to a running, testable app.
   previous image. PNG, JPG, GIF and WEBP are accepted. Click the photo to open
   it full size.
 
+  ATTACHING SEVERAL FILES
+  Every file picker takes more than one file at a time — select a batch and
+  upload them in one go. The friendly name only applies when you pick a single
+  file; a batch keeps each file's own name, and you can rename them afterwards.
+
   ATTACHMENT NAMES
   Every attachment can carry an optional friendly name — "Furnace manual"
   instead of MAN-4471-rev-c.pdf. Set it when uploading, or use Rename on any
@@ -311,6 +316,9 @@ This guide takes you from a fresh clone to a running, testable app.
           and job plan), and
         * advances the PM: last_generated_date = today, and next_due_date
           moves forward by one interval FROM THE PREVIOUS DUE DATE.
+  - "Work Order Priority" is the priority given to the work orders this PM
+    generates. Defaults to Medium.
+
   - "Generate Ahead (days)" creates the work order early, so there is time to
     order parts or book a slot. A PM due on the 30th with 14 days' lead starts
     generating on the 16th; the work order still shows the 30th as its due

@@ -57,6 +57,10 @@
         <div class="detail-value">Every {{ pm.interval_days }} days</div>
       </div>
       <div class="detail-field">
+        <div class="detail-label">Work Order Priority</div>
+        <div class="detail-value"><span class="badge {{ pm.priority_class }}">{{ pm.wo_priority }}</span></div>
+      </div>
+      <div class="detail-field">
         <div class="detail-label">Generate Ahead</div>
         <div class="detail-value">
           {% if pm.generate_lead_days %}{{ pm.generate_lead_days }} day{{ '' if pm.generate_lead_days == 1 else 's' }} before due

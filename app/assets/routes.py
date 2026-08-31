@@ -13,7 +13,7 @@ from app.services import (
     asset_delete_blockers, create_asset, hierarchy_ordered, selectable_locations,
 )
 from app.utils import (
-    validate_csrf, purge_entity_attachments, store_uploads, is_image_file,
+    validate_csrf, purge_entity_attachments, store_uploads, named_uploads, is_image_file,
     entity_upload_dir,
     parse_date, parse_int, choice,
 )
@@ -273,16 +273,17 @@ def _apply_photo(asset):
 def upload_attachment(id):
     validate_csrf()
     db.get_or_404(Asset, id)
-    file = request.files.get('file')
-    if not file or file.filename == '':
+    rows = named_uploads(request.files.getlist('file'),
+                         request.form.get('display_name', '').strip() or None)
+    if not rows:
         flash('No file selected.', 'error')
         return redirect(url_for('assets.detail', id=id))
 
-    display_name = request.form.get('display_name', '').strip() or None
-    saved, errors = store_uploads(ENTITY, id, [(file, display_name)], current_user.id)
+    saved, errors = store_uploads(ENTITY, id, rows, current_user.id)
     for message in errors:
         flash(message, 'error')
     if saved:
         db.session.commit()
-        flash('File uploaded.', 'success')
+        count = len(saved)
+        flash(f"{count} file{'' if count == 1 else 's'} uploaded.", 'success')
     return redirect(url_for('assets.detail', id=id))

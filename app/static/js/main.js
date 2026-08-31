@@ -30,7 +30,7 @@ const ROW_TYPES = {
   },
   attachment: {
     fields: [
-      { name: 'file', type: 'file' },
+      { name: 'file', type: 'file', multiple: true },
       { name: 'name', type: 'text', placeholder: 'Friendly name (optional)', maxlength: '255' },
     ],
     reorderable: false,
@@ -64,6 +64,7 @@ function buildRow(kind, index) {
     if (field.required) input.required = true;
     if (field.min) input.min = field.min;
     if (field.maxlength) input.maxLength = Number(field.maxlength);
+    if (field.multiple) input.multiple = true;
     input.setAttribute('aria-label', `${kind} ${field.name}`);
     row.appendChild(input);
   });

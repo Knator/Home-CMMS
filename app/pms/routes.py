@@ -7,12 +7,12 @@ from app.pms import bp
 from app.extensions import db
 from app.models.pm import PM
 from app.models.job_plan import JobPlan
-from app.models.work_order import WorkOrder
+from app.models.work_order import WorkOrder, WO_PRIORITIES
 from app.models.attachment import Attachment
 from app.scheduler import MAX_LEAD_DAYS
 from app.services import generate_work_order_for_pm, selectable_assets, selectable_locations
 from app.utils import (
-    validate_csrf, purge_entity_attachments, store_uploads,
+    choice, validate_csrf, purge_entity_attachments, store_uploads, named_uploads,
     parse_date, parse_int,
 )
 
@@ -25,6 +25,7 @@ def _form_options(pm=None):
         assets=selectable_assets(include_id=pm.asset_id if pm else None),
         locations=selectable_locations(include_id=pm.location_id if pm else None),
         job_plans=JobPlan.query.order_by(JobPlan.name).all(),
+        priorities=WO_PRIORITIES,
     )
 
 
@@ -36,6 +37,7 @@ def _read_form():
     from_completion = bool(request.form.get('schedule_from_completion'))
     lead = parse_int(request.form.get('generate_lead_days', '').strip() or '0', minimum=0)
     grace = parse_int(request.form.get('overdue_grace_days', '').strip() or '0', minimum=0)
+    priority = choice(request.form.get('wo_priority'), WO_PRIORITIES, 'medium')
 
     errors = []
     if not name:
@@ -52,7 +54,7 @@ def _read_form():
         errors.append('Generate-ahead days must be less than the interval.')
     if grace is None or grace > MAX_LEAD_DAYS:
         errors.append(f'Overdue grace days must be between 0 and {MAX_LEAD_DAYS}.')
-    return name, interval, next_due, from_completion, lead, grace, errors
+    return name, interval, next_due, from_completion, lead, grace, priority, errors
 
 
 @bp.route('/')
@@ -73,7 +75,7 @@ def create():
 
     if request.method == 'POST':
         validate_csrf()
-        name, interval, next_due, from_completion, lead, grace, errors = _read_form()
+        name, interval, next_due, from_completion, lead, grace, priority, errors = _read_form()
         if errors:
             for e in errors:
                 flash(e, 'error')
@@ -89,6 +91,7 @@ def create():
             schedule_from_completion=from_completion,
             generate_lead_days=lead,
             overdue_grace_days=grace,
+            wo_priority=priority,
             is_active=True,
             notes=request.form.get('notes', '').strip() or None,
             created_by=current_user.id,
@@ -124,7 +127,7 @@ def edit(id):
 
     if request.method == 'POST':
         validate_csrf()
-        name, interval, next_due, from_completion, lead, grace, errors = _read_form()
+        name, interval, next_due, from_completion, lead, grace, priority, errors = _read_form()
         if errors:
             for e in errors:
                 flash(e, 'error')
@@ -139,6 +142,7 @@ def edit(id):
         pm.schedule_from_completion = from_completion
         pm.generate_lead_days = lead
         pm.overdue_grace_days = grace
+        pm.wo_priority = priority
         pm.is_active = bool(request.form.get('is_active'))
         pm.notes = request.form.get('notes', '').strip() or None
         # Switching to a floating schedule re-anchors straight away, so the
@@ -198,16 +202,17 @@ def toggle_active(id):
 def upload_attachment(id):
     validate_csrf()
     db.get_or_404(PM, id)
-    file = request.files.get('file')
-    if not file or file.filename == '':
+    rows = named_uploads(request.files.getlist('file'),
+                         request.form.get('display_name', '').strip() or None)
+    if not rows:
         flash('No file selected.', 'error')
         return redirect(url_for('pms.detail', id=id))
 
-    display_name = request.form.get('display_name', '').strip() or None
-    saved, errors = store_uploads(ENTITY, id, [(file, display_name)], current_user.id)
+    saved, errors = store_uploads(ENTITY, id, rows, current_user.id)
     for message in errors:
         flash(message, 'error')
     if saved:
         db.session.commit()
-        flash('File uploaded.', 'success')
+        count = len(saved)
+        flash(f"{count} file{'' if count == 1 else 's'} uploaded.", 'success')
     return redirect(url_for('pms.detail', id=id))

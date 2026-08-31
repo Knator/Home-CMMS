@@ -136,7 +136,7 @@ def test_total_shown_on_detail_and_list(client, db, user, login):
 
     assert '45m' in client.get(f'/job-plans/{plan.id}').get_data(as_text=True)
     listing = client.get('/job-plans/').get_data(as_text=True)
-    assert '<th>Duration</th>' in listing
+    assert '>Duration</th>' in listing
     assert '45m' in listing
 
 

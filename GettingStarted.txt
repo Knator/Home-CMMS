@@ -103,6 +103,11 @@ This guide takes you from a fresh clone to a running, testable app.
 
   Open http://127.0.0.1:5000 and log in with the admin account you created.
 
+  The interface adapts to phones and tablets: the sidebar becomes a menu behind
+  the button at the top left, and the wider tables drop their less important
+  columns so rows fit without sideways scrolling. Every field is still on the
+  record's own page.
+
   To make it reachable from other devices on your LAN (phone, tablet):
 
       flask run --host=0.0.0.0

@@ -224,6 +224,16 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
 
 ### Templates & CSS
 - Base layout: `templates/base.html` — fixed sidebar + topbar + scrollable content area
+- **Responsive**: three breakpoints in `main.css` (860px, 700px, 480px). Below 860px the
+  sidebar becomes an off-canvas drawer behind `#nav-toggle`, driven by a `body.nav-open`
+  class so CSS owns the animation and `initMobileNav()` only manages state; two-column
+  grids collapse; inputs go to 16px because iOS zooms the page for anything smaller.
+  Below 700px, table columns marked `col-hide-sm` drop out — nothing is lost, the detail
+  page still shows every field, and the primary identifying columns are never hidden.
+  Heights use `100dvh` with a `100vh` fallback, since `100vh` includes mobile browser
+  chrome and makes the bottom of the page unreachable.
+- Layout must not be inlined in templates (`style="grid-template-columns:..."`), or it
+  cannot respond to the breakpoints — use `.split-grid` / `.form-shell` instead
 - CSS custom properties in `static/css/main.css` (`--sidebar-bg`, `--accent`, etc.)
 - Badge classes for WO status and priority are defined on the model (`status_class`, `priority_class`) and applied in templates
 - JS in `static/js/main.js` drives **repeatable form rows** — tasks, materials, tools and

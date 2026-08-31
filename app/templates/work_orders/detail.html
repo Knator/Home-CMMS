@@ -7,7 +7,7 @@
 <div class="page-header">
   <div>
     <h1>{{ wo.title }}</h1>
-    <div style="margin-top:4px;display:flex;gap:8px;align-items:center;">
+    <div class="header-meta">
       <span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span>
       <span class="badge {{ wo.priority_class }}">{{ wo.priority }}</span>
       <span class="badge badge-type-{{ wo.wo_type }}">{{ wo.wo_type }}</span>

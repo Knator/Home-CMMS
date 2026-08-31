@@ -467,3 +467,53 @@ function initFieldTooltips(root) {
 
 // Runs last, so fields added by the other initialisers are covered too.
 document.addEventListener('DOMContentLoaded', () => initFieldTooltips());
+
+/* ── Off-canvas navigation ──
+   Below the layout breakpoint the sidebar is a drawer. Opening it is a body
+   class so CSS owns the animation; this only manages state and focus. */
+function initMobileNav() {
+  const toggle = document.getElementById('nav-toggle');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  const sidebar = document.getElementById('sidebar');
+  if (!toggle || !backdrop || !sidebar) return;
+
+  function setOpen(open) {
+    document.body.classList.toggle('nav-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    backdrop.hidden = !open;
+    // Stop the page behind the drawer scrolling under it.
+    document.body.style.overflow = open ? 'hidden' : '';
+  }
+
+  toggle.addEventListener('click', () => {
+    setOpen(!document.body.classList.contains('nav-open'));
+  });
+
+  backdrop.addEventListener('click', () => setOpen(false));
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('nav-open')) {
+      setOpen(false);
+      toggle.focus();
+    }
+  });
+
+  // Following a link should close the drawer; on a same-page link there is no
+  // navigation to do it for us.
+  sidebar.querySelectorAll('a').forEach((link) => {
+    link.addEventListener('click', () => setOpen(false));
+  });
+
+  // Returning to a wide viewport must not leave the drawer state stuck on.
+  if (window.matchMedia) {
+    const wide = window.matchMedia('(min-width: 861px)');
+    const onChange = (e) => { if (e.matches) setOpen(false); };
+    if (wide.addEventListener) wide.addEventListener('change', onChange);
+    else if (wide.addListener) wide.addListener(onChange);
+  }
+
+  setOpen(false);
+}
+
+document.addEventListener('DOMContentLoaded', initMobileNav);

@@ -15,8 +15,8 @@ def test_work_order_list_shows_location_and_completed(client, db, user, login):
 
     login()
     body = client.get('/work-orders/').get_data(as_text=True)
-    assert '<th>Location</th>' in body
-    assert '<th>Completed</th>' in body
+    assert '>Location</th>' in body
+    assert '>Completed</th>' in body
     assert 'Garage' in body
     assert '2026-04-09' in body
 
@@ -27,7 +27,7 @@ def test_dashboard_drops_the_wo_number_and_shows_completed(client, db, user, log
     login()
     body = client.get('/').get_data(as_text=True)
     assert '<th>WO #</th>' not in body
-    assert '<th>Completed</th>' in body
+    assert '>Completed</th>' in body
     assert 'Recent job' in body        # the title is the link now
     assert '2026-04-09' in body
 

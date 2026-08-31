@@ -13,12 +13,12 @@
 <div class="card">
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th></th></tr></thead>
+      <thead><tr><th>Username</th><th class="col-hide-sm">Email</th><th>Role</th><th>Status</th><th class="col-hide-sm">Last Login</th><th></th></tr></thead>
       <tbody>
         {% for u in users %}
         <tr>
           <td>{{ u.username }}</td>
-          <td>{{ u.email }}</td>
+          <td class="col-hide-sm">{{ u.email }}</td>
           <td><span class="badge {{ 'priority-critical' if u.role == 'admin' else 'priority-low' }}">{{ u.role }}</span></td>
           <td>
             {% if u.is_active %}
@@ -27,7 +27,7 @@
               <span class="badge badge-inactive">Inactive</span>
             {% endif %}
           </td>
-          <td>{{ u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else '—' }}</td>
+          <td class="col-hide-sm">{{ u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else '—' }}</td>
           <td style="display:flex;gap:6px;">
             <a href="{{ url_for('admin.edit_user', id=u.id) }}" class="btn btn-ghost btn-sm">Edit</a>
             <form method="post" action="{{ url_for('admin.toggle_user', id=u.id) }}" style="display:inline;">

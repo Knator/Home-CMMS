@@ -4,7 +4,9 @@ import os
 from flask import Flask, flash, redirect, request, url_for
 
 from app.extensions import db, migrate, login_manager
-from app.utils import generate_csrf_token, format_file_size, format_duration
+from app.utils import (
+    generate_csrf_token, format_file_size, format_duration, thumbnails_available,
+)
 from config import Config
 
 
@@ -49,6 +51,14 @@ def create_app(config_class=Config, config_overrides=None):
     app.jinja_env.globals['csrf_token'] = generate_csrf_token
     app.jinja_env.globals['format_file_size'] = format_file_size
     app.jinja_env.globals['format_duration'] = format_duration
+    # Checked once at startup: without Pillow the templates skip previews
+    # entirely rather than falling back to full-size images.
+    app.jinja_env.globals['thumbnails_available'] = thumbnails_available()
+    if not app.jinja_env.globals['thumbnails_available']:
+        app.logger.warning(
+            'Pillow is not installed, so image previews are disabled. '
+            'Install it with: pip install -r requirements.txt'
+        )
 
     from app.auth import bp as auth_bp
     from app.main import bp as main_bp

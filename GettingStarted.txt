@@ -289,6 +289,12 @@ This guide takes you from a fresh clone to a running, testable app.
   previous image. PNG, JPG, GIF and WEBP are accepted. Click the photo to open
   it full size.
 
+  IMAGE PREVIEWS
+  Photos and other images show a small thumbnail next to their name. Click it
+  to view the picture full size over the page — no download, press Escape or
+  click outside to dismiss. Other file types show a chip with their extension
+  instead. Use the filename link to download the original.
+
   ATTACHING SEVERAL FILES
   Every file picker takes more than one file at a time — select a batch and
   upload them in one go. The friendly name only applies when you pick a single

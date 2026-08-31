@@ -6,7 +6,10 @@ from flask_login import login_required
 from app.attachments import bp
 from app.extensions import db
 from app.models.attachment import Attachment
-from app.utils import validate_csrf, entity_upload_dir, is_image_file
+from app.utils import (
+    validate_csrf, entity_upload_dir, is_image_file, build_thumbnail, discard_thumbnail,
+    THUMBNAIL_FALLBACK_MAX_BYTES,
+)
 
 # Where to send the user after deleting a file, per owning entity.
 ENTITY_ENDPOINTS = {
@@ -73,6 +76,37 @@ def inline(id):
     return response
 
 
+@bp.route('/<int:id>/thumbnail')
+@login_required
+def thumbnail(id):
+    """Small cached preview of an image attachment.
+
+    Falls back to the original if a thumbnail cannot be produced (Pillow absent,
+    or an image this build cannot decode) so the page still shows something.
+    """
+    att = db.get_or_404(Attachment, id)
+    if not is_image_file(att.original_filename):
+        abort(404)
+
+    source = _attachment_path(att)
+    if not os.path.exists(source):
+        abort(404)
+
+    thumb = build_thumbnail(source, att.id)
+    if thumb is None:
+        # No thumbnail could be made. Serving the original is only acceptable
+        # when it is small; a large one would stall the page it appears on.
+        if os.path.getsize(source) > THUMBNAIL_FALLBACK_MAX_BYTES:
+            abort(404)
+        thumb = source
+
+    response = send_file(thumb, as_attachment=False)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    # Immutable: a replaced file is a new attachment id, so this can be cached hard.
+    response.headers['Cache-Control'] = 'private, max-age=604800'
+    return response
+
+
 @bp.route('/<int:id>/rename', methods=['POST'])
 @login_required
 def rename(id):
@@ -101,6 +135,7 @@ def delete(id):
     file_path = _attachment_path(att)
     if os.path.exists(file_path):
         os.remove(file_path)
+    discard_thumbnail(att.id)
 
     db.session.delete(att)
     db.session.commit()

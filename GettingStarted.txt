@@ -228,6 +228,22 @@ This guide takes you from a fresh clone to a running, testable app.
       integration its own, so revoking one does not break the others. The list
       shows when each was last used.
 
+  LIVE REFERENCE
+      Sidebar > API, or /api/v1/docs — every endpoint with its fields, a
+      runnable curl example you can copy, and sample responses. It is rendered
+      by the application, so it needs no internet connection and never goes out
+      of date.
+
+      These two pages are readable WITHOUT signing in, so you can point a tool
+      at the spec directly. They describe the shape of the API only — no data
+      from your instance appears in them, and every endpoint they document
+      still requires a token. If you expose this app to the internet and would
+      rather not publish the API surface, add @login_required back to the two
+      view functions in app/api/routes.py.
+
+      /api/v1/openapi.json is the same thing as an OpenAPI 3.1 document, if you
+      would rather point Swagger UI, Postman or Insomnia at it.
+
   ENDPOINTS (all need the token)
       POST /api/v1/work-orders            create a work order
       GET  /api/v1/work-orders            recent ones, ?status= and ?limit=

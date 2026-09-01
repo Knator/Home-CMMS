@@ -220,15 +220,20 @@ This guide takes you from a fresh clone to a running, testable app.
   Other tools (Home Assistant, scripts, shortcuts) can raise work orders.
 
   GET A TOKEN
-      Admin > Users > pick a user > Generate token.
-      It is shown once and cannot be recovered. Regenerating replaces it.
+      Admin > Users > pick a user, then name the token after whatever will use
+      it ("Home Assistant", "Phone shortcut") and press Generate.
+
+      The token appears in its own box with a Copy button. It is shown once and
+      cannot be recovered — but you can issue as many as you like. Give each
+      integration its own, so revoking one does not break the others. The list
+      shows when each was last used.
 
   ENDPOINTS (all need the token)
       POST /api/v1/work-orders            create a work order
       GET  /api/v1/work-orders            recent ones, ?status= and ?limit=
       GET  /api/v1/work-orders/<WO-number>
-      GET  /api/v1/assets                 look up asset numbers
-      GET  /api/v1/locations              look up location numbers
+      GET  /api/v1/assets                 asset numbers, parents and paths
+      GET  /api/v1/locations              location numbers, parents and paths
 
   Assets and locations are referenced by NUMBER (AST-00001, LOC-00003), not by
   name — names are not unique.

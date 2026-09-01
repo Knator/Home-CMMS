@@ -64,7 +64,14 @@
             {% if category == 'token' %}
               <div class="alert alert-token" data-no-dismiss>
                 <strong>Copy this now — it will not be shown again.</strong>
-                <code class="token-value">{{ message }}</code>
+                {# The token sits alone in a field so it can be copied without
+                   dragging the surrounding prose along with it. #}
+                <div class="token-row">
+                  <input type="text" class="token-value" readonly value="{{ message }}"
+                         aria-label="API token" onfocus="this.select()">
+                  <button type="button" class="btn btn-secondary btn-sm"
+                          data-copy-target="previous">Copy</button>
+                </div>
               </div>
             {% else %}
               <div class="alert alert-{{ category }}">{{ message }}</div>

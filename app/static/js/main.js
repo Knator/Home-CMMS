@@ -688,3 +688,53 @@ function initAsyncActions() {
 }
 
 document.addEventListener('DOMContentLoaded', initAsyncActions);
+
+/* ── Copy to clipboard ──
+   navigator.clipboard only exists in a secure context, and this app is normally
+   reached over plain http on a LAN address — so the execCommand path is the one
+   that usually runs, not a legacy afterthought. If both fail the text is left
+   selected so it can be copied by hand. */
+function initCopyButtons() {
+  document.addEventListener('click', async (e) => {
+    const button = e.target.closest('[data-copy-target]');
+    if (!button) return;
+    e.preventDefault();
+
+    const row = button.closest('.token-row') || button.parentNode;
+    const field = row.querySelector('input, textarea');
+    if (!field) return;
+
+    field.focus();
+    field.select();
+    if (field.setSelectionRange) field.setSelectionRange(0, 99999);  // iOS
+
+    let copied = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(field.value);
+        copied = true;
+      }
+    } catch (err) {
+      copied = false;
+    }
+
+    if (!copied) {
+      try {
+        copied = document.execCommand('copy');
+      } catch (err) {
+        copied = false;
+      }
+    }
+
+    const original = button.dataset.idleLabel || button.textContent;
+    button.dataset.idleLabel = original;
+    button.textContent = copied ? 'Copied' : 'Press Ctrl+C';
+    button.classList.toggle('copied', copied);
+    setTimeout(() => {
+      button.textContent = original;
+      button.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initCopyButtons);

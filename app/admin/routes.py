@@ -6,6 +6,7 @@ from flask_login import login_required, current_user
 from app.admin import bp
 from app.extensions import db
 from app.models.user import User
+from app.models.api_token import ApiToken
 from app.utils import validate_csrf, admin_required, parse_int
 from app import maintenance
 
@@ -111,26 +112,40 @@ def edit_user(id):
 @login_required
 @admin_required
 def issue_api_token(id):
-    """Generate an API token. Shown once — only its hash is stored."""
+    """Create a named token. The plaintext is shown once and never stored."""
     validate_csrf()
     user = db.get_or_404(User, id)
-    token = user.issue_api_token()
+
+    name = request.form.get('token_name', '').strip()
+    if not name:
+        flash('Give the token a name so you can tell your integrations apart.', 'error')
+        return redirect(url_for('admin.edit_user', id=id))
+
+    token, plaintext = ApiToken.issue(user, name)
     db.session.commit()
-    # Carried in the session so it survives the redirect, then shown once.
-    flash(f'API token for {user.username}: {token}', 'token')
-    flash('Copy it now — it cannot be shown again. Generating a new one replaces it.', 'info')
+    # Handed to the template separately from any prose, so it can be copied on
+    # its own rather than selected out of a sentence.
+    flash(plaintext, 'token')
+    flash(f"Token '{token.name}' created for {user.username}.", 'success')
     return redirect(url_for('admin.edit_user', id=id))
 
 
-@bp.route('/users/<int:id>/api-token/revoke', methods=['POST'])
+@bp.route('/users/<int:id>/api-token/<int:token_id>/revoke', methods=['POST'])
 @login_required
 @admin_required
-def revoke_api_token(id):
+def revoke_api_token(id, token_id):
     validate_csrf()
     user = db.get_or_404(User, id)
-    user.revoke_api_token()
+    token = db.session.get(ApiToken, token_id)
+    if token is None or token.user_id != user.id:
+        flash('That token could not be found.', 'error')
+        return redirect(url_for('admin.edit_user', id=id))
+
+    name = token.name
+    db.session.delete(token)
     db.session.commit()
-    flash(f"API access revoked for {user.username}.", 'success')
+    flash(f"Token '{name}' revoked. Anything using it will stop working immediately.",
+          'success')
     return redirect(url_for('admin.edit_user', id=id))
 
 

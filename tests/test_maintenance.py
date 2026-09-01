@@ -404,3 +404,73 @@ def test_downloads_are_not_intercepted(client, app, db, admin_login):
     download_link = [line for line in body.splitlines() if 'download_backup' in line or '/download' in line]
     assert download_link
     assert not any('data-async' in line for line in download_link)
+
+
+# ── token UI ───────────────────────────────────────────────────────────────
+
+def test_generating_a_token_requires_a_name(client, db, admin_login):
+    from app.models.api_token import ApiToken
+    from app.models.user import User
+
+    target = User.query.filter_by(username='boss').one()
+    client.post(f'/admin/users/{target.id}/api-token',
+                data={'csrf_token': CSRF, 'token_name': ''})
+    assert ApiToken.query.count() == 0
+
+
+def test_a_named_token_is_shown_once_in_its_own_field(client, db, admin_login):
+    from app.models.api_token import ApiToken
+    from app.models.user import User
+
+    target = User.query.filter_by(username='boss').one()
+    response = client.post(f'/admin/users/{target.id}/api-token',
+                           data={'csrf_token': CSRF, 'token_name': 'Home Assistant'},
+                           follow_redirects=True)
+    body = response.get_data(as_text=True)
+
+    token = ApiToken.query.one()
+    assert token.name == 'Home Assistant'
+    # The value sits alone in an input, not embedded in a sentence.
+    assert 'class="token-value" readonly value=' in body
+    assert 'data-copy-target' in body
+    assert 'data-no-dismiss' in body      # never auto-hidden while being copied
+
+
+def test_tokens_are_listed_with_their_names(client, db, admin_login):
+    from app.models.api_token import ApiToken
+    from app.models.user import User
+
+    target = User.query.filter_by(username='boss').one()
+    ApiToken.issue(target, 'Home Assistant')
+    db.session.commit()
+
+    body = client.get(f'/admin/users/{target.id}/edit').get_data(as_text=True)
+    assert 'Home Assistant' in body
+    assert 'Revoke' in body
+
+
+def test_revoking_one_token(client, db, admin_login):
+    from app.models.api_token import ApiToken
+    from app.models.user import User
+
+    target = User.query.filter_by(username='boss').one()
+    keep, _ = ApiToken.issue(target, 'Keep')
+    drop, _ = ApiToken.issue(target, 'Drop')
+    db.session.commit()
+
+    client.post(f'/admin/users/{target.id}/api-token/{drop.id}/revoke', data={'csrf_token': CSRF})
+    remaining = [t.name for t in ApiToken.query.all()]
+    assert remaining == ['Keep']
+
+
+def test_a_token_belonging_to_someone_else_cannot_be_revoked(client, db, admin_login):
+    from app.models.api_token import ApiToken
+    from app.models.user import User
+
+    other = make_user('someone')
+    theirs, _ = ApiToken.issue(other, 'Theirs')
+    db.session.commit()
+    boss = User.query.filter_by(username='boss').one()
+
+    client.post(f'/admin/users/{boss.id}/api-token/{theirs.id}/revoke', data={'csrf_token': CSRF})
+    assert ApiToken.query.count() == 1      # untouched

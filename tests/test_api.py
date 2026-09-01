@@ -10,6 +10,7 @@ import pytest
 
 from app.models.location import Location
 from app.models.mixins import STATUS_DECOMMISSIONED, STATUS_INACTIVE
+from app.models.api_token import ApiToken
 from app.models.user import User
 from app.models.work_order import WorkOrder
 from app.services import create_asset, create_location, create_work_order
@@ -19,7 +20,7 @@ from tests.conftest import make_user
 @pytest.fixture
 def token(db, app):
     user = make_user('robot', role='user')
-    raw = user.issue_api_token()
+    _, raw = ApiToken.issue(user, 'Test integration')
     db.session.commit()
     return raw
 
@@ -62,8 +63,7 @@ def test_the_x_api_key_header_also_works(client, db, world, token):
 
 
 def test_a_revoked_token_stops_working(client, db, world, token):
-    user = User.query.filter_by(username='robot').one()
-    user.revoke_api_token()
+    ApiToken.query.delete()
     db.session.commit()
     assert post(client, {'title': 'x'}, {'Authorization': f'Bearer {token}'}).status_code == 401
 
@@ -77,17 +77,16 @@ def test_a_deactivated_user_cannot_use_their_token(client, db, world, token):
 
 def test_only_the_hash_is_stored(db, app):
     user = make_user('hashed')
-    raw = user.issue_api_token()
+    record, raw = ApiToken.issue(user, 'Somewhere')
     db.session.commit()
-    assert user.api_token_hash != raw
-    assert len(user.api_token_hash) == 64
-    assert raw not in json.dumps({'h': user.api_token_hash})
+    assert record.token_hash != raw
+    assert len(record.token_hash) == 64
 
 
 def test_use_is_recorded(client, db, world, auth, token):
-    assert User.query.filter_by(username='robot').one().api_token_last_used is None
+    assert ApiToken.query.one().last_used_at is None
     post(client, {'title': 'Track me'}, auth)
-    assert User.query.filter_by(username='robot').one().api_token_last_used is not None
+    assert ApiToken.query.one().last_used_at is not None
 
 
 # ── creating ───────────────────────────────────────────────────────────────
@@ -296,3 +295,76 @@ def test_html_pages_still_return_html(client, db, user, login):
     response = client.get('/assets/999999')
     assert response.status_code == 404
     assert not response.is_json
+
+
+# ── named tokens ───────────────────────────────────────────────────────────
+
+def test_a_user_can_hold_several_named_tokens(db, app):
+    """One per integration, so revoking one does not disturb the others."""
+    user = make_user('multi')
+    _, home_assistant = ApiToken.issue(user, 'Home Assistant')
+    _, phone = ApiToken.issue(user, 'Phone shortcut')
+    db.session.commit()
+
+    assert user.api_tokens.count() == 2
+    assert {t.name for t in user.api_tokens} == {'Home Assistant', 'Phone shortcut'}
+    assert home_assistant != phone
+
+
+def test_revoking_one_leaves_the_others_working(client, db, world, app):
+    user = make_user('multi')
+    keep_record, keep = ApiToken.issue(user, 'Keep me')
+    drop_record, drop = ApiToken.issue(user, 'Drop me')
+    db.session.commit()
+
+    db.session.delete(drop_record)
+    db.session.commit()
+
+    assert post(client, {'title': 'still works'}, {'Authorization': f'Bearer {keep}'}).status_code == 201
+    assert post(client, {'title': 'nope'}, {'Authorization': f'Bearer {drop}'}).status_code == 401
+
+
+def test_token_names_are_recorded(db, app):
+    user = make_user('named')
+    record, _ = ApiToken.issue(user, 'Home Assistant')
+    db.session.commit()
+    assert record.name == 'Home Assistant'
+    assert record.created_at is not None
+
+
+def test_an_overlong_name_is_truncated(db, app):
+    user = make_user('longname')
+    record, _ = ApiToken.issue(user, 'x' * 200)
+    db.session.commit()
+    assert len(record.name) <= 80
+
+
+# ── parent references in the listings ──────────────────────────────────────
+
+def test_assets_report_their_parent(client, db, world, auth):
+    parent = create_asset(name='HVAC System', location_id=world['location'].id)
+    child = create_asset(name='Blower', parent_id=parent.id, location_id=world['location'].id)
+
+    rows = {a['asset_number']: a for a in client.get('/api/v1/assets', headers=auth).get_json()['assets']}
+    assert rows[child.asset_number]['parent_asset_number'] == parent.asset_number
+    assert rows[child.asset_number]['parent_asset_name'] == 'HVAC System'
+    assert rows[parent.asset_number]['parent_asset_number'] is None
+    assert rows[child.asset_number]['path'] == 'HVAC System › Blower'
+
+
+def test_locations_report_their_parent(client, db, world, auth):
+    child = create_location(name='Utility Room', parent_id=world['location'].id)
+
+    rows = {l['location_number']: l for l in
+            client.get('/api/v1/locations', headers=auth).get_json()['locations']}
+    assert rows[child.location_number]['parent_location_number'] == world['location'].location_number
+    assert rows[child.location_number]['parent_location_name'] == 'Basement'
+    assert rows[world['location'].location_number]['parent_location_number'] is None
+    assert rows[child.location_number]['path'] == 'Basement › Utility Room'
+
+
+def test_work_orders_name_their_asset_and_location(client, db, world, auth):
+    body = post(client, {'title': 'Named refs',
+                         'asset_number': world['asset'].asset_number}, auth).get_json()
+    assert body['asset_name'] == 'Furnace'
+    assert body['location_name'] == 'Basement'

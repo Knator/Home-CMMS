@@ -21,8 +21,13 @@
     <span>Maintenance Management</span>
   </div>
   <nav class="sidebar-nav">
+    {# The API reference is public, so this layout has to render sensibly for a
+       visitor with no session: app navigation only appears once signed in. #}
+    {% if current_user.is_authenticated %}
     <div class="sidebar-section">Overview</div>
     <a href="{{ url_for('main.dashboard') }}" class="{{ 'active' if request.endpoint == 'main.dashboard' }}">Dashboard</a>
+
+    <a href="{{ url_for('api.documentation') }}" class="{{ 'active' if request.endpoint == 'api.documentation' }}">API</a>
 
     <div class="sidebar-section">Manage</div>
     <a href="{{ url_for('locations.index') }}" class="{{ 'active' if request.blueprint == 'locations' }}">Locations</a>
@@ -36,6 +41,10 @@
     <a href="{{ url_for('admin.users') }}" class="{{ 'active' if request.endpoint == 'admin.users' or request.endpoint == 'admin.create_user' or request.endpoint == 'admin.edit_user' }}">Users</a>
     <a href="{{ url_for('admin.maintenance_page') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('admin.maintenance') }}">Maintenance</a>
     {% endif %}
+    {% else %}
+    <div class="sidebar-section">Reference</div>
+    <a href="{{ url_for('api.documentation') }}" class="{{ 'active' if request.endpoint == 'api.documentation' }}">API</a>
+    {% endif %}
   </nav>
 </div>
 
@@ -43,9 +52,13 @@
   <header class="topbar">
     <div class="topbar-title">{% block page_title %}{% endblock %}</div>
     <div class="topbar-right">
+      {% if current_user.is_authenticated %}
       <span class="topbar-user">{{ current_user.username }}</span>
       <a href="{{ url_for('auth.change_password') }}" class="topbar-link">Change Password</a>
       <a href="{{ url_for('auth.logout') }}" class="topbar-link">Logout</a>
+      {% else %}
+      <a href="{{ url_for('auth.login') }}" class="topbar-link">Sign in</a>
+      {% endif %}
       &nbsp;
       <button type="button" class="theme-toggle" onclick="toggleTheme()"
               aria-pressed="false" aria-label="Switch between light and dark mode"

@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% block title %}API — Home CMMS{% endblock %}
+{% block page_title %}API{% endblock %}
+
+{% macro json_block(value) %}<pre class="code-block">{{ value | tojson(indent=2) }}</pre>{% endmacro %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ title }}</h1>
+    <div class="header-meta">
+      <span class="badge badge-type-planned">v{{ version }}</span>
+      <span class="breadcrumb-path">{{ base_url }}/api/v1</span>
+    </div>
+  </div>
+  <div class="page-actions">
+    <a href="{{ url_for('api.openapi') }}" class="btn btn-secondary">OpenAPI JSON</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <p class="api-lede">{{ description }}</p>
+    <p class="field-hint">
+      The OpenAPI document above can be loaded into Swagger UI, Postman or Insomnia if you
+      want an interactive client. This page is rendered by the application itself, so it
+      works with no internet connection.
+    </p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><span class="card-title">Authentication</span></div>
+  <div class="card-body">
+    <p class="api-lede">{{ auth_description.split('\n\n')[0] }}</p>
+    <pre class="code-block">Authorization: Bearer YOUR_TOKEN
+X-API-Key: YOUR_TOKEN</pre>
+    <p class="field-hint">
+      Requests without a valid token get <code>401</code>. Revoking a token, or deactivating
+      its owner, stops it working immediately.
+    </p>
+  </div>
+</div>
+
+{% for ep in endpoints %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">
+      <span class="method method-{{ ep.method | lower }}">{{ ep.method }}</span>
+      <code class="endpoint-path">{{ ep.path }}</code>
+    </span>
+    <span class="text-muted" style="font-size:12px;">{{ ep.summary }}</span>
+  </div>
+  <div class="card-body">
+    {% if ep.description %}<p class="api-lede">{{ ep.description }}</p>{% endif %}
+
+    {% if ep.path_params %}
+      <h4 class="api-heading">Path parameters</h4>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          {% for name, type_, desc in ep.path_params %}
+          <tr><td class="mono-cell">{{ name }}</td><td>{{ type_ }}</td><td>{{ desc }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    {% endif %}
+
+    {% if ep.query %}
+      <h4 class="api-heading">Query parameters</h4>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          {% for name, type_, desc in ep.query %}
+          <tr><td class="mono-cell">{{ name }}</td><td>{{ type_ }}</td><td>{{ desc }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    {% endif %}
+
+    {% if ep.body %}
+      <h4 class="api-heading">Request body</h4>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          {% for name, type_, required, desc in ep.body %}
+          <tr>
+            <td class="mono-cell">{{ name }}</td>
+            <td>{{ type_ }}</td>
+            <td>{% if required %}<span class="badge priority-high">required</span>{% else %}<span class="text-muted">optional</span>{% endif %}</td>
+            <td>{{ desc }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    {% endif %}
+
+    <h4 class="api-heading">Example</h4>
+    <div class="token-row">
+      <textarea class="code-block curl-example" rows="{{ curl_example(ep, base_url).count('\n') + 1 }}" readonly>{{ curl_example(ep, base_url) }}</textarea>
+      <button type="button" class="btn btn-secondary btn-sm" data-copy-target="curl">Copy</button>
+    </div>
+
+    <h4 class="api-heading">Responses</h4>
+    {% for status, desc, example in ep.responses %}
+      <details class="response-block" {{ 'open' if loop.first }}>
+        <summary>
+          <span class="badge {{ 'badge-active' if status < 300 else 'badge-overdue' }}">{{ status }}</span>
+          {{ desc }}
+        </summary>
+        {{ json_block(example) }}
+      </details>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

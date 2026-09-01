@@ -6,11 +6,12 @@ for locations, so a name is not something a client can reliably address.
 """
 from datetime import date
 
-from flask import g, jsonify, request, url_for
+from flask import g, jsonify, render_template, request, url_for
 
 from app.api import bp
 from app.api.auth import api_token_required
 from app.api.errors import bad_request, not_found
+from app.api import docs as api_docs
 from app.extensions import db
 from app.models.asset import Asset
 from app.models.job_plan import JobPlan
@@ -230,3 +231,46 @@ def list_locations():
          'path': location.path_label}
         for location in rows
     ]})
+
+
+# ── documentation ──────────────────────────────────────────────────────────
+#
+# Behind a login rather than public: the spec lays out the whole write surface,
+# and this app is often reachable on a LAN. Both views are built from the single
+# definition in app/api/docs.py, so they cannot disagree with each other, and a
+# test fails if a route is added without documenting it.
+
+def _base_url():
+    return request.url_root.rstrip('/')
+
+
+# Both documentation views are public. They describe the shape of the API and
+# contain no data — every example below is a fixed illustration, not a live
+# record — and authentication still guards every endpoint they describe. Keeping
+# them readable without a session means tooling that cannot hold one (Swagger
+# UI, an OpenAPI linter, a colleague's Postman) can fetch the spec directly.
+
+@bp.route('/openapi.json')
+def openapi():
+    """Machine-readable spec — point Swagger UI, Postman or Insomnia at this."""
+    return jsonify(api_docs.openapi_spec(base_url=_base_url()))
+
+
+@bp.route('/docs')
+def documentation():
+    """Human-readable reference, rendered server-side.
+
+    Deliberately not a CDN-hosted Swagger UI: this app frequently runs on an
+    offline LAN box, where that would render a blank page.
+    """
+    base = _base_url()
+    return render_template(
+        'api/docs.html',
+        title=api_docs.API_TITLE,
+        version=api_docs.API_VERSION,
+        description=api_docs.API_DESCRIPTION,
+        auth_description=api_docs.AUTH_DESCRIPTION,
+        endpoints=api_docs.ENDPOINTS,
+        base_url=base,
+        curl_example=api_docs.curl_example,
+    )

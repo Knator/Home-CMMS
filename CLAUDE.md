@@ -306,6 +306,24 @@ is not something a client can reliably address.
   is inherited when none is given, and creation goes through `create_work_order()` so number
   allocation and its retry are shared.
 
+**Documentation** lives in one place, `app/api/docs.py`, and is rendered two ways:
+`/api/v1/openapi.json` (an OpenAPI 3.1 document for Swagger UI, Postman, Insomnia) and
+`/api/v1/docs` (a human page, server-rendered with the app's own CSS). **Both are public** —
+they describe the shape of the API, not its contents, and every endpoint they document is
+still behind a token. That lets tooling which cannot hold a session (Swagger UI, an OpenAPI
+linter) fetch the spec directly.
+
+Because they are public, **examples in `docs.py` must stay generic** — never copied from a
+real deployment, or the reference broadcasts someone's room and equipment names.
+`test_examples_are_generic_not_copied_from_the_instance` enforces that. `base.html` also
+renders for a visitor with no session: app navigation and the user menu appear only once
+signed in.
+
+The page is deliberately **not** a CDN-hosted Swagger UI — this app often runs on an offline
+LAN box, where that renders blank. **When adding an endpoint, add an entry to `ENDPOINTS`**:
+`test_api_docs.py` fails if a route is undocumented *or* documented but missing, which is
+what stops the reference drifting from the code.
+
 ### Maintenance (`app/maintenance.py`, `/admin/maintenance`)
 Admin-only housekeeping, modelled on what self-hosted apps generally need (Home Assistant's
 backups and system health, Immich's orphaned-file repair, LubeLogger's single-archive export):

@@ -7,17 +7,17 @@ from app.models.asset import Asset
 from app.models.job_plan import JobPlan
 from app.models.location import Location
 from app.models.pm import PM
-from app.services import create_asset, create_work_order, related_attachments
+from app.services import create_location, create_asset, create_work_order, related_attachments
 from tests.conftest import CSRF
 
 
 @pytest.fixture
 def world(db, user):
     """House > Basement holding a Furnace, plus a job plan and a PM."""
-    house = Location(name='House')
+    house = create_location(name='House')
     db.session.add(house)
     db.session.flush()
-    basement = Location(name='Basement', parent_id=house.id)
+    basement = create_location(name='Basement', parent_id=house.id)
     db.session.add(basement)
     db.session.flush()
 

@@ -9,7 +9,7 @@ import pathlib
 import pytest
 
 from app.models.location import Location
-from app.services import create_asset, create_work_order
+from app.services import create_location, create_asset, create_work_order
 
 CSS = (pathlib.Path(__file__).resolve().parent.parent
        / 'app' / 'static' / 'css' / 'main.css').read_text()
@@ -23,7 +23,7 @@ def seeded(db, user):
     from app.models.job_plan import JobPlan
     from app.models.pm import PM
 
-    loc = Location(name='Garage')
+    loc = create_location(name='Garage')
     plan = JobPlan(name='Checklist')
     db.session.add_all([loc, plan])
     db.session.flush()

@@ -7,7 +7,9 @@ from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
 from app.models.work_order import WorkOrder
-from app.services import location_delete_blockers, hierarchy_ordered, sibling_name_taken
+from app.services import (
+    create_location, location_delete_blockers, hierarchy_ordered, sibling_name_taken,
+)
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads,
     parse_int, choice,
@@ -88,16 +90,14 @@ def create():
                 flash(e, 'error')
             return render_template('locations/form.html', **_form_context())
 
-        location = Location(
+        location = create_location(
             name=name,
             parent_id=parent.id if parent else None,
             status=status,
             description=request.form.get('description', '').strip() or None,
             notes=request.form.get('notes', '').strip() or None,
         )
-        db.session.add(location)
-        db.session.commit()
-        flash('Location created.', 'success')
+        flash(f'Location {location.location_number} created.', 'success')
         return redirect(url_for('locations.detail', id=location.id))
 
     return render_template('locations/form.html', **_form_context())

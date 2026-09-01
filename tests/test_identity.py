@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.asset import Asset
 from app.models.location import Location
-from app.services import create_asset, create_work_order, sibling_name_taken
+from app.services import create_location, create_asset, create_work_order, sibling_name_taken
 from tests.conftest import CSRF
 
 
@@ -60,8 +60,8 @@ def test_number_shown_on_list_and_detail(client, db, user, login):
 
 def test_picker_disambiguates_same_named_assets(client, db, user, login):
     """The whole point: two "Router"s must be distinguishable when choosing one."""
-    basement = Location(name='Basement')
-    office = Location(name='Office')
+    basement = create_location(name='Basement')
+    office = create_location(name='Office')
     db.session.add_all([basement, office])
     db.session.commit()
     create_asset(name='Router', location_id=basement.id)
@@ -83,11 +83,11 @@ def test_creating_through_the_form_allocates_a_number(client, db, user, login):
 
 @pytest.fixture
 def floors(db):
-    house = Location(name='House')
+    house = create_location(name='House')
     db.session.add(house)
     db.session.flush()
-    basement = Location(name='Basement', parent_id=house.id)
-    main = Location(name='Main Floor', parent_id=house.id)
+    basement = create_location(name='Basement', parent_id=house.id)
+    main = create_location(name='Main Floor', parent_id=house.id)
     db.session.add_all([basement, main])
     db.session.commit()
     return dict(house=house, basement=basement, main=main)
@@ -180,8 +180,24 @@ def test_sibling_helper_ignores_the_record_itself(db, floors):
 
 
 def test_database_rejects_a_sibling_duplicate_even_without_the_form(db, floors):
-    """The index is the real guard, not just the friendly form check."""
-    db.session.add(Location(name='Basement', parent_id=floors['house'].id))
+    """The index is the real guard, not just the friendly form check.
+
+    create_location() re-raises rather than retrying here: the conflict is the
+    name, not the generated number, so retrying would spin and then report the
+    wrong problem.
+    """
     with pytest.raises(IntegrityError):
-        db.session.commit()
+        create_location(name='Basement', parent_id=floors['house'].id)
     db.session.rollback()
+
+
+def test_a_name_conflict_is_not_mistaken_for_a_number_collision(db, floors):
+    from app.services import _is_number_collision
+
+    try:
+        create_location(name='Basement', parent_id=floors['house'].id)
+    except IntegrityError as error:
+        assert _is_number_collision(error, 'location_number') is False
+        assert 'uq_locations_parent_name' in str(error.orig)
+    finally:
+        db.session.rollback()

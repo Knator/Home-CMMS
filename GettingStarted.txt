@@ -214,6 +214,47 @@ This guide takes you from a fresh clone to a running, testable app.
 
 
 --------------------------------------------------------------------------------
+ 7c. REST API
+--------------------------------------------------------------------------------
+
+  Other tools (Home Assistant, scripts, shortcuts) can raise work orders.
+
+  GET A TOKEN
+      Admin > Users > pick a user > Generate token.
+      It is shown once and cannot be recovered. Regenerating replaces it.
+
+  ENDPOINTS (all need the token)
+      POST /api/v1/work-orders            create a work order
+      GET  /api/v1/work-orders            recent ones, ?status= and ?limit=
+      GET  /api/v1/work-orders/<WO-number>
+      GET  /api/v1/assets                 look up asset numbers
+      GET  /api/v1/locations              look up location numbers
+
+  Assets and locations are referenced by NUMBER (AST-00001, LOC-00003), not by
+  name — names are not unique.
+
+  EXAMPLE
+      curl -X POST http://localhost:5000/api/v1/work-orders \
+        -H "Authorization: Bearer YOUR_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"title": "Furnace making a noise",
+             "asset_number": "AST-00001",
+             "priority": "high",
+             "due_date": "2026-12-01"}'
+
+  Leave out location_number and it is taken from the asset.
+
+  ERRORS
+      Every failure returns JSON with an "error" message, and validation
+      failures add an "errors" object naming each bad field:
+
+      {"error": "The work order could not be created.",
+       "errors": {"asset_number": "No asset exists with number 'AST-99999'."}}
+
+      400 invalid data   401 missing/bad token   404 no such record
+
+
+--------------------------------------------------------------------------------
  8. WHERE YOUR DATA LIVES
 --------------------------------------------------------------------------------
 

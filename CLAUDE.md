@@ -62,7 +62,9 @@ Each entity's list view is the `index` endpoint (`url_for('assets.index')`, etc.
 
 ### Models (`app/models/`)
 All models import from `app/extensions.py` (db). Key relationships:
-- `Location` → `Location` (self-referencing parent/child). Names are unique **per
+- `Location` → `Location` (self-referencing parent/child). Locations carry a stable
+  `location_number` (`LOC-00001`), allocated by `create_location()`; **never construct
+  `Location()` directly**. Names are unique **per
   parent**, not globally, enforced by the `uq_locations_parent_name` functional index on
   `(coalesce(parent_id, -1), lower(name))`. The COALESCE matters: SQL treats NULLs as
   distinct, so a plain `UNIQUE(parent_id, name)` would allow two identically named
@@ -279,6 +281,24 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
   `#location-hint` span. It **must dispatch a `change` event** after setting `location.value`:
   the searchable combobox only re-reads the select on `change`, so a bare assignment updates
   the submitted value but not what the user sees. It only re-derives on asset change, so a location set by hand afterwards survives; if the asset's location is not in the Active-only picker, the option is injected rather than silently failing
+
+### REST API (`app/api/`, `/api/v1`)
+Records are addressed by their **numbers** (`AST-00001`, `LOC-00003`), never names: asset
+names are deliberately not unique and location names are only unique per parent, so a name
+is not something a client can reliably address.
+
+- **Auth**: bearer token per user (`Authorization: Bearer <token>` or `X-API-Key`). Only a
+  SHA-256 digest is stored — tokens are high-entropy random strings, so a fast digest is
+  enough and a database leak yields nothing usable. Issued and revoked from the admin user
+  page; shown once. `api_token_last_used` records activity.
+- **Errors**: one envelope everywhere — `{"error": "...", "errors": {"field": "why"}}`. All
+  field problems are reported in a single response rather than one at a time. 400 for
+  validation (including a number that resolves to nothing, or to a non-Active record), 401
+  for auth, 404/405 as JSON via app-level handlers that check the path — Flask raises
+  routing errors before a blueprint is known, so a blueprint handler would not fire.
+- **Consistency with the UI**: retired assets and locations are refused, an asset's location
+  is inherited when none is given, and creation goes through `create_work_order()` so number
+  allocation and its retry are shared.
 
 ### Maintenance (`app/maintenance.py`, `/admin/maintenance`)
 Admin-only housekeeping, modelled on what self-hosted apps generally need (Home Assistant's

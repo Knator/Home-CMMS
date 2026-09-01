@@ -210,7 +210,8 @@ function addTaskRow() { addRow('task'); }
 function addAttachmentRow() { addRow('attachment'); }
 
 function initAlerts(root) {
-  (root || document).querySelectorAll('.alert:not([data-dismiss-armed])').forEach((el) => {
+  // A one-time secret must not vanish while it is being copied.
+  (root || document).querySelectorAll('.alert:not([data-dismiss-armed]):not([data-no-dismiss])').forEach((el) => {
     el.dataset.dismissArmed = 'true';
     setTimeout(() => { el.style.opacity = '0'; }, 4000);
     setTimeout(() => el.remove(), 4400);

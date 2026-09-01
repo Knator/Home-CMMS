@@ -5,7 +5,7 @@ import os
 import pytest
 
 from app.models.attachment import Attachment
-from app.services import create_asset
+from app.services import create_location, create_asset
 from app.utils import entity_upload_dir
 from tests.conftest import CSRF
 
@@ -69,7 +69,7 @@ def test_deleting_a_work_order_purges_its_attachments(client, app, db, user, log
 def test_deleting_a_location_purges_its_attachments(client, app, db, user, login):
     from app.models.location import Location
 
-    loc = Location(name='Garage')
+    loc = create_location(name='Garage')
     db.session.add(loc)
     db.session.commit()
 

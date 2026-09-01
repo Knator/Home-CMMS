@@ -8,7 +8,7 @@ import pytest
 from app import maintenance
 from app.models.attachment import Attachment
 from app.models.location import Location
-from app.services import create_asset, create_work_order
+from app.services import create_location, create_asset, create_work_order
 from tests.conftest import CSRF, make_user
 
 
@@ -107,7 +107,7 @@ def test_backup_database_is_readable_and_current(client, app, db, admin_login, t
     """VACUUM INTO rather than a file copy, so WAL content is included."""
     import sqlite3
 
-    loc = Location(name='Distinctive Name')
+    loc = create_location(name='Distinctive Name')
     db.session.add(loc)
     db.session.commit()
 

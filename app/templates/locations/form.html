@@ -19,7 +19,7 @@
             <option value="">— None (top level) —</option>
             {% for p in parents %}
               <option value="{{ p.id }}"
-                {{ 'selected' if location and location.parent_id == p.id }}>{{ p.path_label }}</option>
+                {{ 'selected' if location and location.parent_id == p.id }}>{{ p.path_label }} ({{ p.location_number }})</option>
             {% endfor %}
           </select>
           <span class="field-hint">A location cannot sit beneath one of its own children. Names need only be unique among locations sharing the same parent.</span>

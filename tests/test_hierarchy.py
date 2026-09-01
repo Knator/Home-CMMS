@@ -5,7 +5,7 @@ from app.models.asset import Asset
 from app.models.location import Location
 from app.models.mixins import STATUS_ACTIVE, STATUS_INACTIVE, STATUS_DECOMMISSIONED
 from app.services import (
-create_asset,     asset_delete_blockers, location_delete_blockers, hierarchy_ordered,
+create_location, create_asset,     asset_delete_blockers, location_delete_blockers, hierarchy_ordered,
     selectable_assets, selectable_locations, create_work_order,
 )
 from tests.conftest import CSRF
@@ -14,13 +14,13 @@ from tests.conftest import CSRF
 @pytest.fixture
 def tree(db):
     """House > Basement > Utility Room, with a Furnace holding a Blower Motor."""
-    house = Location(name='House')
+    house = create_location(name='House')
     db.session.add(house)
     db.session.flush()
-    basement = Location(name='Basement', parent_id=house.id)
+    basement = create_location(name='Basement', parent_id=house.id)
     db.session.add(basement)
     db.session.flush()
-    utility = Location(name='Utility Room', parent_id=basement.id)
+    utility = create_location(name='Utility Room', parent_id=basement.id)
     db.session.add(utility)
     db.session.flush()
 
@@ -76,7 +76,7 @@ def test_node_cannot_be_parented_to_its_own_descendant(tree):
 
 
 def test_unrelated_parent_is_allowed(db, tree):
-    garage = Location(name='Garage')
+    garage = create_location(name='Garage')
     db.session.add(garage)
     db.session.commit()
     assert tree['house'].would_create_cycle(garage) is False
@@ -118,7 +118,7 @@ def test_location_with_work_orders_cannot_be_deleted(db, tree):
 
 
 def test_empty_location_can_be_deleted(client, db, user, login):
-    spare = Location(name='Spare Room')
+    spare = create_location(name='Spare Room')
     db.session.add(spare)
     db.session.commit()
     assert location_delete_blockers(spare) == []
@@ -157,7 +157,7 @@ def test_asset_delete_route_is_blocked(client, db, tree, user, login):
 # ── lifecycle status ───────────────────────────────────────────────────────
 
 def test_new_records_default_to_active(db):
-    loc = Location(name='New Place')
+    loc = create_location(name='New Place')
     db.session.add(loc)
     db.session.commit()
     assert loc.status == STATUS_ACTIVE

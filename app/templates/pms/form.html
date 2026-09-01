@@ -29,7 +29,7 @@
             <select name="location_id" id="location_id" data-searchable>
               <option value="">— None —</option>
               {% for loc in locations %}
-                <option value="{{ loc.id }}" {{ 'selected' if is_edit and pm.location_id == loc.id }}>{{ loc.name }}</option>
+                <option value="{{ loc.id }}" {{ 'selected' if is_edit and pm.location_id == loc.id }}>{{ loc.name }} ({{ loc.location_number }})</option>
               {% endfor %}
             </select>
             <span class="field-hint" id="location-hint" hidden></span>

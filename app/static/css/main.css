@@ -1478,3 +1478,28 @@ body.nav-open .nav-toggle-bars::after  { transform: translateY(-6px) rotate(-45d
   word-break: break-all;
   user-select: all;
 }
+
+/* One-time token: the value sits alone so it can be copied on its own. */
+.token-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.token-row .token-value {
+  flex: 1;
+  min-width: 200px;
+  margin-top: 0;
+  display: block;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.token-row .btn.copied { background: var(--tone-green-bg); color: var(--tone-green-text); }

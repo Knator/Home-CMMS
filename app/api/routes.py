@@ -32,7 +32,9 @@ def work_order_json(wo):
         'priority': wo.priority,
         'type': wo.wo_type,
         'asset_number': wo.asset.asset_number if wo.asset else None,
+        'asset_name': wo.asset.name if wo.asset else None,
         'location_number': wo.location.location_number if wo.location else None,
+        'location_name': wo.location.name if wo.location else None,
         'job_plan': wo.job_plan.name if wo.job_plan else None,
         'assigned_to': wo.assignee.username if wo.assignee else None,
         'due_date': wo.due_date.isoformat() if wo.due_date else None,
@@ -208,7 +210,10 @@ def list_assets():
     rows = Asset.query.order_by(Asset.asset_number).all()
     return jsonify({'count': len(rows), 'assets': [
         {'asset_number': a.asset_number, 'name': a.name, 'status': a.status,
-         'location_number': a.location.location_number if a.location else None}
+         'location_number': a.location.location_number if a.location else None,
+         'parent_asset_number': a.parent.asset_number if a.parent else None,
+         'parent_asset_name': a.parent.name if a.parent else None,
+         'path': a.path_label}
         for a in rows
     ]})
 
@@ -218,7 +223,10 @@ def list_assets():
 def list_locations():
     rows = Location.query.order_by(Location.location_number).all()
     return jsonify({'count': len(rows), 'locations': [
-        {'location_number': l.location_number, 'name': l.name, 'status': l.status,
-         'path': l.path_label}
-        for l in rows
+        {'location_number': location.location_number, 'name': location.name,
+         'status': location.status,
+         'parent_location_number': location.parent.location_number if location.parent else None,
+         'parent_location_name': location.parent.name if location.parent else None,
+         'path': location.path_label}
+        for location in rows
     ]})

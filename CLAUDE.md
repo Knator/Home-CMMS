@@ -287,10 +287,16 @@ Records are addressed by their **numbers** (`AST-00001`, `LOC-00003`), never nam
 names are deliberately not unique and location names are only unique per parent, so a name
 is not something a client can reliably address.
 
-- **Auth**: bearer token per user (`Authorization: Bearer <token>` or `X-API-Key`). Only a
-  SHA-256 digest is stored — tokens are high-entropy random strings, so a fast digest is
-  enough and a database leak yields nothing usable. Issued and revoked from the admin user
-  page; shown once. `api_token_last_used` records activity.
+- **Auth**: named bearer tokens in `api_tokens` (`Authorization: Bearer <token>` or
+  `X-API-Key`). A user may hold several — one per integration — so one can be revoked without
+  disturbing the rest, and the name records where it is used. Only a SHA-256 digest is stored;
+  tokens are high-entropy random strings, so a fast digest is enough and a leak yields nothing
+  usable. `last_used_at` records activity. Issued and revoked per token from the admin user
+  page, and the plaintext is rendered alone in a readonly input with a copy button — never
+  embedded in prose, so it can be copied without dragging surrounding text along.
+- **Clipboard**: `initCopyButtons()` falls back to `document.execCommand('copy')`, because
+  `navigator.clipboard` only exists in a secure context and this app is normally reached over
+  plain http on a LAN address — the fallback is the usual path, not a legacy one.
 - **Errors**: one envelope everywhere — `{"error": "...", "errors": {"field": "why"}}`. All
   field problems are reported in a single response rather than one at a time. 400 for
   validation (including a number that resolves to nothing, or to a non-Active record), 401

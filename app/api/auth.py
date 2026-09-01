@@ -11,7 +11,7 @@ from flask import g, request
 
 from app.api.errors import unauthorized
 from app.extensions import db
-from app.models.user import User
+from app.models.api_token import ApiToken
 from app.utils import utcnow
 
 
@@ -24,17 +24,22 @@ def _presented_token():
 
 
 def authenticate():
-    token = _presented_token()
-    if not token:
+    """Resolve a presented token to its owner, or None."""
+    presented = _presented_token()
+    if not presented:
         return None
 
-    digest = User.hash_api_token(token)
-    # Indexed lookup on the digest, then a constant-time compare so the match
-    # itself cannot be timed.
-    for user in User.query.filter_by(api_token_hash=digest).all():
-        if user.is_active and secrets.compare_digest(user.api_token_hash, digest):
-            return user
-    return None
+    digest = ApiToken.hash_token(presented)
+    # Indexed lookup on the digest, then a constant-time compare so a match
+    # cannot be distinguished by timing.
+    record = ApiToken.query.filter_by(token_hash=digest).first()
+    if record is None or not secrets.compare_digest(record.token_hash, digest):
+        return None
+    if record.user is None or not record.user.is_active:
+        return None
+
+    record.last_used_at = utcnow()
+    return record.user
 
 
 def api_token_required(view):
@@ -44,7 +49,6 @@ def api_token_required(view):
         if user is None:
             return unauthorized()
         g.api_user = user
-        user.api_token_last_used = utcnow()
-        db.session.commit()
+        db.session.commit()      # persists the token's last-used stamp
         return view(*args, **kwargs)
     return wrapped

@@ -48,44 +48,47 @@
     <div class="card-body">
       <p class="field-hint" style="margin-bottom:12px;">
         A token lets a script create work orders through the REST API as this user.
-        Only a hash is stored, so the token is shown once and cannot be recovered.
+        Give each integration its own token so you can revoke one without disturbing
+        the others. Only a hash is stored, so a token is shown once and cannot be
+        recovered — but you can always issue another.
       </p>
-      {% if user.has_api_token %}
-        <div class="detail-grid">
-          <div class="detail-field">
-            <div class="detail-label">Status</div>
-            <div class="detail-value"><span class="badge badge-active">Token active</span></div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-label">Created</div>
-            <div class="detail-value">{{ user.api_token_created.strftime('%Y-%m-%d %H:%M') if user.api_token_created else '—' }}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-label">Last used</div>
-            <div class="detail-value {{ 'empty' if not user.api_token_last_used }}">
-              {{ user.api_token_last_used.strftime('%Y-%m-%d %H:%M') if user.api_token_last_used else 'Never' }}
-            </div>
-          </div>
-        </div>
-      {% else %}
-        <p class="text-muted">No token issued.</p>
-      {% endif %}
-      <div class="form-actions mt-1">
-        <form method="post" action="{{ url_for('admin.issue_api_token', id=user.id) }}" style="display:inline;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-secondary btn-sm"
-                  onclick="return confirm('{{ 'Replace the existing token? The old one stops working immediately.' if user.has_api_token else 'Generate an API token for this user?' }}')">
-            {{ 'Regenerate token' if user.has_api_token else 'Generate token' }}
-          </button>
-        </form>
-        {% if user.has_api_token %}
-        <form method="post" action="{{ url_for('admin.revoke_api_token', id=user.id) }}" style="display:inline;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-ghost btn-sm text-danger"
-                  onclick="return confirm('Revoke API access for this user?')">Revoke</button>
-        </form>
-        {% endif %}
+
+      {% set tokens = user.api_tokens.all() %}
+      {% if tokens %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th class="col-hide-sm">Created</th><th>Last used</th><th></th></tr></thead>
+          <tbody>
+            {% for t in tokens %}
+            <tr>
+              <td>{{ t.name }}</td>
+              <td class="col-hide-sm">{{ t.created_at.strftime('%Y-%m-%d') if t.created_at else '—' }}</td>
+              <td class="{{ 'empty' if not t.last_used_at }}">
+                {{ t.last_used_at.strftime('%Y-%m-%d %H:%M') if t.last_used_at else 'Never' }}
+              </td>
+              <td>
+                <form method="post" action="{{ url_for('admin.revoke_api_token', id=user.id, token_id=t.id) }}" style="display:inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-ghost btn-sm text-danger"
+                          onclick="return confirm('Revoke &quot;{{ t.name }}&quot;? Anything using it stops working immediately.')">Revoke</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
+      {% else %}
+        <p class="text-muted">No tokens issued.</p>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('admin.issue_api_token', id=user.id) }}"
+            class="upload-form" style="margin-top:14px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="text" name="token_name" maxlength="80" required
+               placeholder="What will use it? e.g. Home Assistant" aria-label="Token name">
+        <button type="submit" class="btn btn-secondary btn-sm">Generate token</button>
+      </form>
     </div>
   </div>
   {% endif %}

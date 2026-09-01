@@ -280,6 +280,35 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
   the searchable combobox only re-reads the select on `change`, so a bare assignment updates
   the submitted value but not what the user sees. It only re-derives on asset change, so a location set by hand afterwards survives; if the asset's location is not in the Active-only picker, the option is injected rather than silently failing
 
+### Maintenance (`app/maintenance.py`, `/admin/maintenance`)
+Admin-only housekeeping, modelled on what self-hosted apps generally need (Home Assistant's
+backups and system health, Immich's orphaned-file repair, LubeLogger's single-archive export):
+
+- **Backups** — one `.tar.gz` of the database plus `uploads/`. The database is captured with
+  `VACUUM INTO`, never a file copy, because in WAL mode a copy silently misses everything
+  still in the `-wal` sidecar. Thumbnails are excluded; they rebuild. Optional retention
+  prunes to the newest N. **Restore is deliberately manual** and documented on the page —
+  overwriting a live database from a web form is too easy to do by accident.
+- **Storage integrity** — attachments are polymorphic with no foreign key, so the table and
+  the filesystem can drift. `scan_storage()` is read-only and reports records whose file is
+  missing, records whose owning entity is gone, files nothing references, and stale
+  thumbnails; `clean_storage()` is a separate explicit step.
+- **Database** — `PRAGMA integrity_check` + `foreign_key_check`, `VACUUM` (on an AUTOCOMMIT
+  connection, since it cannot run in a transaction), and a WAL checkpoint.
+- **Scheduler visibility** — shows whether the PM job is running and its next fire time, with
+  a "run now" button. The scheduler is registered at `app.extensions['pm_scheduler']`.
+
+Backup filenames coming from a URL go through `is_backup_name()` before any path join.
+
+The actions run **in place**. Each is an ordinary POST form that works with JS disabled;
+`initAsyncActions()` intercepts submits, sends them with `X-Requested-With: fetch`, and swaps
+the `#maintenance` region with the server's re-rendered markup — so the server stays the only
+thing that renders the page and no view logic is duplicated in JS. `_maintenance_result()`
+returns the re-render for a fetch and a redirect otherwise. If the response is not the
+expected page (an expired session returning the login screen, say) the browser reloads rather
+than swapping in something wrong. Downloads deliberately carry no `data-async`, since they
+must stay real navigations.
+
 ### Tests (`tests/`)
 `pytest`. `tests/test_js_logic.py` runs the real `main.js` under dukpy against the tiny DOM
 shim in `tests/js_shim.js`, so the browser logic is covered rather than eyeballed — three

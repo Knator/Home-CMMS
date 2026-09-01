@@ -209,14 +209,17 @@ function initRepeatRows() {
 function addTaskRow() { addRow('task'); }
 function addAttachmentRow() { addRow('attachment'); }
 
-document.addEventListener('DOMContentLoaded', () => {
-  initRepeatRows();
-
-  // Auto-dismiss alerts after 4 seconds
-  document.querySelectorAll('.alert').forEach(el => {
-    setTimeout(() => el.style.opacity = '0', 4000);
+function initAlerts(root) {
+  (root || document).querySelectorAll('.alert:not([data-dismiss-armed])').forEach((el) => {
+    el.dataset.dismissArmed = 'true';
+    setTimeout(() => { el.style.opacity = '0'; }, 4000);
     setTimeout(() => el.remove(), 4400);
   });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initRepeatRows();
+  initAlerts();
 });
 
 /* ── Work order form: inherit the asset's location ──
@@ -591,3 +594,96 @@ function initLightbox() {
 }
 
 document.addEventListener('DOMContentLoaded', initLightbox);
+
+/* ── In-place actions on the maintenance page ──
+   Progressive enhancement: the forms are ordinary POSTs and work without JS.
+   With JS they are submitted by fetch and the server's re-rendered markup is
+   swapped in, so running a check does not throw you back to the top of the
+   page. The server stays the only thing that renders — no duplicate view logic
+   lives here. */
+function initAsyncActions() {
+  const region = document.getElementById('maintenance');
+  if (!region) return;
+
+  function setBusy(el, busy) {
+    const buttons = el.matches('form') ? el.querySelectorAll('button') : [el];
+    buttons.forEach((b) => {
+      if (busy) {
+        b.dataset.idleLabel = b.textContent;
+        b.textContent = el.dataset.busy || 'Working…';
+        b.disabled = true;
+      } else if (b.dataset.idleLabel) {
+        b.textContent = b.dataset.idleLabel;
+        b.disabled = false;
+      }
+    });
+    el.classList.toggle('is-busy', busy);
+  }
+
+  function swap(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const fresh = doc.getElementById('maintenance');
+    if (!fresh) {
+      // Not the page we expected — most likely the session expired and this is
+      // the login screen. Let the browser navigate properly.
+      window.location.reload();
+      return;
+    }
+
+    const main = document.querySelector('main.content');
+    const current = document.getElementById('maintenance');
+    current.replaceWith(fresh);
+
+    // Carry over any flash messages the action produced.
+    main.querySelectorAll('.alerts').forEach((el) => el.remove());
+    const alerts = doc.querySelector('.alerts');
+    if (alerts) main.insertBefore(alerts, fresh);
+
+    initFieldTooltips(main);
+    initAlerts(main);
+  }
+
+  async function run(el, request) {
+    setBusy(el, true);
+    try {
+      const response = await fetch(request.url, request.options);
+      if (!response.ok) {
+        window.location.reload();
+        return;
+      }
+      swap(await response.text());
+    } catch (err) {
+      window.location.reload();
+    } finally {
+      setBusy(el, false);
+    }
+  }
+
+  document.addEventListener('submit', (e) => {
+    const form = e.target.closest('form[data-async]');
+    if (!form) return;
+    e.preventDefault();
+    if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) return;
+    run(form, {
+      url: form.action,
+      options: {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'X-Requested-With': 'fetch' },
+      },
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('a[data-async]');
+    if (!link) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    run(link, {
+      url: link.href,
+      options: { headers: { 'X-Requested-With': 'fetch' } },
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initAsyncActions);

@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+{% block title %}Maintenance — Home CMMS{% endblock %}
+{% block page_title %}Maintenance{% endblock %}
+
+{% macro confirm_form(action, label, question, style='btn-secondary', busy='Working…') %}
+  <form method="post" action="{{ action }}" style="display:inline;"
+        data-async data-confirm="{{ question }}" data-busy="{{ busy }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn {{ style }} btn-sm">{{ label }}</button>
+  </form>
+{% endmacro %}
+
+{% block content %}
+<div id="maintenance">
+<div class="page-header">
+  <div>
+    <h1>Maintenance</h1>
+    <div class="header-meta"><span class="breadcrumb-path">Backups, storage and database housekeeping</span></div>
+  </div>
+  <div class="page-actions">
+    <a href="{{ url_for('admin.users') }}" class="btn btn-ghost">Users</a>
+  </div>
+</div>
+
+<!-- System status -->
+<div class="card">
+  <div class="card-header"><span class="card-title">System</span></div>
+  <div class="card-body">
+    <div class="detail-grid">
+      <div class="detail-field">
+        <div class="detail-label">Database</div>
+        <div class="detail-value">
+          {{ format_file_size(status.database_size) }}
+          {% if status.wal_size %}<span class="text-muted">+ {{ format_file_size(status.wal_size) }} write-ahead log</span>{% endif %}
+          <div class="field-hint" style="margin-top:4px;">{{ status.database_path }}</div>
+        </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Attachments</div>
+        <div class="detail-value">
+          {{ format_file_size(status.uploads_size) }}
+          <div class="field-hint" style="margin-top:4px;">
+            including {{ format_file_size(status.thumbnail_size) }} of thumbnails
+          </div>
+        </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Disk</div>
+        <div class="detail-value">
+          {{ format_file_size(status.disk_free) }} free of {{ format_file_size(status.disk_total) }}
+          <div class="meter" role="img" aria-label="{{ status.disk_used_pct }}% used">
+            <span style="width: {{ status.disk_used_pct }}%"></span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Versions</div>
+        <div class="detail-value">
+          Python {{ status.python_version }} · Flask {{ status.flask_version }} · SQLAlchemy {{ status.sqlalchemy_version }}
+          <div class="field-hint" style="margin-top:4px;">
+            Image previews: {{ 'enabled' if status.thumbnails_available else 'DISABLED — install Pillow' }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="count-grid">
+      {% for label, count in status.counts.items() %}
+        <div class="count-chip"><span class="count-value">{{ count }}</span>{{ label }}</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- PM scheduler -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">PM Scheduler</span>
+    {{ confirm_form(url_for('admin.run_pm_check_now'), 'Run check now',
+                    'Run the PM check immediately?') }}
+  </div>
+  <div class="card-body">
+    {% if scheduler.running %}
+      <p>Running. Next automatic check
+        {% if scheduler.next_run %}at <strong>{{ scheduler.next_run.strftime('%Y-%m-%d %H:%M') }}</strong>{% else %}not scheduled{% endif %}.</p>
+      <p class="field-hint">
+        The check runs hourly, and the timer restarts whenever the application does — so a
+        PM that has just come due may wait until the next tick. Use "Run check now" to
+        generate immediately.
+      </p>
+    {% else %}
+      <p class="text-danger">Not running in this process.</p>
+      <p class="field-hint">{{ scheduler.reason }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Backups -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Backups</span>
+    <form method="post" action="{{ url_for('admin.create_backup') }}" class="inline-form"
+          data-async data-confirm="Create a backup now?" data-busy="Backing up…">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="keep" class="inline-label">Keep</label>
+      <input type="number" id="keep" name="keep" value="7" min="1" max="99" class="tiny-number">
+      <button type="submit" class="btn btn-primary btn-sm">Create backup</button>
+    </form>
+  </div>
+  <div class="card-body">
+    <p class="field-hint" style="margin-bottom:12px;">
+      Each backup is one archive holding the database and every uploaded file. The database
+      is snapshotted safely while the app runs. Thumbnails are excluded because they rebuild
+      on their own. Download a copy somewhere else — a backup beside the original is not a backup.
+    </p>
+    {% if backups %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Backup</th><th>Size</th><th class="col-hide-sm">Created</th><th></th></tr></thead>
+        <tbody>
+          {% for b in backups %}
+          <tr>
+            <td class="mono-cell">{{ b.name }}</td>
+            <td>{{ format_file_size(b.size) }}</td>
+            <td class="col-hide-sm">{{ b.created.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>
+              <a href="{{ url_for('admin.download_backup', name=b.name) }}" class="btn btn-secondary btn-sm">Download</a>
+              {{ confirm_form(url_for('admin.delete_backup', name=b.name), 'Delete',
+                              'Delete this backup?', 'btn-ghost text-danger') }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="text-muted">No backups yet.</p>
+    {% endif %}
+
+    <details class="restore-note">
+      <summary>How to restore</summary>
+      <p class="field-hint">
+        Restoring is deliberately a manual step — overwriting a live database from a web
+        form is too easy to do by accident. Stop the application, then:
+      </p>
+      <pre class="code-block">tar -xzf {{ backups[0].name if backups else 'home-cmms-backup-YYYYMMDD-HHMMSS.tar.gz' }} -C /tmp/restore
+cp /tmp/restore/home_cmms.db {{ status.database_path }}
+rm -f {{ status.database_path }}-wal {{ status.database_path }}-shm
+cp -r /tmp/restore/uploads/. {{ status.uploads_path }}/</pre>
+      <p class="field-hint">Then start the application and run <code>flask db upgrade</code>.</p>
+    </details>
+  </div>
+</div>
+
+<!-- Storage integrity -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Storage Integrity</span>
+    <a href="{{ url_for('admin.maintenance_page', scan=1) }}" class="btn btn-secondary btn-sm"
+       data-async data-busy="Scanning…">Run scan</a>
+  </div>
+  <div class="card-body">
+    <p class="field-hint" style="margin-bottom:12px;">
+      Attachments are linked by type and id rather than a foreign key, so the table and the
+      filesystem can drift apart. This finds records whose file has gone, files nothing
+      points at, and thumbnails for attachments that no longer exist.
+    </p>
+
+    {% if scan is none %}
+      <p class="text-muted">Not scanned yet.</p>
+    {% elif scan.clean %}
+      <p class="scan-ok">Everything checks out — no orphaned records, files or thumbnails.</p>
+    {% else %}
+      <ul class="scan-list">
+        {% if scan.missing_files %}
+          <li><strong>{{ scan.missing_files | length }}</strong> attachment record(s) whose file is missing
+            <ul>{% for a in scan.missing_files[:10] %}<li>{{ a.label }} <span class="text-muted">({{ a.entity_type }} #{{ a.entity_id }})</span></li>{% endfor %}</ul>
+          </li>
+        {% endif %}
+        {% if scan.orphaned_rows %}
+          <li><strong>{{ scan.orphaned_rows | length }}</strong> attachment record(s) whose owning record has been deleted</li>
+        {% endif %}
+        {% if scan.stray_files %}
+          <li><strong>{{ scan.stray_files | length }}</strong> file(s) on disk that nothing references
+            ({{ format_file_size(scan.stray_bytes) }})
+            <ul>{% for f in scan.stray_files[:10] %}<li class="mono-cell">{{ f }}</li>{% endfor %}</ul>
+          </li>
+        {% endif %}
+        {% if scan.stray_thumbnails %}
+          <li><strong>{{ scan.stray_thumbnails | length }}</strong> stale thumbnail(s)
+            ({{ format_file_size(scan.stray_thumbnail_bytes) }})</li>
+        {% endif %}
+      </ul>
+      <div class="danger-zone" style="margin-top:14px;">
+        <h3>Clean up</h3>
+        <p class="text-muted" style="margin-bottom:10px;">
+          This permanently deletes the records and files listed above. Take a backup first.
+        </p>
+        {{ confirm_form(url_for('admin.clean_storage'), 'Delete orphaned data',
+                        'Permanently delete the orphaned records and files?', 'btn-danger') }}
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Database -->
+<div class="card">
+  <div class="card-header"><span class="card-title">Database</span></div>
+  <div class="card-body">
+    <div class="action-row">
+      <div>
+        <strong>Check integrity</strong>
+        <div class="field-hint">Verifies the file is not corrupt and no foreign keys dangle.</div>
+      </div>
+      {{ confirm_form(url_for('admin.check_database'), 'Check', 'Run the integrity check?') }}
+    </div>
+    <div class="action-row">
+      <div>
+        <strong>Reclaim space</strong>
+        <div class="field-hint">Rebuilds the file to release space left by deleted records. Briefly locks the database.</div>
+      </div>
+      {{ confirm_form(url_for('admin.vacuum_database'), 'Vacuum', 'Rebuild the database now?') }}
+    </div>
+    <div class="action-row">
+      <div>
+        <strong>Fold in write-ahead log</strong>
+        <div class="field-hint">Merges the -wal sidecar back into the database file.</div>
+      </div>
+      {{ confirm_form(url_for('admin.checkpoint_wal'), 'Checkpoint', 'Checkpoint the write-ahead log?') }}
+    </div>
+    <div class="action-row">
+      <div>
+        <strong>Clear thumbnail cache</strong>
+        <div class="field-hint">Currently {{ format_file_size(status.thumbnail_size) }}. Thumbnails rebuild when next viewed.</div>
+      </div>
+      {{ confirm_form(url_for('admin.clear_thumbnails'), 'Clear', 'Clear all cached thumbnails?') }}
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

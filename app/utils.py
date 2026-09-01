@@ -291,11 +291,16 @@ def format_duration(minutes):
 
 
 def format_file_size(size_bytes):
+    """Bytes as a short human size.
+
+    Goes up to TB because the maintenance page reports disk capacity with
+    this, and a 500 GB volume rendered as "512000.0 MB" is unreadable.
+    """
     if size_bytes is None:
         return '—'
     if size_bytes < 1024:
         return f"{size_bytes} B"
-    elif size_bytes < 1024 ** 2:
-        return f"{size_bytes / 1024:.1f} KB"
-    else:
-        return f"{size_bytes / 1024 ** 2:.1f} MB"
+    for unit, limit in (('KB', 1024 ** 2), ('MB', 1024 ** 3), ('GB', 1024 ** 4)):
+        if size_bytes < limit:
+            return f"{size_bytes / (limit / 1024):.1f} {unit}"
+    return f"{size_bytes / 1024 ** 4:.1f} TB"

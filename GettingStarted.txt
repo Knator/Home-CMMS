@@ -186,6 +186,34 @@ This guide takes you from a fresh clone to a running, testable app.
 
 
 --------------------------------------------------------------------------------
+ 7b. MAINTENANCE (ADMIN)
+--------------------------------------------------------------------------------
+
+  Sidebar > Admin > Maintenance, for admins only. It covers:
+
+  SYSTEM       Database, attachment and thumbnail sizes, free disk, record
+               counts, versions, and whether image previews are working.
+
+  PM SCHEDULER Whether the hourly check is running and when it next fires,
+               plus a "Run check now" button. Useful because the timer
+               restarts with the application, so a PM that has just come due
+               may otherwise wait for the next tick.
+
+  BACKUPS      "Create backup" writes one archive holding the database and
+               every uploaded file, safely while the app runs. Download it
+               somewhere else — a backup sitting beside the original is not a
+               backup. "Keep" prunes to that many most recent archives.
+               Restoring is a manual step, spelled out on the page.
+
+  STORAGE      "Run scan" compares the attachment records against the files on
+  INTEGRITY    disk and reports anything that has drifted apart. Cleanup is a
+               separate button and tells you exactly what it will delete.
+
+  DATABASE     Integrity check, reclaim space, fold in the write-ahead log,
+               and clear the thumbnail cache.
+
+
+--------------------------------------------------------------------------------
  8. WHERE YOUR DATA LIVES
 --------------------------------------------------------------------------------
 

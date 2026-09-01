@@ -1,10 +1,13 @@
-from flask import render_template, redirect, url_for, flash, request
+import os
+
+from flask import render_template, redirect, url_for, flash, request, send_file, abort
 from flask_login import login_required, current_user
 
 from app.admin import bp
 from app.extensions import db
 from app.models.user import User
-from app.utils import validate_csrf, admin_required
+from app.utils import validate_csrf, admin_required, parse_int
+from app import maintenance
 
 
 def _other_active_admins(user_id):
@@ -123,3 +126,165 @@ def toggle_user(id):
     state = 'activated' if user.is_active else 'deactivated'
     flash(f'User {state}.', 'success')
     return redirect(url_for('admin.users'))
+
+
+# ── Maintenance ────────────────────────────────────────────────────────────
+
+def _wants_async():
+    """True when the maintenance page fetched this rather than navigating to it."""
+    return request.headers.get('X-Requested-With') == 'fetch'
+
+
+def _render_maintenance(scan=False):
+    return render_template(
+        'admin/maintenance.html',
+        status=maintenance.system_status(),
+        scheduler=maintenance.scheduler_status(),
+        backups=maintenance.list_backups(),
+        scan=maintenance.scan_storage() if scan else None,
+    )
+
+
+def _maintenance_result(scan=False):
+    """Re-render in place for a fetch; redirect as usual for a plain form post.
+
+    The server stays the only thing that renders this page — the browser just
+    swaps in the new markup, so there is no duplicate rendering logic in JS.
+    """
+    if _wants_async():
+        return _render_maintenance(scan=scan)
+    return redirect(url_for('admin.maintenance_page', **({'scan': 1} if scan else {})))
+
+
+@bp.route('/maintenance')
+@login_required
+@admin_required
+def maintenance_page():
+    return _render_maintenance(scan=bool(request.args.get('scan')))
+
+
+@bp.route('/maintenance/backup', methods=['POST'])
+@login_required
+@admin_required
+def create_backup():
+    validate_csrf()
+    try:
+        result = maintenance.create_backup()
+    except Exception:
+        current_app_logger = __import__('flask').current_app.logger
+        current_app_logger.exception('Backup failed')
+        flash('Backup failed. Check the application log for details.', 'error')
+        return _maintenance_result()
+
+    flash(f"Backup {result['name']} created "
+          f"({result['size'] // 1024} KB in {result['seconds']}s).", 'success')
+
+    keep = parse_int(request.form.get('keep'), minimum=1)
+    if keep:
+        pruned = maintenance.prune_backups(keep)
+        if pruned:
+            flash(f"Removed {pruned} older backup{'' if pruned == 1 else 's'}.", 'info')
+    return _maintenance_result()
+
+
+@bp.route('/maintenance/backup/<path:name>/download')
+@login_required
+@admin_required
+def download_backup(name):
+    # Validated rather than joined blindly: this path comes from the URL.
+    if not maintenance.is_backup_name(name):
+        abort(404)
+    path = os.path.join(maintenance.backup_dir(), name)
+    if not os.path.isfile(path):
+        abort(404)
+    return send_file(path, as_attachment=True, download_name=name)
+
+
+@bp.route('/maintenance/backup/<path:name>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_backup(name):
+    validate_csrf()
+    if maintenance.delete_backup(name):
+        flash(f'Backup {name} deleted.', 'success')
+    else:
+        flash('That backup could not be found.', 'error')
+    return _maintenance_result()
+
+
+@bp.route('/maintenance/clean-storage', methods=['POST'])
+@login_required
+@admin_required
+def clean_storage():
+    validate_csrf()
+    removed = maintenance.clean_storage()
+    if removed['rows'] or removed['files'] or removed['thumbnails']:
+        flash(
+            f"Removed {removed['rows']} attachment record(s), {removed['files']} orphaned "
+            f"file(s) and {removed['thumbnails']} stale thumbnail(s), "
+            f"freeing {removed['bytes'] // 1024} KB.", 'success')
+    else:
+        flash('Nothing to clean up.', 'info')
+    return _maintenance_result(scan=True)
+
+
+@bp.route('/maintenance/clear-thumbnails', methods=['POST'])
+@login_required
+@admin_required
+def clear_thumbnails():
+    validate_csrf()
+    result = maintenance.clear_thumbnail_cache()
+    flash(f"Cleared {result['removed']} thumbnail(s), freeing {result['bytes'] // 1024} KB. "
+          "They rebuild automatically when next viewed.", 'success')
+    return _maintenance_result()
+
+
+@bp.route('/maintenance/check-database', methods=['POST'])
+@login_required
+@admin_required
+def check_database():
+    validate_csrf()
+    result = maintenance.check_database()
+    if result['ok']:
+        flash('Database integrity check passed.', 'success')
+    else:
+        flash(f"Integrity check reported problems: {'; '.join(result['integrity'])} "
+              f"({result['foreign_key_violations']} foreign key violation(s)).", 'error')
+    return _maintenance_result()
+
+
+@bp.route('/maintenance/vacuum', methods=['POST'])
+@login_required
+@admin_required
+def vacuum_database():
+    validate_csrf()
+    result = maintenance.vacuum_database()
+    flash(f"Database rebuilt. Reclaimed {result['reclaimed'] // 1024} KB "
+          f"({result['before'] // 1024} KB to {result['after'] // 1024} KB).", 'success')
+    return _maintenance_result()
+
+
+@bp.route('/maintenance/checkpoint', methods=['POST'])
+@login_required
+@admin_required
+def checkpoint_wal():
+    validate_csrf()
+    result = maintenance.checkpoint_wal()
+    flash(f"Write-ahead log folded in ({result['checkpointed']} pages).", 'success')
+    return _maintenance_result()
+
+
+@bp.route('/maintenance/run-pm-check', methods=['POST'])
+@login_required
+@admin_required
+def run_pm_check_now():
+    validate_csrf()
+    from flask import current_app
+    from app.scheduler import run_pm_check
+
+    generated = run_pm_check(current_app._get_current_object())
+    if generated:
+        flash(f"PM check generated {generated} work order(s).", 'success')
+    else:
+        flash('PM check ran; nothing was due.', 'info')
+    return _maintenance_result()

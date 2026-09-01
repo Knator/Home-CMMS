@@ -61,5 +61,7 @@ def start_scheduler(app):
     )
     scheduler.start()
     atexit.register(lambda: scheduler.shutdown(wait=False))
+    # Kept on the app so the maintenance page can report the next run time.
+    app.extensions['pm_scheduler'] = scheduler
     log.info("PM scheduler started (hourly)")
     return scheduler

@@ -5,7 +5,7 @@ import pytest
 
 from app.models.attachment import Attachment
 from app.models.location import Location
-from app.services import create_asset, create_work_order
+from app.services import create_location, create_asset, create_work_order
 from tests.conftest import CSRF
 
 
@@ -20,7 +20,7 @@ def targets(db, user):
     from app.models.job_plan import JobPlan
     from app.models.pm import PM
 
-    loc = Location(name='Garage')
+    loc = create_location(name='Garage')
     plan = JobPlan(name='Checklist')
     db.session.add_all([loc, plan])
     db.session.flush()

@@ -2,12 +2,12 @@
 from datetime import date
 
 from app.models.location import Location
-from app.services import create_asset, create_work_order
+from app.services import create_location, create_asset, create_work_order
 from tests.conftest import CSRF
 
 
 def test_work_order_list_shows_location_and_completed(client, db, user, login):
-    loc = Location(name='Garage')
+    loc = create_location(name='Garage')
     db.session.add(loc)
     db.session.commit()
     create_work_order(title='Fix door', location_id=loc.id, status='completed',
@@ -33,8 +33,8 @@ def test_dashboard_drops_the_wo_number_and_shows_completed(client, db, user, log
 
 
 def test_location_detail_lists_its_work_orders(client, db, user, login):
-    loc = Location(name='Garage')
-    other = Location(name='Attic')
+    loc = create_location(name='Garage')
+    other = create_location(name='Attic')
     db.session.add_all([loc, other])
     db.session.commit()
     create_work_order(title='Garage job', location_id=loc.id)
@@ -48,7 +48,7 @@ def test_location_detail_lists_its_work_orders(client, db, user, login):
 
 
 def test_location_with_no_work_orders_says_so(client, db, user, login):
-    loc = Location(name='Empty')
+    loc = create_location(name='Empty')
     db.session.add(loc)
     db.session.commit()
 
@@ -57,7 +57,7 @@ def test_location_with_no_work_orders_says_so(client, db, user, login):
 
 
 def test_location_work_orders_show_the_asset(client, db, user, login):
-    loc = Location(name='Garage')
+    loc = create_location(name='Garage')
     db.session.add(loc)
     db.session.commit()
     asset = create_asset(name='Door Opener', location_id=loc.id)

@@ -1,7 +1,7 @@
 import logging
 import os
 
-from flask import Flask, flash, redirect, request, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 
 from app.extensions import db, migrate, login_manager
 from app.utils import (
@@ -69,6 +69,7 @@ def create_app(config_class=Config, config_overrides=None):
     from app.pms import bp as pms_bp
     from app.admin import bp as admin_bp
     from app.attachments import bp as attachments_bp
+    from app.api import bp as api_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -79,6 +80,31 @@ def create_app(config_class=Config, config_overrides=None):
     app.register_blueprint(pms_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(attachments_bp)
+    app.register_blueprint(api_bp)
+
+    def _is_api_request():
+        return request.path.startswith('/api/')
+
+    # Flask raises routing errors before a blueprint is known, so these live at
+    # app level and check the path. Without them an API client gets an HTML
+    # error page where it expects JSON.
+    @app.errorhandler(404)
+    def api_aware_not_found(error):
+        if _is_api_request():
+            return jsonify({'error': 'Not found.'}), 404
+        return render_template('errors/404.html'), 404
+
+    @app.errorhandler(405)
+    def api_aware_method_not_allowed(error):
+        if _is_api_request():
+            return jsonify({'error': 'Method not allowed for this endpoint.'}), 405
+        return error, 405
+
+    @app.errorhandler(500)
+    def api_aware_server_error(error):
+        if _is_api_request():
+            return jsonify({'error': 'Internal server error.'}), 500
+        return error, 500
 
     @app.errorhandler(413)
     def file_too_large(error):

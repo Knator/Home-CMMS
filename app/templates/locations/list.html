@@ -22,10 +22,11 @@
   <div class="table-wrap">
     {% if rows %}
     <table>
-      <thead><tr><th>Name</th><th>Status</th><th class="col-hide-sm">Description</th><th>Assets</th><th></th></tr></thead>
+      <thead><tr><th>Location #</th><th>Name</th><th>Status</th><th class="col-hide-sm">Description</th><th>Assets</th><th></th></tr></thead>
       <tbody>
         {% for loc, depth in rows %}
         <tr>
+          <td><a class="mono-cell asset-link" href="{{ url_for('locations.detail', id=loc.id) }}">{{ loc.location_number }}</a></td>
           <td>
             <span class="tree-indent" style="--depth: {{ depth }}">
               {% if depth %}<span class="tree-branch" aria-hidden="true">└</span>{% endif %}

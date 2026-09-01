@@ -7,7 +7,7 @@ from app.models.attachment import Attachment
 from app.models.asset import Asset
 from app.models.location import Location
 from app.models.work_order import WorkOrder
-from app.services import create_asset, create_work_order
+from app.services import create_location, create_asset, create_work_order
 from tests.conftest import CSRF
 
 
@@ -59,7 +59,7 @@ def test_rename_sets_and_clears(client, db, user, login):
 
 def test_rename_returns_to_the_owning_entity(client, db, user, login):
     login()
-    loc = Location(name='Garage')
+    loc = create_location(name='Garage')
     db.session.add(loc)
     db.session.commit()
     client.post(f'/locations/{loc.id}/attachments',
@@ -205,10 +205,10 @@ def test_empty_file_rows_are_skipped(client, db, user, login):
 # ── asset -> location inheritance endpoint ─────────────────────────────────
 
 def test_asset_summary_returns_its_location(client, db, user, login):
-    house = Location(name='House')
+    house = create_location(name='House')
     db.session.add(house)
     db.session.flush()
-    basement = Location(name='Basement', parent_id=house.id)
+    basement = create_location(name='Basement', parent_id=house.id)
     db.session.add(basement)
     db.session.flush()
     furnace = create_asset(name='Furnace', location_id=basement.id)

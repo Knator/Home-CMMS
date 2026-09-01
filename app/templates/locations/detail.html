@@ -8,6 +8,7 @@
   <div>
     <h1>{{ location.name }}</h1>
     <div class="header-meta">
+      <span class="asset-number">{{ location.location_number }}</span>
       <span class="badge {{ location.status_class }}">{{ location.status_label }}</span>
       {% if location.ancestors %}<span class="breadcrumb-path">in {{ location.ancestors | reverse | map(attribute='name') | join(' › ') }}</span>{% endif %}
     </div>
@@ -22,6 +23,10 @@
   <div class="card-header"><span class="card-title">Details</span></div>
   <div class="card-body">
     <div class="detail-grid">
+      <div class="detail-field">
+        <div class="detail-label">Location Number</div>
+        <div class="detail-value mono-cell">{{ location.location_number }}</div>
+      </div>
       <div class="detail-field">
         <div class="detail-label">Description</div>
         <div class="detail-value {{ 'empty' if not location.description }}">{{ location.description or 'None' }}</div>

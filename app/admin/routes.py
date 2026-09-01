@@ -107,6 +107,33 @@ def edit_user(id):
     return render_template('admin/user_form.html', user=user)
 
 
+@bp.route('/users/<int:id>/api-token', methods=['POST'])
+@login_required
+@admin_required
+def issue_api_token(id):
+    """Generate an API token. Shown once — only its hash is stored."""
+    validate_csrf()
+    user = db.get_or_404(User, id)
+    token = user.issue_api_token()
+    db.session.commit()
+    # Carried in the session so it survives the redirect, then shown once.
+    flash(f'API token for {user.username}: {token}', 'token')
+    flash('Copy it now — it cannot be shown again. Generating a new one replaces it.', 'info')
+    return redirect(url_for('admin.edit_user', id=id))
+
+
+@bp.route('/users/<int:id>/api-token/revoke', methods=['POST'])
+@login_required
+@admin_required
+def revoke_api_token(id):
+    validate_csrf()
+    user = db.get_or_404(User, id)
+    user.revoke_api_token()
+    db.session.commit()
+    flash(f"API access revoked for {user.username}.", 'success')
+    return redirect(url_for('admin.edit_user', id=id))
+
+
 @bp.route('/users/<int:id>/toggle', methods=['POST'])
 @login_required
 @admin_required

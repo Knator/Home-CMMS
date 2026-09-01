@@ -1458,3 +1458,23 @@ body.nav-open .nav-toggle-bars::after  { transform: translateY(-6px) rotate(-45d
 /* Busy state while an in-place maintenance action runs. */
 .is-busy { opacity: .65; }
 .is-busy button { cursor: progress; }
+
+/* One-time API token display. Deliberately loud and never auto-dismissed. */
+.alert-token {
+  background: var(--tone-amber-bg);
+  color: var(--tone-amber-text);
+  border: 1px solid var(--warning-strong);
+}
+
+.token-value {
+  display: block;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  word-break: break-all;
+  user-select: all;
+}

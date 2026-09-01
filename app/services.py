@@ -11,6 +11,17 @@ log = logging.getLogger(__name__)
 MAX_NUMBER_ATTEMPTS = 5
 
 
+def _is_number_collision(error, *markers):
+    """Whether an IntegrityError is about the generated number, not something else.
+
+    Locations carry a second unique index (name-per-parent), so retrying blindly
+    would spin five times and then report a misleading "could not allocate a
+    number" for what is really a duplicate-name conflict.
+    """
+    detail = str(getattr(error, 'orig', error)).lower()
+    return any(marker.lower() in detail for marker in markers)
+
+
 def create_work_order(**fields):
     """Insert and commit one work order, assigning the next WO number.
 
@@ -26,8 +37,10 @@ def create_work_order(**fields):
         try:
             db.session.commit()
             return wo
-        except IntegrityError:
+        except IntegrityError as error:
             db.session.rollback()
+            if not _is_number_collision(error, 'wo_number'):
+                raise
             log.warning(
                 "Work order number collision (attempt %d/%d), retrying",
                 attempt + 1, MAX_NUMBER_ATTEMPTS,
@@ -65,13 +78,37 @@ def create_asset(**fields):
         try:
             db.session.commit()
             return asset
-        except IntegrityError:
+        except IntegrityError as error:
             db.session.rollback()
+            if not _is_number_collision(error, 'asset_number'):
+                raise
             log.warning(
                 "Asset number collision (attempt %d/%d), retrying",
                 attempt + 1, MAX_NUMBER_ATTEMPTS,
             )
     raise RuntimeError('Could not allocate a unique asset number.')
+
+
+def create_location(**fields):
+    """Insert and commit one location, assigning the next LOC- number."""
+    from app.models.location import Location
+
+    for attempt in range(MAX_NUMBER_ATTEMPTS):
+        location = Location(location_number=Location.generate_location_number(), **fields)
+        db.session.add(location)
+        try:
+            db.session.commit()
+            return location
+        except IntegrityError as error:
+            db.session.rollback()
+            if not _is_number_collision(error, 'location_number'):
+                # A duplicate sibling name, say — the caller needs to see that.
+                raise
+            log.warning(
+                "Location number collision (attempt %d/%d), retrying",
+                attempt + 1, MAX_NUMBER_ATTEMPTS,
+            )
+    raise RuntimeError('Could not allocate a unique location number.')
 
 
 def sibling_name_taken(location, name, parent_id):
@@ -120,10 +157,12 @@ def generate_work_order_for_pm(pm, created_by=None, description=None, on_date=No
         try:
             db.session.commit()
             return wo
-        except IntegrityError:
+        except IntegrityError as error:
             # Rolls back the schedule advance too, so the retry recomputes it
             # from the PM's restored state.
             db.session.rollback()
+            if not _is_number_collision(error, 'wo_number'):
+                raise
             log.warning(
                 "Work order number collision generating PM %s (attempt %d/%d), retrying",
                 pm.id, attempt + 1, MAX_NUMBER_ATTEMPTS,

@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Not found — Home CMMS{% endblock %}
+{% block page_title %}Not found{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <h1 style="font-size:18px;margin-bottom:8px;">That page doesn't exist</h1>
+    <p class="text-muted" style="margin-bottom:14px;">
+      The record may have been deleted, or the link may be wrong.
+    </p>
+    <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">Back to dashboard</a>
+  </div>
+</div>
+{% endblock %}

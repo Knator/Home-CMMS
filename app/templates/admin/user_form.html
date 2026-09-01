@@ -41,5 +41,53 @@
       </form>
     </div>
   </div>
+
+  {% if is_edit %}
+  <div class="card">
+    <div class="card-header"><span class="card-title">API Access</span></div>
+    <div class="card-body">
+      <p class="field-hint" style="margin-bottom:12px;">
+        A token lets a script create work orders through the REST API as this user.
+        Only a hash is stored, so the token is shown once and cannot be recovered.
+      </p>
+      {% if user.has_api_token %}
+        <div class="detail-grid">
+          <div class="detail-field">
+            <div class="detail-label">Status</div>
+            <div class="detail-value"><span class="badge badge-active">Token active</span></div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-label">Created</div>
+            <div class="detail-value">{{ user.api_token_created.strftime('%Y-%m-%d %H:%M') if user.api_token_created else '—' }}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-label">Last used</div>
+            <div class="detail-value {{ 'empty' if not user.api_token_last_used }}">
+              {{ user.api_token_last_used.strftime('%Y-%m-%d %H:%M') if user.api_token_last_used else 'Never' }}
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <p class="text-muted">No token issued.</p>
+      {% endif %}
+      <div class="form-actions mt-1">
+        <form method="post" action="{{ url_for('admin.issue_api_token', id=user.id) }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-secondary btn-sm"
+                  onclick="return confirm('{{ 'Replace the existing token? The old one stops working immediately.' if user.has_api_token else 'Generate an API token for this user?' }}')">
+            {{ 'Regenerate token' if user.has_api_token else 'Generate token' }}
+          </button>
+        </form>
+        {% if user.has_api_token %}
+        <form method="post" action="{{ url_for('admin.revoke_api_token', id=user.id) }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-ghost btn-sm text-danger"
+                  onclick="return confirm('Revoke API access for this user?')">Revoke</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

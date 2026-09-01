@@ -10,10 +10,10 @@ def seeded(db, admin):
     from app.models.asset import Asset
     from app.models.job_plan import JobPlan, JobPlanTask
     from app.models.pm import PM
-    from app.services import create_asset, create_work_order
+    from app.services import create_location, create_asset, create_work_order
     from datetime import date
 
-    loc = Location(name='Garage')
+    loc = create_location(name='Garage')
     db.session.add(loc)
     db.session.flush()
 

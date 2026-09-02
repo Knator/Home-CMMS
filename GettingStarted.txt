@@ -181,7 +181,15 @@ This guide takes you from a fresh clone to a running, testable app.
      - Create a standard "user" role account. Log out, log back in as them,
        and confirm the Admin menu is hidden for non-admins.
 
-  h) CHANGE PASSWORD
+  h) REMEMBER ME
+     - Ticking it on the login page keeps you signed in for 30 days, even
+       after closing the browser. Leaving it unticked signs you out after 8
+       hours of inactivity, or when the browser closes.
+     - Both cookies are marked Secure only when FLASK_ENV=production, because
+       a Secure cookie is never sent over plain http — forcing it on would
+       stop you logging in over your LAN.
+
+  i) CHANGE PASSWORD
      - Top-right > "Change Password" — verify the current-password check.
 
 

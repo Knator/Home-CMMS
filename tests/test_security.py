@@ -90,3 +90,83 @@ def test_admin_can_be_demoted_when_another_admin_exists(client, admin, db, login
     })
     assert response.status_code == 302
     assert other.role == 'user'
+
+
+# ── cookie hardening ───────────────────────────────────────────────────────
+
+def _cookies(response):
+    out = {}
+    for header in response.headers.getlist('Set-Cookie'):
+        name = header.split('=')[0]
+        out[name] = {p.strip().split('=')[0].lower(): p.strip()
+                     for p in header.split(';')[1:]}
+    return out
+
+
+def login_with_remember(client, remember):
+    prime_csrf(client)
+    data = {'username': 'tester', 'password': 'password123', 'csrf_token': CSRF}
+    if remember:
+        data['remember'] = 'y'
+    return client.post('/auth/login', data=data)
+
+
+def test_remember_me_issues_a_long_lived_cookie(client, user, login):
+    cookies = _cookies(login_with_remember(client, True))
+    assert 'expires' in cookies['remember_token']
+
+
+def test_without_remember_me_there_is_no_login_token(client, user, login):
+    cookies = _cookies(login_with_remember(client, False))
+    # Flask-Login clears it rather than omitting it.
+    assert cookies['remember_token']['max-age'] == 'Max-Age=0'
+
+
+def test_the_remember_cookie_is_not_reachable_from_javascript(client, user, login):
+    """It grants a login on its own, so script must not be able to read it."""
+    cookies = _cookies(login_with_remember(client, True))
+    assert 'httponly' in cookies['remember_token']
+
+
+def test_the_remember_cookie_is_samesite_like_the_session(client, user, login):
+    cookies = _cookies(login_with_remember(client, True))
+    assert cookies['remember_token']['samesite'] == 'SameSite=Lax'
+
+
+def test_the_session_cookie_now_expires(client, user, login):
+    """PERMANENT_SESSION_LIFETIME is inert unless the session is marked
+    permanent, which made the configured 8-hour timeout a no-op."""
+    cookies = _cookies(login_with_remember(client, False))
+    assert 'expires' in cookies['session']
+
+
+def test_neither_cookie_is_secure_without_tls(app, client, user, login):
+    """A Secure cookie is never sent over plain http, so forcing it on would
+    break a LAN install that has no TLS."""
+    assert app.config['SESSION_COOKIE_SECURE'] is False
+    assert app.config['REMEMBER_COOKIE_SECURE'] is False
+
+    cookies = _cookies(login_with_remember(client, True))
+    assert 'secure' not in cookies['remember_token']
+
+
+def test_both_cookies_are_secure_in_production(monkeypatch):
+    """The remember cookie does not inherit SESSION_COOKIE_SECURE; it needs its
+    own setting, and without one the more valuable token was the less protected."""
+    import importlib
+    import config as config_module
+
+    monkeypatch.setenv('FLASK_ENV', 'production')
+    monkeypatch.setenv('SECRET_KEY', 'x' * 64)
+    importlib.reload(config_module)
+    try:
+        assert config_module.Config.SESSION_COOKIE_SECURE is True
+        assert config_module.Config.REMEMBER_COOKIE_SECURE is True
+    finally:
+        monkeypatch.delenv('FLASK_ENV', raising=False)
+        importlib.reload(config_module)
+
+
+def test_the_remember_window_is_a_month_not_a_year(app):
+    from datetime import timedelta
+    assert app.config['REMEMBER_COOKIE_DURATION'] == timedelta(days=30)

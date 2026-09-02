@@ -57,7 +57,23 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     SESSION_COOKIE_SECURE = os.environ.get('FLASK_ENV') == 'production'
+    # Applies because the login route marks the session permanent. Flask
+    # refreshes it on each request, so this is 8 hours of inactivity, not 8
+    # hours from sign-in.
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
+
+    # "Remember me" is a separate, longer-lived cookie that Flask-Login manages,
+    # and it does NOT inherit the SESSION_COOKIE_* settings above. Left alone it
+    # is a year-long login token with no Secure and no SameSite — the more
+    # valuable of the two cookies, protected less well than the session.
+    #
+    # Secure is conditional for the same reason the session's is: a Secure
+    # cookie is never sent over plain http, so forcing it on would silently
+    # break "remember me" for a LAN install that has no TLS.
+    REMEMBER_COOKIE_SECURE = os.environ.get('FLASK_ENV') == 'production'
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SAMESITE = 'Lax'
+    REMEMBER_COOKIE_DURATION = timedelta(days=30)
 
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or os.path.join(BASE_DIR, 'uploads')
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB

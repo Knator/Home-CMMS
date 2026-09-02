@@ -173,6 +173,16 @@ regenerate every day until someone completed the work.
 - Passwords: `werkzeug.security.generate_password_hash` (pbkdf2:sha256)
 - CSRF: `generate_csrf_token()` / `validate_csrf()` in `app/utils.py` (constant-time compare); every POST form includes `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">`
 - Session cookies: `HTTPONLY=True`, `SAMESITE=Lax`, `SECURE=True` when `FLASK_ENV=production`; `session_protection = 'strong'`
+- **"Remember me" is a second cookie Flask-Login manages, and it does not inherit any
+  `SESSION_COOKIE_*` setting.** Left at its defaults it was a *year*-long login token with no
+  `Secure` and no `SameSite` — the more valuable of the two cookies, protected less well than
+  the session. `REMEMBER_COOKIE_*` now mirrors the session's settings at 30 days. `SECURE` is
+  conditional on `FLASK_ENV=production` for both: a Secure cookie is never sent over plain
+  http, so forcing it on would silently break login-persistence for a LAN install with no TLS.
+- `PERMANENT_SESSION_LIFETIME` only applies to a *permanent* session, which `login_user()`
+  does not set — so the configured 8 hours was inert and sessions simply lasted until the
+  browser closed. The login route now sets `session.permanent = True`; Flask refreshes it per
+  request, making it an 8-hour **idle** timeout rather than an absolute one.
 - `SECRET_KEY` is mandatory when `FLASK_ENV=production` — the app refuses to start without it
 - The `user_loader` re-checks `is_active` on every request, so deactivating an account ends sessions already signed in
 - Login `?next=` goes through `safe_redirect()`, which accepts same-origin relative paths only

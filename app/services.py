@@ -1,5 +1,6 @@
 """Write paths shared by the web routes and the background scheduler."""
 import logging
+from datetime import date
 
 from sqlalchemy.exc import IntegrityError
 
@@ -332,3 +333,118 @@ def hierarchy_ordered(nodes):
     for root in sorted(roots, key=lambda n: n.name.lower()):
         walk(root, 0)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Materials and tools
+# ---------------------------------------------------------------------------
+
+def copy_job_plan_items(work_order):
+    """Seed a work order's materials and tools from its job plan.
+
+    Only when the work order has none of its own: re-copying would silently
+    discard edits someone made to the list for this particular job.
+
+    Returns how many lines were copied.
+    """
+    from app.models.job_plan import JobPlan
+    from app.models.work_order_item import WorkOrderItem
+
+    if work_order.job_plan_id is None or work_order.items.count():
+        return 0
+
+    plan = db.session.get(JobPlan, work_order.job_plan_id)
+    if plan is None:
+        return 0
+
+    copied = 0
+    for source in plan.items.order_by(None).order_by('kind', 'sequence').all():
+        db.session.add(WorkOrderItem(
+            work_order_id=work_order.id,
+            kind=source.kind,
+            sequence=source.sequence,
+            description=source.description,
+            quantity=source.quantity,
+            part_number=source.part_number,
+        ))
+        copied += 1
+    return copied
+
+
+def _match_existing_material(existing, description, part_number):
+    """Find the row that already represents this part, if any.
+
+    Matching has to survive a part number being added later — the same rod
+    recorded once without a number and once with one is one part, not two. So:
+    a part number matches its twin exactly; failing that it may adopt a row that
+    has no number and the same description. An item with no number matches on
+    description alone.
+
+    A row with a *different* part number is never merged, because two numbers
+    mean two parts however similarly they are described.
+    """
+    number = (part_number or '').strip().lower()
+    text = (description or '').strip().lower()
+
+    if number:
+        for row in existing:
+            if row.normalised_part_number == number:
+                return row
+        for row in existing:
+            if not row.normalised_part_number and row.normalised_description == text:
+                return row
+        return None
+
+    for row in existing:
+        if row.normalised_description == text:
+            return row
+    return None
+
+
+def record_materials_on_asset(work_order):
+    """Roll a completed work order's materials onto its asset.
+
+    So that months later the asset itself answers "what part did I use?".
+    Matching is by part number where there is one, otherwise by description, so
+    the same part used repeatedly updates one row instead of piling up.
+
+    Returns (added, updated).
+    """
+    from app.models.asset_material import AssetMaterial
+
+    if work_order.asset_id is None:
+        return 0, 0
+
+    used_on = work_order.completed_date or date.today()
+    existing = AssetMaterial.query.filter_by(asset_id=work_order.asset_id).all()
+
+    added = updated = 0
+    for item in work_order.materials:
+        match = _match_existing_material(existing, item.description, item.part_number)
+        if match is None:
+            match = AssetMaterial(
+                asset_id=work_order.asset_id,
+                description=item.description,
+                part_number=item.part_number,
+                quantity=item.quantity,
+                times_used=1,
+                first_used_on=used_on,
+                last_used_on=used_on,
+                last_work_order_id=work_order.id,
+            )
+            db.session.add(match)
+            existing.append(match)
+            added += 1
+        else:
+            match.times_used = (match.times_used or 0) + 1
+            match.quantity = item.quantity or match.quantity
+            # A part number learned later fills in a row recorded without one.
+            match.part_number = match.part_number or item.part_number
+            if match.first_used_on is None or used_on < match.first_used_on:
+                match.first_used_on = used_on
+            if match.last_used_on is None or used_on >= match.last_used_on:
+                match.last_used_on = used_on
+                match.last_work_order_id = work_order.id
+            updated += 1
+
+    return added, updated

@@ -120,6 +120,46 @@
   </div>
 </div>
 
+{% if materials or tools %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Materials &amp; Tools</span>
+    <a href="{{ url_for('work_orders.edit', id=wo.id) }}" class="btn btn-ghost btn-sm">Edit</a>
+  </div>
+  <div class="card-body">
+    {% if materials %}
+      <h4 class="api-heading">Materials ({{ materials | length }})</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Material</th><th>Part number</th><th>Qty</th></tr></thead>
+          <tbody>
+            {% for m in materials %}
+            <tr>
+              <td>{{ m.description }}</td>
+              <td class="mono-cell">{{ m.part_number or '—' }}</td>
+              <td>{{ m.quantity or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if wo.asset and wo.status != 'completed' %}
+        <p class="field-hint" style="margin-top:8px;">
+          These are added to {{ wo.asset.name }}'s materials list when this work order is completed.
+        </p>
+      {% endif %}
+    {% endif %}
+
+    {% if tools %}
+      <h4 class="api-heading">Tools ({{ tools | length }})</h4>
+      <ul class="spec-list">
+        {% for t in tools %}<li class="spec-item"><span class="spec-desc">{{ t.description }}</span></li>{% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 <!-- Attachments inherited from the work order's associations -->
 {% if related %}
 <div class="card">

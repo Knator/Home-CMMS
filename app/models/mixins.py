@@ -5,6 +5,8 @@ never deleted, because that would orphan the history. It moves through a
 lifecycle instead — operating, temporarily out of service, or retired.
 """
 
+from app.extensions import db
+
 STATUS_ACTIVE = 'active'
 STATUS_INACTIVE = 'inactive'
 STATUS_DECOMMISSIONED = 'decommissioned'
@@ -102,3 +104,28 @@ class HierarchyMixin:
         if candidate_parent.id == self.id:
             return True
         return any(node.id == candidate_parent.id for node in self.descendants)
+
+
+ITEM_MATERIAL = 'material'
+ITEM_TOOL = 'tool'
+ITEM_KINDS = [ITEM_MATERIAL, ITEM_TOOL]
+
+MAX_QUANTITY = 60
+MAX_PART_NUMBER = 80
+
+
+class ItemFieldsMixin:
+    """Columns shared by job plan and work order line items.
+
+    The two are the same shape — an ordered line naming a material or tool —
+    but they are separate tables on purpose: a work order's list is a *snapshot*
+    taken when it was raised, so editing a job plan later must not rewrite the
+    history of work already done against the old one.
+    """
+    kind = db.Column(db.String(20), nullable=False)
+    sequence = db.Column(db.Integer, nullable=False, default=1)
+    description = db.Column(db.Text, nullable=False)
+    quantity = db.Column(db.String(MAX_QUANTITY))
+    # Materials only. The whole point of rolling these onto the asset is being
+    # able to find the part number again months later.
+    part_number = db.Column(db.String(MAX_PART_NUMBER))

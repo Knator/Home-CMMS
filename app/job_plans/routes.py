@@ -143,6 +143,7 @@ def _save_items(job_plan):
                 sequence=sequence,
                 description=description,
                 quantity=request.form.get(f'{prefix}_{i}_quantity', '').strip() or None,
+                part_number=request.form.get(f'{prefix}_{i}_part_number', '').strip() or None,
             ))
             sequence += 1
 

@@ -104,6 +104,45 @@
 </div>
 {% endif %}
 
+<!-- Materials used -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Materials Used ({{ asset.materials.count() }})</span>
+  </div>
+  <div class="table-wrap">
+    {% set used = asset.materials.all() %}
+    {% if used %}
+    <table>
+      <thead>
+        <tr><th>Material</th><th>Part number</th><th class="col-hide-sm">Qty</th>
+            <th class="col-hide-sm">Times used</th><th>Last used</th><th class="col-hide-sm">From</th></tr>
+      </thead>
+      <tbody>
+        {% for m in used %}
+        <tr>
+          <td>{{ m.description }}</td>
+          <td class="mono-cell">{{ m.part_number or '—' }}</td>
+          <td class="col-hide-sm">{{ m.quantity or '—' }}</td>
+          <td class="col-hide-sm">{{ m.times_used }}</td>
+          <td>{{ m.last_used_on.strftime('%Y-%m-%d') if m.last_used_on else '—' }}</td>
+          <td class="col-hide-sm">
+            {% if m.last_work_order %}
+              <a class="row-link" href="{{ url_for('work_orders.detail', id=m.last_work_order.id) }}">{{ m.last_work_order.wo_number }}</a>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="card-body text-muted">
+        No materials recorded yet. Complete a work order against this asset with materials
+        listed and they will be collected here for future reference.
+      </div>
+    {% endif %}
+  </div>
+</div>
+
 <!-- Work Orders -->
 <div class="card">
   <div class="card-header">

@@ -73,7 +73,7 @@
             <button type="button" class="btn btn-secondary btn-sm" onclick="addRow('material')">+ Add Material</button>
           </div>
           <div class="repeat-head" data-row-kind="material">
-            <span></span><span>Material</span><span>Quantity</span><span></span>
+            <span></span><span>Material</span><span>Part number</span><span>Qty</span><span></span>
           </div>
           <div id="material-rows" class="repeat-rows">
             {% if is_edit %}
@@ -82,8 +82,10 @@
                 <span class="drag-handle" aria-hidden="true">⠿</span>
                 <input type="text" name="material_{{ loop.index0 }}_description" value="{{ item.description }}"
                        placeholder="Material" aria-label="material description" required>
+                <input type="text" name="material_{{ loop.index0 }}_part_number" value="{{ item.part_number or '' }}"
+                       placeholder="Part number" maxlength="80" aria-label="material part number">
                 <input type="text" name="material_{{ loop.index0 }}_quantity" value="{{ item.quantity or '' }}"
-                       placeholder="Qty (e.g. 2 rolls)" maxlength="60" aria-label="material quantity">
+                       placeholder="Qty" maxlength="60" aria-label="material quantity">
                 {{ row_controls() }}
               </div>
               {% endfor %}

@@ -9,9 +9,11 @@ from app.models.work_order import WorkOrder, WO_STATUSES, WO_PRIORITIES, WO_TYPE
 from app.models.job_plan import JobPlan
 from app.models.user import User
 from app.models.attachment import Attachment
+from app.models.mixins import ITEM_MATERIAL, ITEM_TOOL
+from app.models.work_order_item import WorkOrderItem
 from app.services import (
-    create_work_order, related_attachments, selectable_assets, selectable_locations,
-    sync_pm_schedule,
+    copy_job_plan_items, create_work_order, record_materials_on_asset,
+    related_attachments, selectable_assets, selectable_locations, sync_pm_schedule,
 )
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads, upload_rows_from_form,
@@ -33,6 +35,37 @@ def _resolve_completed_date(status, current=None):
     if status == 'completed' and not completed:
         completed = date.today()
     return completed
+
+
+MAX_ITEMS = 200
+
+
+def _save_items(work_order):
+    """Replace the work order's materials and tools from the submitted form.
+
+    Deleted through the session rather than a bulk query so the delete-orphan
+    cascade and the identity map stay in step.
+    """
+    for row in work_order.items.all():
+        db.session.delete(row)
+    db.session.flush()
+
+    for kind, prefix in ((ITEM_MATERIAL, 'material'), (ITEM_TOOL, 'tool')):
+        count = parse_int(request.form.get(f'{prefix}_count'), minimum=0) or 0
+        sequence = 1
+        for i in range(min(count, MAX_ITEMS)):
+            description = request.form.get(f'{prefix}_{i}_description', '').strip()
+            if not description:
+                continue
+            db.session.add(WorkOrderItem(
+                work_order_id=work_order.id,
+                kind=kind,
+                sequence=sequence,
+                description=description,
+                quantity=request.form.get(f'{prefix}_{i}_quantity', '').strip() or None,
+                part_number=request.form.get(f'{prefix}_{i}_part_number', '').strip() or None,
+            ))
+            sequence += 1
 
 
 def _store_form_uploads(work_order_id, commit=True):
@@ -128,6 +161,15 @@ def create():
         # Attachments are filed under the work order's id, so they can only be
         # stored once it exists — create_work_order() has already committed.
         _store_form_uploads(wo.id)
+        # Seed from the job plan first, so form rows override rather than
+        # duplicate them.
+        if request.form.get('material_count') or request.form.get('tool_count'):
+            _save_items(wo)
+        else:
+            copy_job_plan_items(wo)
+        if wo.status == 'completed':
+            record_materials_on_asset(wo)
+        db.session.commit()
         if sync_pm_schedule(wo):
             db.session.commit()
         flash(f'Work order {wo.wo_number} created.', 'success')
@@ -148,7 +190,8 @@ def detail(id):
     )
     tasks = wo.job_plan.tasks.all() if wo.job_plan else []
     return render_template('work_orders/detail.html', wo=wo, attachments=attachments,
-                           related=related_attachments(wo), tasks=tasks, today=date.today())
+                           related=related_attachments(wo), tasks=tasks,
+                           materials=wo.materials, tools=wo.tools, today=date.today())
 
 
 @bp.route('/<int:id>/edit', methods=['GET', 'POST'])
@@ -164,6 +207,7 @@ def edit(id):
             flash('Title is required.', 'error')
             return render_template('work_orders/form.html', wo=wo, **options)
 
+        was_completed = wo.status == 'completed'
         wo.title = title
         wo.wo_type = choice(request.form.get('wo_type'), WO_TYPES, wo.wo_type)
         wo.status = choice(request.form.get('status'), WO_STATUSES, wo.status)
@@ -182,6 +226,14 @@ def edit(id):
         wo.completed_date = _resolve_completed_date(wo.status, wo.completed_date)
 
         _store_form_uploads(wo.id, commit=False)
+        _save_items(wo)
+        # Attaching a job plan to a work order that has no lines of its own
+        # brings the plan's list across.
+        copy_job_plan_items(wo)
+        # Materials roll onto the asset the moment the job is marked complete,
+        # and only then — re-saving a completed work order must not count twice.
+        if wo.status == 'completed' and not was_completed:
+            record_materials_on_asset(wo)
         # A floating PM re-anchors to this completion date.
         sync_pm_schedule(wo)
         db.session.commit()

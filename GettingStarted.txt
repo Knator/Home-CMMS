@@ -373,6 +373,23 @@ This guide takes you from a fresh clone to a running, testable app.
   Job plan attachments are added on the create and edit screens rather than the
   detail page.
 
+  MATERIALS AND TOOLS ON WORK ORDERS
+  A work order has its own materials and tools lists. Attach a job plan and its
+  lists are copied across when you save; you can then edit them freely, because
+  what a job actually used often differs from what the plan called for. A work
+  order with no job plan can carry lists of its own.
+
+  Materials take a part number as well as a description and quantity.
+
+  MATERIALS USED, ON THE ASSET
+  When a work order against an asset is COMPLETED, its materials are added to
+  that asset's "Materials Used" list — so next time you need the part, open the
+  asset and the number is there. Using the same part again updates the existing
+  entry with a new date and a count, rather than adding a duplicate. The entry
+  survives the work order being deleted.
+
+  Tools are not rolled up; only consumables.
+
   ASSET PHOTOS
   An asset can carry one optional photo, shown as a card on its detail page
   (and nowhere else). Add or replace it under Photo; replacing deletes the

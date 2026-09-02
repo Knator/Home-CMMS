@@ -1043,9 +1043,10 @@ a.asset-link:hover { text-decoration: underline; }
 
 /* Column layouts per row kind: handle, fields…, controls */
 .repeat-row[data-row-kind="task"],
-.repeat-head[data-row-kind="task"],
+.repeat-head[data-row-kind="task"] { grid-template-columns: 20px 1fr 130px 78px; }
+
 .repeat-row[data-row-kind="material"],
-.repeat-head[data-row-kind="material"] { grid-template-columns: 20px 1fr 130px 78px; }
+.repeat-head[data-row-kind="material"] { grid-template-columns: 20px 1fr 150px 90px 78px; }
 
 .repeat-row[data-row-kind="tool"],
 .repeat-head[data-row-kind="tool"] { grid-template-columns: 20px 1fr 78px; }

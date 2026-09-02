@@ -101,6 +101,72 @@
             <textarea name="notes" rows="4">{{ wo.notes or '' if is_edit else '' }}</textarea>
           </div>
         </div>
+        <!-- Materials -->
+        <div class="form-subsection">
+          <div class="form-subsection-head">
+            <h3>Required Materials</h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addRow('material')">+ Add Material</button>
+          </div>
+          <span class="field-hint">
+            {% if not is_edit %}Attaching a job plan copies its list here when you save.
+            {% else %}Copied from the job plan when this work order was raised; edit freely.
+            {% endif %}
+            Materials on a completed work order are added to the asset's materials list.
+          </span>
+          <div class="repeat-head" data-row-kind="material">
+            <span></span><span>Material</span><span>Part number</span><span>Qty</span><span></span>
+          </div>
+          <div id="material-rows" class="repeat-rows">
+            {% if is_edit %}
+              {% for item in wo.materials %}
+              <div class="repeat-row" data-row-kind="material" draggable="true">
+                <span class="drag-handle" aria-hidden="true">⠿</span>
+                <input type="text" name="material_{{ loop.index0 }}_description" value="{{ item.description }}"
+                       placeholder="Material" aria-label="material description" required>
+                <input type="text" name="material_{{ loop.index0 }}_part_number" value="{{ item.part_number or '' }}"
+                       placeholder="Part number" maxlength="80" aria-label="material part number">
+                <input type="text" name="material_{{ loop.index0 }}_quantity" value="{{ item.quantity or '' }}"
+                       placeholder="Qty" maxlength="60" aria-label="material quantity">
+                <div class="row-controls">
+                  <button type="button" class="btn-row-move" data-direction="up" aria-label="Move up">▲</button>
+                  <button type="button" class="btn-row-move" data-direction="down" aria-label="Move down">▼</button>
+                  <button type="button" class="btn-remove-task" aria-label="Remove row">&times;</button>
+                </div>
+              </div>
+              {% endfor %}
+            {% endif %}
+          </div>
+          <p class="text-muted empty-hint" id="material-empty" hidden>No materials listed.</p>
+        </div>
+
+        <!-- Tools -->
+        <div class="form-subsection">
+          <div class="form-subsection-head">
+            <h3>Required Tools</h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addRow('tool')">+ Add Tool</button>
+          </div>
+          <div class="repeat-head" data-row-kind="tool">
+            <span></span><span>Tool</span><span></span>
+          </div>
+          <div id="tool-rows" class="repeat-rows">
+            {% if is_edit %}
+              {% for item in wo.tools %}
+              <div class="repeat-row" data-row-kind="tool" draggable="true">
+                <span class="drag-handle" aria-hidden="true">⠿</span>
+                <input type="text" name="tool_{{ loop.index0 }}_description" value="{{ item.description }}"
+                       placeholder="Tool" aria-label="tool description" required>
+                <div class="row-controls">
+                  <button type="button" class="btn-row-move" data-direction="up" aria-label="Move up">▲</button>
+                  <button type="button" class="btn-row-move" data-direction="down" aria-label="Move down">▼</button>
+                  <button type="button" class="btn-remove-task" aria-label="Remove row">&times;</button>
+                </div>
+              </div>
+              {% endfor %}
+            {% endif %}
+          </div>
+          <p class="text-muted empty-hint" id="tool-empty" hidden>No tools listed.</p>
+        </div>
+
         <div class="form-subsection">
           <div class="form-subsection-head">
             <h3>Attachments</h3>
@@ -111,6 +177,8 @@
             {% else %}Files are attached once the work order is created.{% endif %}
           </p>
           <input type="hidden" name="attachment_count" id="attachment-count" value="0">
+        <input type="hidden" name="material_count" id="material-count" value="0">
+        <input type="hidden" name="tool_count" id="tool-count" value="0">
           <div id="attachment-rows" class="attachment-rows"></div>
         </div>
 

@@ -16,10 +16,10 @@
 <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
 
 <div class="sidebar" id="sidebar">
-  <div class="sidebar-brand">
+  <a class="sidebar-brand" href="{{ url_for('main.dashboard') }}" aria-label="Home CMMS — go to dashboard">
     Home CMMS
     <span>Maintenance Management</span>
-  </div>
+  </a>
   <nav class="sidebar-nav">
     {# The API reference is public, so this layout has to render sensibly for a
        visitor with no session: app navigation only appears once signed in. #}

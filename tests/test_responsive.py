@@ -125,3 +125,24 @@ def test_inputs_avoid_the_ios_zoom():
 def test_viewport_height_uses_dvh():
     """100vh includes mobile browser chrome, cutting off the bottom of the page."""
     assert '100dvh' in CSS
+
+
+def test_the_app_title_links_to_the_dashboard(client, seeded, login):
+    """The site name is the conventional way back to the start."""
+    login()
+    body = client.get('/assets/').get_data(as_text=True)
+    assert '<a class="sidebar-brand" href="/"' in body
+
+
+def test_the_title_link_is_on_every_page(client, seeded, login):
+    login()
+    # Admin pages are covered elsewhere; this fixture signs in as a normal user.
+    for path in ('/', '/assets/', '/locations/', '/work-orders/', '/pms/', '/job-plans/',
+                 '/assets/new', '/auth/change-password'):
+        assert 'class="sidebar-brand" href="/"' in client.get(path).get_data(as_text=True), path
+
+
+def test_the_title_is_labelled_for_screen_readers(client, seeded, login):
+    login()
+    body = client.get('/').get_data(as_text=True)
+    assert 'aria-label="Home CMMS — go to dashboard"' in body

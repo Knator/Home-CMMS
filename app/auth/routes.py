@@ -21,6 +21,11 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and user.is_active and user.check_password(password):
             login_user(user, remember=remember)
+            # Without this the session cookie has no expiry and
+            # PERMANENT_SESSION_LIFETIME is ignored entirely. Marking it
+            # permanent makes that 8-hour idle timeout real; Flask refreshes it
+            # on each request, so active use keeps it alive.
+            session.permanent = True
             user.last_login = utcnow()
             db.session.commit()
             # Only same-origin relative paths; an absolute URL here would turn

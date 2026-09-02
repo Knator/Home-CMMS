@@ -94,6 +94,25 @@ Timestamps use `utcnow()` from `app/utils.py`, not the deprecated `datetime.utcn
   `would_create_cycle()`. Both walks are depth-capped and loop-guarded so corrupt data
   can't hang a request.
 
+### Materials and tools
+`JobPlanItem` and `WorkOrderItem` share `ItemFieldsMixin` (kind, sequence, description,
+quantity, part_number) but are **separate tables on purpose**: a work order's list is a
+*snapshot* taken when it was raised, so editing a job plan later must not rewrite the record
+of work already done against the old one.
+
+- `copy_job_plan_items(wo)` seeds a work order from its job plan, but **only when the work
+  order has no lines of its own** — re-copying would discard edits made for that specific job.
+  A work order can carry materials and tools with no job plan at all.
+- `record_materials_on_asset(wo)` rolls a completed work order's **materials** (not tools)
+  onto `AssetMaterial`, so months later the asset itself answers "what part did I use?".
+  Called only on the transition *into* completed, so re-saving cannot double-count.
+- `_match_existing_material()` decides what counts as the same part: a part number matches its
+  twin exactly, and may adopt a numberless row with the same description (so a number learned
+  later fills in rather than forking). A row with a *different* number is never merged. Items
+  with no number match on description alone.
+- `AssetMaterial.last_work_order_id` is `ON DELETE SET NULL` — deleting the work order must
+  leave the part on record, which is the entire point of the feature.
+
 ### Services (`app/services.py`)
 Write paths shared by the routes and the scheduler. **Never insert a `WorkOrder` directly** — go through these, or you skip the WO-number collision retry:
 - `create_work_order(**fields)` — allocates the number, commits, retries on `IntegrityError`.

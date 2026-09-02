@@ -1,5 +1,8 @@
 from app.utils import utcnow
 from app.extensions import db
+from app.models.mixins import (
+    ItemFieldsMixin, ITEM_MATERIAL, ITEM_TOOL, ITEM_KINDS,
+)
 
 
 class JobPlanTask(db.Model):
@@ -12,12 +15,7 @@ class JobPlanTask(db.Model):
     estimated_minutes = db.Column(db.Integer)
 
 
-ITEM_MATERIAL = 'material'
-ITEM_TOOL = 'tool'
-ITEM_KINDS = [ITEM_MATERIAL, ITEM_TOOL]
-
-
-class JobPlanItem(db.Model):
+class JobPlanItem(ItemFieldsMixin, db.Model):
     """A required material or tool.
 
     Materials and tools are structurally identical — an ordered line with a
@@ -29,10 +27,6 @@ class JobPlanItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     job_plan_id = db.Column(db.Integer, db.ForeignKey('job_plans.id', ondelete='CASCADE'),
                             nullable=False, index=True)
-    kind = db.Column(db.String(20), nullable=False)
-    sequence = db.Column(db.Integer, nullable=False, default=1)
-    description = db.Column(db.Text, nullable=False)
-    quantity = db.Column(db.String(60))
 
     def __repr__(self):
         return f'<JobPlanItem {self.kind} {self.description[:30]}>'

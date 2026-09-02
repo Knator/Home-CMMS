@@ -21,7 +21,12 @@ def _database_uri():
         return f"sqlite:///{DEFAULT_DB_PATH}"
     if url.startswith('sqlite:///'):
         path = url[len('sqlite:///'):]
-        if path and not os.path.isabs(path):
+        # ":memory:" is SQLite's in-memory database, not a filename. Resolving
+        # it against the project root turns it into a real file called
+        # ":memory:" — which is how one ended up committed-adjacent in the repo.
+        if path in ('', ':memory:'):
+            return url
+        if not os.path.isabs(path):
             return f"sqlite:///{os.path.join(BASE_DIR, path)}"
         return url
     if '://' not in url:

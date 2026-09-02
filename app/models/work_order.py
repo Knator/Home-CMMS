@@ -47,6 +47,10 @@ class WorkOrder(db.Model):
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
 
+    items = db.relationship(
+        'WorkOrderItem', backref='work_order', lazy='dynamic',
+        cascade='all, delete-orphan', order_by='WorkOrderItem.sequence',
+    )
     assignee = db.relationship('User', foreign_keys=[assigned_to], backref='assigned_work_orders')
     creator = db.relationship('User', foreign_keys=[created_by], backref='created_work_orders')
 
@@ -73,6 +77,16 @@ class WorkOrder(db.Model):
             except ValueError:
                 seq = 1
         return f"{prefix}{seq:05d}"
+
+    @property
+    def materials(self):
+        from app.models.mixins import ITEM_MATERIAL
+        return self.items.filter_by(kind=ITEM_MATERIAL).all()
+
+    @property
+    def tools(self):
+        from app.models.mixins import ITEM_TOOL
+        return self.items.filter_by(kind=ITEM_TOOL).all()
 
     @property
     def overdue_from(self):

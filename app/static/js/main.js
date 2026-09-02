@@ -18,7 +18,8 @@ const ROW_TYPES = {
   material: {
     fields: [
       { name: 'description', type: 'text', placeholder: 'Material', required: true },
-      { name: 'quantity', type: 'text', placeholder: 'Qty (e.g. 2 rolls)', maxlength: '60' },
+      { name: 'part_number', type: 'text', placeholder: 'Part number', maxlength: '80' },
+      { name: 'quantity', type: 'text', placeholder: 'Qty', maxlength: '60' },
     ],
     reorderable: true,
   },

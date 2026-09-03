@@ -27,7 +27,7 @@
               <span class="badge badge-inactive">Inactive</span>
             {% endif %}
           </td>
-          <td class="col-hide-sm">{{ u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else '—' }}</td>
+          <td class="col-hide-sm">{{ format_datetime(u.last_login) }}</td>
           <td style="display:flex;gap:6px;">
             <a href="{{ url_for('admin.edit_user', id=u.id) }}" class="btn btn-ghost btn-sm">Edit</a>
             <form method="post" action="{{ url_for('admin.toggle_user', id=u.id) }}" style="display:inline;">

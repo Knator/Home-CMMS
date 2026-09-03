@@ -1,13 +1,15 @@
 import os
 
-from flask import render_template, redirect, url_for, flash, request, send_file, abort
+from flask import (
+    render_template, redirect, url_for, flash, request, send_file, abort, current_app,
+)
 from flask_login import login_required, current_user
 
 from app.admin import bp
 from app.extensions import db
 from app.models.user import User
 from app.models.api_token import ApiToken
-from app.utils import validate_csrf, admin_required, parse_int
+from app.utils import validate_csrf, admin_required, parse_int, utcnow
 from app import maintenance
 from app import security
 
@@ -187,6 +189,7 @@ def _render_maintenance(scan=False):
         scan=maintenance.scan_storage() if scan else None,
         failures=security.recent_failures(),
         failure_count=security.count_failures(),
+        now=utcnow(),
     )
 
 
@@ -216,8 +219,7 @@ def create_backup():
     try:
         result = maintenance.create_backup()
     except Exception:
-        current_app_logger = __import__('flask').current_app.logger
-        current_app_logger.exception('Backup failed')
+        current_app.logger.exception('Backup failed')
         flash('Backup failed. Check the application log for details.', 'error')
         return _maintenance_result()
 

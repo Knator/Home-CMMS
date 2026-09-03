@@ -139,7 +139,10 @@ def list_backups():
         out.append({
             'name': name,
             'size': stat.st_size,
-            'created': datetime.fromtimestamp(stat.st_mtime),
+            # Normalised to naive UTC so it goes through the same display
+            # conversion as every other timestamp.
+            'created': datetime.fromtimestamp(stat.st_mtime, timezone.utc)
+                                .replace(tzinfo=None),
         })
     return out
 

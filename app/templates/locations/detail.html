@@ -50,7 +50,7 @@
       </div>
       <div class="detail-field">
         <div class="detail-label">Created</div>
-        <div class="detail-value">{{ location.created_at.strftime('%Y-%m-%d') }}</div>
+        <div class="detail-value">{{ format_datetime(location.created_at, '%Y-%m-%d') }}</div>
       </div>
     </div>
     {% if location.notes %}

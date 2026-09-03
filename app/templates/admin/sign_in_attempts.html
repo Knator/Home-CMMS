@@ -45,7 +45,7 @@
       <tbody>
         {% for attempt in attempts.items %}
         <tr>
-          <td>{{ attempt.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td>{{ format_datetime(attempt.created_at, '%Y-%m-%d %H:%M:%S') }}</td>
           <td class="mono-cell">{{ attempt.identifier }}</td>
           <td class="mono-cell">{{ attempt.ip_address or '—' }}</td>
           {% if not only_failures %}

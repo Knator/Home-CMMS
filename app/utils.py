@@ -20,6 +20,41 @@ def utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def to_local(value):
+    """Interpret a stored timestamp in the host's timezone.
+
+    Timestamps are stored as UTC and converted only for display. Storing local
+    time instead would be simpler but lossy: during a daylight-saving fallback
+    the same wall-clock hour occurs twice, so 01:30 is ambiguous and ordering
+    breaks; during the spring jump some times never happen at all. Worse, the
+    stored values silently change meaning if the machine's timezone ever
+    changes.
+
+    astimezone() with no argument uses the operating system's timezone, so this
+    needs no timezone database of its own and no network — set TZ in a container
+    and it follows.
+    """
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone()
+
+
+def format_datetime(value, fmt='%Y-%m-%d %H:%M', empty='—'):
+    """A stored timestamp rendered in host-local time."""
+    local = to_local(value)
+    return local.strftime(fmt) if local else empty
+
+
+def local_timezone_name():
+    """What the host calls its timezone, e.g. 'EDT'. Shown so the displayed
+    times can be sanity-checked."""
+    now = datetime.now().astimezone()
+    offset = now.strftime('%z')
+    return f"{now.tzname()} (UTC{offset[:3]}:{offset[3:]})" if offset else (now.tzname() or 'unknown')
+
+
 def parse_date(value):
     """ISO date string -> date, or None if absent/malformed."""
     try:

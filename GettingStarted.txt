@@ -297,6 +297,27 @@ This guide takes you from a fresh clone to a running, testable app.
 
 
 --------------------------------------------------------------------------------
+ 7d. TIMES AND TIMEZONES
+--------------------------------------------------------------------------------
+
+  Times are shown in the timezone of the machine running the application, so
+  they should match your own clock. Admin > Maintenance shows which timezone is
+  in use, so you can check at a glance.
+
+  Behind the scenes timestamps are stored in UTC and converted when displayed.
+  That keeps them unambiguous when the clocks change — during a daylight-saving
+  fallback the same local hour happens twice, which would otherwise make the
+  order of events impossible to work out.
+
+  Nothing needs configuring on a normal install; the system timezone is used.
+  In a container, set TZ:
+
+      docker run -e TZ=America/New_York ...
+
+  No internet connection is needed for any of this.
+
+
+--------------------------------------------------------------------------------
  8. WHERE YOUR DATA LIVES
 --------------------------------------------------------------------------------
 

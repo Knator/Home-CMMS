@@ -33,7 +33,7 @@
           <span class="attachment-file" title="Stored filename">{{ att.original_filename }}</span>
         {% endif %}
       </div>
-      <span class="attachment-meta">{{ format_file_size(att.file_size) }} · {{ att.uploaded_at.strftime('%Y-%m-%d') }}</span>
+      <span class="attachment-meta">{{ format_file_size(att.file_size) }} · {{ format_datetime(att.uploaded_at, '%Y-%m-%d') }}</span>
       <details class="attachment-rename">
         <summary class="btn btn-ghost btn-sm">Rename</summary>
         <form method="post" action="{{ url_for('attachments.rename', id=att.id) }}" class="rename-form">

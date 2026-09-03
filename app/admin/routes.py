@@ -9,6 +9,7 @@ from app.models.user import User
 from app.models.api_token import ApiToken
 from app.utils import validate_csrf, admin_required, parse_int
 from app import maintenance
+from app import security
 
 
 def _other_active_admins(user_id):
@@ -184,6 +185,8 @@ def _render_maintenance(scan=False):
         scheduler=maintenance.scheduler_status(),
         backups=maintenance.list_backups(),
         scan=maintenance.scan_storage() if scan else None,
+        failures=security.recent_failures(),
+        failure_count=security.count_failures(),
     )
 
 
@@ -313,6 +316,32 @@ def checkpoint_wal():
     validate_csrf()
     result = maintenance.checkpoint_wal()
     flash(f"Write-ahead log folded in ({result['checkpointed']} pages).", 'success')
+    return _maintenance_result()
+
+
+@bp.route('/sign-in-attempts')
+@login_required
+@admin_required
+def sign_in_attempts():
+    """The full attempt log, paginated, so the maintenance page stays usable."""
+    only_failures = request.args.get('show', 'failed') != 'all'
+    page = parse_int(request.args.get('page'), minimum=1) or 1
+    return render_template(
+        'admin/sign_in_attempts.html',
+        attempts=security.attempt_page(page=page, only_failures=only_failures),
+        only_failures=only_failures,
+        failure_count=security.count_failures(),
+    )
+
+
+@bp.route('/maintenance/clear-lockouts', methods=['POST'])
+@login_required
+@admin_required
+def clear_lockouts():
+    """Release every lockout. The escape hatch for locking yourself out."""
+    validate_csrf()
+    removed = security.clear_lockouts()
+    flash(f'Cleared {removed} failed attempt(s); any lockouts are lifted.', 'success')
     return _maintenance_result()
 
 

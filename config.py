@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import timedelta
 from dotenv import load_dotenv
 
@@ -34,16 +35,56 @@ def _database_uri():
     return url
 
 
+SECRET_KEY_FILE = os.path.join(INSTANCE_DIR, 'secret_key')
+
+
 def _secret_key():
-    key = os.environ.get('SECRET_KEY', '').strip()
-    if key:
-        return key
-    if os.environ.get('FLASK_ENV') == 'production':
+    """The signing key, in order of preference: environment, file, generated.
+
+    There is deliberately no hardcoded fallback. A constant compiled into the
+    source would be identical for every self-hosted install, and anyone holding
+    it can forge a session cookie for any account — so a shipped default is the
+    same as no authentication at all.
+
+    When nothing is configured we generate one and persist it, so sessions
+    survive a restart. Keep `instance/` on a volume in a container, or sessions
+    reset whenever the container is replaced.
+    """
+    from_env = os.environ.get('SECRET_KEY', '').strip()
+    if from_env:
+        return from_env
+
+    try:
+        with open(SECRET_KEY_FILE, 'r', encoding='utf-8') as handle:
+            stored = handle.read().strip()
+        if stored:
+            return stored
+    except FileNotFoundError:
+        pass
+    except OSError as error:
         raise RuntimeError(
-            "SECRET_KEY must be set when FLASK_ENV=production. "
-            'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
-        )
-    return 'dev-secret-change-in-production'
+            f'Could not read {SECRET_KEY_FILE} ({error}). Set SECRET_KEY in the '
+            'environment instead.'
+        ) from error
+
+    generated = secrets.token_hex(32)
+    try:
+        os.makedirs(INSTANCE_DIR, exist_ok=True)
+        # Written 0600 before anything is in it, so the key is never briefly
+        # world-readable.
+        handle = os.open(SECRET_KEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(handle, 'w', encoding='utf-8') as fh:
+            fh.write(generated)
+    except FileExistsError:
+        # Another worker won the race; use whatever it wrote.
+        with open(SECRET_KEY_FILE, 'r', encoding='utf-8') as fh:
+            return fh.read().strip()
+    except OSError as error:
+        raise RuntimeError(
+            f'No SECRET_KEY is set and {SECRET_KEY_FILE} could not be created '
+            f'({error}). Set SECRET_KEY in the environment.'
+        ) from error
+    return generated
 
 
 class Config:

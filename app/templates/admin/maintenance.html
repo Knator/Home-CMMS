@@ -95,6 +95,52 @@
   </div>
 </div>
 
+<!-- Sign-in security -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Sign-in Attempts</span>
+    <span>
+      {% if failure_count %}
+        <a href="{{ url_for('admin.sign_in_attempts') }}" class="btn btn-secondary btn-sm">
+          View all ({{ failure_count }})
+        </a>
+      {% endif %}
+      {{ confirm_form(url_for('admin.clear_lockouts'), 'Clear lockouts',
+                      'Forget all failed attempts and lift every lockout?') }}
+    </span>
+  </div>
+  <div class="card-body">
+    <p class="field-hint" style="margin-bottom:12px;">
+      Repeated failures lock an account, and a source address that fails often is blocked
+      regardless of which account it tries. Both clear themselves after 15 minutes — use the
+      button if you have locked yourself out and would rather not wait.
+    </p>
+    {% if failures %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>When</th><th>Account tried</th><th class="col-hide-sm">From</th></tr></thead>
+        <tbody>
+          {% for attempt in failures %}
+          <tr>
+            <td>{{ attempt.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td class="mono-cell">{{ attempt.identifier }}</td>
+            <td class="col-hide-sm mono-cell">{{ attempt.ip_address or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if failure_count > failures | length %}
+      <p class="field-hint" style="margin-top:8px;">
+        Showing the {{ failures | length }} most recent of {{ failure_count }}.
+      </p>
+    {% endif %}
+    {% else %}
+      <p class="text-muted">No failed sign-in attempts on record.</p>
+    {% endif %}
+  </div>
+</div>
+
 <!-- Backups -->
 <div class="card">
   <div class="card-header">

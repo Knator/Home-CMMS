@@ -99,7 +99,7 @@
       </div>
       <div class="detail-field">
         <div class="detail-label">Created</div>
-        <div class="detail-value">{{ pm.created_at.strftime('%Y-%m-%d') }}</div>
+        <div class="detail-value">{{ format_datetime(pm.created_at, '%Y-%m-%d') }}</div>
       </div>
     </div>
     {% if pm.notes %}
@@ -124,7 +124,7 @@
           <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id) }}">{{ wo.wo_number }}</a></td>
           <td><span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span></td>
           <td>{{ wo.due_date.strftime('%Y-%m-%d') if wo.due_date else '—' }}</td>
-          <td>{{ wo.created_at.strftime('%Y-%m-%d') }}</td>
+          <td>{{ format_datetime(wo.created_at, '%Y-%m-%d') }}</td>
         </tr>
         {% endfor %}
       </tbody>

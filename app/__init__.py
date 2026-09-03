@@ -6,6 +6,7 @@ from flask import Flask, flash, jsonify, redirect, render_template, request, url
 from app.extensions import db, migrate, login_manager
 from app.utils import (
     generate_csrf_token, format_file_size, format_duration, thumbnails_available,
+    format_datetime, local_timezone_name,
 )
 from config import Config
 
@@ -51,6 +52,9 @@ def create_app(config_class=Config, config_overrides=None):
     app.jinja_env.globals['csrf_token'] = generate_csrf_token
     app.jinja_env.globals['format_file_size'] = format_file_size
     app.jinja_env.globals['format_duration'] = format_duration
+    # Timestamps are stored UTC and shown in the host's timezone.
+    app.jinja_env.globals['format_datetime'] = format_datetime
+    app.jinja_env.globals['local_timezone'] = local_timezone_name
     # Checked once at startup: without Pillow the templates skip previews
     # entirely rather than falling back to full-size images.
     app.jinja_env.globals['thumbnails_available'] = thumbnails_available()

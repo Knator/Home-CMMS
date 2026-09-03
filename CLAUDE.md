@@ -84,7 +84,23 @@ All models import from `app/extensions.py` (db). Key relationships:
   `.tools` filter by kind; `JobPlan.total_minutes` sums the task estimates.
 - `Attachment` — polymorphic via `entity_type` ('location'|'asset'|'work_order'|'job_plan'|'pm') + `entity_id`
 
-Timestamps use `utcnow()` from `app/utils.py`, not the deprecated `datetime.utcnow`.
+### Time
+Timestamps are **stored in UTC** (`utcnow()`) and converted to the **host's timezone only for
+display**, via `format_datetime()` — registered as a Jinja global, so templates never call
+`.strftime()` on a DateTime directly.
+
+Storing host-local time instead would be simpler but lossy: a daylight-saving fallback makes
+the same wall-clock hour occur twice, so ordering and ambiguity break, and every stored value
+silently changes meaning if the machine's timezone changes. UTC storage also meant no data
+migration — existing rows were already correct, only the display was wrong.
+
+`to_local()` uses `astimezone()` with no argument, which reads the operating system's
+timezone. No timezone database of its own, and no network — set `TZ` in a container and the
+app follows.
+
+**Date columns are not timestamps.** `due_date`, `completed_date`, `next_due_date`,
+`install_date` and friends are local calendar dates set from `date.today()`; converting them
+would shift a due date by a day. Only DateTime columns go through `format_datetime()`.
 
 `app/models/mixins.py` holds the two behaviours Locations and Assets share:
 - `LifecycleMixin` — `status` of `active` | `inactive` | `decommissioned`, with

@@ -54,6 +54,15 @@
         </div>
       </div>
       <div class="detail-field">
+        <div class="detail-label">Time</div>
+        <div class="detail-value">
+          {{ format_datetime(now, '%Y-%m-%d %H:%M') }}
+          <div class="field-hint" style="margin-top:4px;">
+            Host timezone {{ local_timezone() }}. Timestamps are stored in UTC and shown here.
+          </div>
+        </div>
+      </div>
+      <div class="detail-field">
         <div class="detail-label">Versions</div>
         <div class="detail-value">
           Python {{ status.python_version }} · Flask {{ status.flask_version }} · SQLAlchemy {{ status.sqlalchemy_version }}
@@ -82,7 +91,7 @@
   <div class="card-body">
     {% if scheduler.running %}
       <p>Running. Next automatic check
-        {% if scheduler.next_run %}at <strong>{{ scheduler.next_run.strftime('%Y-%m-%d %H:%M') }}</strong>{% else %}not scheduled{% endif %}.</p>
+        {% if scheduler.next_run %}at <strong>{{ format_datetime(scheduler.next_run) }}</strong>{% else %}not scheduled{% endif %}.</p>
       <p class="field-hint">
         The check runs hourly, and the timer restarts whenever the application does — so a
         PM that has just come due may wait until the next tick. Use "Run check now" to
@@ -122,7 +131,7 @@
         <tbody>
           {% for attempt in failures %}
           <tr>
-            <td>{{ attempt.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ format_datetime(attempt.created_at) }}</td>
             <td class="mono-cell">{{ attempt.identifier }}</td>
             <td class="col-hide-sm mono-cell">{{ attempt.ip_address or '—' }}</td>
           </tr>
@@ -168,7 +177,7 @@
           <tr>
             <td class="mono-cell">{{ b.name }}</td>
             <td>{{ format_file_size(b.size) }}</td>
-            <td class="col-hide-sm">{{ b.created.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td class="col-hide-sm">{{ format_datetime(b.created) }}</td>
             <td>
               <a href="{{ url_for('admin.download_backup', name=b.name) }}" class="btn btn-secondary btn-sm">Download</a>
               {{ confirm_form(url_for('admin.delete_backup', name=b.name), 'Delete',

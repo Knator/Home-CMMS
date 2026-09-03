@@ -62,9 +62,9 @@
             {% for t in tokens %}
             <tr>
               <td>{{ t.name }}</td>
-              <td class="col-hide-sm">{{ t.created_at.strftime('%Y-%m-%d') if t.created_at else '—' }}</td>
+              <td class="col-hide-sm">{{ format_datetime(t.created_at, '%Y-%m-%d') }}</td>
               <td class="{{ 'empty' if not t.last_used_at }}">
-                {{ t.last_used_at.strftime('%Y-%m-%d %H:%M') if t.last_used_at else 'Never' }}
+                {{ format_datetime(t.last_used_at, empty='Never') }}
               </td>
               <td>
                 <form method="post" action="{{ url_for('admin.revoke_api_token', id=user.id, token_id=t.id) }}" style="display:inline;">

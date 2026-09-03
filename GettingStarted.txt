@@ -51,13 +51,26 @@ This guide takes you from a fresh clone to a running, testable app.
       DATABASE_URL=sqlite:///instance/home_cmms.db   (default)
       UPLOAD_FOLDER=<absolute path>                  (defaults to ./uploads)
 
-  Generate a strong SECRET_KEY with:
+  SECRET_KEY is optional: leave it unset and one is generated on first run and
+  stored in instance/secret_key. Set it explicitly if you would rather manage it
+  yourself, or if instance/ is not persistent:
 
       python -c "import secrets; print(secrets.token_hex(32))"
 
-  SECRET_KEY has a development fallback, but the app REFUSES TO START with
-  FLASK_ENV=production unless you set a real one. Sessions are signed with it,
-  so changing it later logs everybody out.
+  There is no built-in default key — a shared one would let anyone who read the
+  source sign in as you. Sessions are signed with it, so changing it logs
+  everybody out once.
+
+  SIGN-IN PROTECTION
+  Five failed sign-ins for an account, or twenty from one address, blocks
+  further attempts for 15 minutes. If you lock yourself out, either wait or use
+  Admin > Maintenance > Sign-in Attempts > Clear lockouts. Failed attempts are
+  listed there too.
+
+  DEBUG MODE
+  FLASK_DEBUG=1 only works with HOST=127.0.0.1. The debugger runs arbitrary
+  code for anyone who can reach the port, so the app refuses to start if you
+  combine it with a network-facing HOST.
 
   Relative sqlite:/// paths resolve against the project root, so the CLI and
   the app always open the same file no matter where you launch them from.

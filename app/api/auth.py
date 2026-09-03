@@ -10,6 +10,7 @@ from functools import wraps
 from flask import g, request
 
 from app.api.errors import unauthorized
+from app.security import API_IDENTIFIER, client_ip, lockout_remaining, record_attempt
 from app.extensions import db
 from app.models.api_token import ApiToken
 from app.utils import utcnow
@@ -45,8 +46,18 @@ def authenticate():
 def api_token_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
+        ip_address = client_ip()
+        # Tokens are long random strings, but a limit still caps how fast a
+        # stolen-token guess or a credential-stuffing script can work.
+        remaining = lockout_remaining(ip_address=ip_address)
+        if remaining:
+            response = unauthorized('Too many failed attempts. Try again shortly.')
+            response[0].headers['Retry-After'] = str(remaining)
+            return response[0], 429
+
         user = authenticate()
         if user is None:
+            record_attempt(API_IDENTIFIER, successful=False, ip_address=ip_address)
             return unauthorized()
         g.api_user = user
         db.session.commit()      # persists the token's last-used stamp

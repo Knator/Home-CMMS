@@ -1571,3 +1571,14 @@ body.nav-open .nav-toggle-bars::after  { transform: translateY(-6px) rotate(-45d
 }
 
 .response-block .code-block { margin-top: 6px; }
+
+/* ── Pager ── */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 4px 0 16px;
+}
+
+.pager-position { font-size: 12px; color: var(--text-secondary); }

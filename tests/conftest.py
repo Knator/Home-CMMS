@@ -2,6 +2,8 @@ import os
 import tempfile
 
 import pytest
+from flask import g
+from flask.testing import FlaskClient
 
 os.environ['SCHEDULER_ENABLED'] = '0'
 
@@ -10,6 +12,22 @@ from app.extensions import db as _db  # noqa: E402
 from app.models.user import User  # noqa: E402
 
 CSRF = 'test-csrf-token'
+
+
+class IsolatedClient(FlaskClient):
+    """A client whose requests do not inherit a cached logged-in user.
+
+    The app fixture holds an app context open for the whole test so tests can
+    touch the ORM directly. Flask normally pushes a fresh app context per
+    request, which is what resets Flask-Login's `g._login_user` cache; with an
+    outer context already active it does not, so one client signing in would
+    leave every other client in the same test appearing authenticated. Dropping
+    the cache before each request restores per-request loading, as in production.
+    """
+
+    def open(self, *args, **kwargs):
+        g.pop('_login_user', None)
+        return super().open(*args, **kwargs)
 
 
 @pytest.fixture
@@ -26,6 +44,8 @@ def app():
         'WTF_CSRF_ENABLED': False,
     })
     os.makedirs(application.config['UPLOAD_FOLDER'], exist_ok=True)
+
+    application.test_client_class = IsolatedClient
 
     with application.app_context():
         _db.create_all()

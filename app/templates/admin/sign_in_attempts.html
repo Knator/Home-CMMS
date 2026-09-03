@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Sign-in Attempts — Home CMMS{% endblock %}
+{% block page_title %}Sign-in Attempts{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Sign-in Attempts</h1>
+    <div class="header-meta">
+      <span class="breadcrumb-path">
+        {{ attempts.total }} {{ 'failed attempt' if only_failures else 'attempt' }}{{ '' if attempts.total == 1 else 's' }} on record
+      </span>
+    </div>
+  </div>
+  <div class="page-actions">
+    <form method="post" action="{{ url_for('admin.clear_lockouts') }}" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-secondary"
+              onclick="return confirm('Forget all failed attempts and lift every lockout?')">
+        Clear lockouts
+      </button>
+    </form>
+    <a href="{{ url_for('admin.maintenance_page') }}" class="btn btn-ghost">← Maintenance</a>
+  </div>
+</div>
+
+<form method="get" class="filters">
+  <label>Show</label>
+  <select name="show" onchange="this.form.submit()">
+    <option value="failed" {{ 'selected' if only_failures }}>Failed attempts only</option>
+    <option value="all" {{ 'selected' if not only_failures }}>All attempts</option>
+  </select>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    {% if attempts.items %}
+    <table>
+      <thead>
+        <tr>
+          <th>When</th><th>Account tried</th><th>From</th>
+          {% if not only_failures %}<th>Result</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for attempt in attempts.items %}
+        <tr>
+          <td>{{ attempt.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td class="mono-cell">{{ attempt.identifier }}</td>
+          <td class="mono-cell">{{ attempt.ip_address or '—' }}</td>
+          {% if not only_failures %}
+          <td>
+            <span class="badge {{ 'badge-active' if attempt.successful else 'badge-overdue' }}">
+              {{ 'success' if attempt.successful else 'failed' }}
+            </span>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="card-body text-muted">Nothing on record.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if attempts.pages > 1 %}
+<div class="pager">
+  {% if attempts.has_prev %}
+    <a class="btn btn-secondary btn-sm"
+       href="{{ url_for('admin.sign_in_attempts', page=attempts.prev_num, show='failed' if only_failures else 'all') }}">← Newer</a>
+  {% endif %}
+  <span class="pager-position">Page {{ attempts.page }} of {{ attempts.pages }}</span>
+  {% if attempts.has_next %}
+    <a class="btn btn-secondary btn-sm"
+       href="{{ url_for('admin.sign_in_attempts', page=attempts.next_num, show='failed' if only_failures else 'all') }}">Older →</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<p class="field-hint">
+  Attempts older than 30 days are removed automatically. Passwords are never recorded.
+</p>
+{% endblock %}

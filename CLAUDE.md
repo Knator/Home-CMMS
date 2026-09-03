@@ -183,7 +183,22 @@ regenerate every day until someone completed the work.
   does not set — so the configured 8 hours was inert and sessions simply lasted until the
   browser closed. The login route now sets `session.permanent = True`; Flask refreshes it per
   request, making it an 8-hour **idle** timeout rather than an absolute one.
-- `SECRET_KEY` is mandatory when `FLASK_ENV=production` — the app refuses to start without it
+- **`SECRET_KEY` has no shipped default.** A constant in the source would be identical on
+  every self-hosted install, and anyone holding it can forge a session cookie for any
+  account. Resolution order: `SECRET_KEY` env var, then `instance/secret_key`, then generate
+  one and persist it at mode 0600. Keep `instance/` on a volume in a container or sessions
+  reset on every restart.
+- **Brute-force protection** (`app/security.py`): failures are recorded in `auth_attempts`,
+  not process memory, so a lockout is not cleared by restarting and the log doubles as the
+  audit trail. Two independent limits — 5 failures per identifier and 20 per source address
+  in 15 minutes — because the second is what catches spraying across many accounts, where no
+  single account trips the first. A success clears that identifier's failures. Admins can
+  release everything from the maintenance page, which is the escape hatch for locking
+  yourself out. Behind a reverse proxy every request appears to come from the proxy unless
+  the app is configured to trust forwarded headers, which would neuter the per-address limit.
+- **`run.py` refuses to start with `FLASK_DEBUG` on and a non-loopback `HOST`.** The Werkzeug
+  debugger executes arbitrary Python from the browser; on a network interface that is remote
+  code execution for anyone who can reach the port.
 - The `user_loader` re-checks `is_active` on every request, so deactivating an account ends sessions already signed in
 - Login `?next=` goes through `safe_redirect()`, which accepts same-origin relative paths only
 - Admin-only routes use `@admin_required` from `app/utils.py`; the last active admin can't be demoted or deactivated

@@ -4,6 +4,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from app.auth import bp
 from app.extensions import db
 from app.models.user import User
+from app.security import client_ip, is_locked_out, lockout_remaining, record_attempt
 from app.utils import validate_csrf, safe_redirect, utcnow
 
 
@@ -17,9 +18,20 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         remember = bool(request.form.get('remember'))
+        ip_address = client_ip()
+
+        # Checked before the password is even looked at, so a locked-out
+        # attacker gains nothing — not even timing — from further guesses.
+        remaining = lockout_remaining(identifier=username or None, ip_address=ip_address)
+        if remaining:
+            minutes = max(1, round(remaining / 60))
+            flash(f'Too many failed sign-in attempts. Try again in {minutes} minute'
+                  f"{'' if minutes == 1 else 's'}.", 'error')
+            return render_template('auth/login.html')
 
         user = User.query.filter_by(username=username).first()
         if user and user.is_active and user.check_password(password):
+            record_attempt(username, successful=True, ip_address=ip_address)
             login_user(user, remember=remember)
             # Without this the session cookie has no expiry and
             # PERMANENT_SESSION_LIFETIME is ignored entirely. Marking it
@@ -32,6 +44,9 @@ def login():
             # the login page into an open redirect.
             return safe_redirect(request.args.get('next'))
 
+        # Recorded against whatever was typed; the response stays identical
+        # either way so it still cannot be used to enumerate accounts.
+        record_attempt(username or '(blank)', successful=False, ip_address=ip_address)
         flash('Invalid username or password.', 'error')
 
     return render_template('auth/login.html')

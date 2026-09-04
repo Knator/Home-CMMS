@@ -60,7 +60,7 @@ def test_every_page_declares_a_viewport(client, seeded, login):
         assert 'name="viewport"' in client.get(path).get_data(as_text=True), path
 
 
-def test_login_page_is_responsive_too(client):
+def test_login_page_is_responsive_too(client, user):
     """It renders outside base.html, so it needs its own viewport tag."""
     body = client.get('/auth/login').get_data(as_text=True)
     assert 'name="viewport"' in body

@@ -83,7 +83,7 @@ def test_change_password_requires_the_current_one(client, db, user, login):
     assert user.check_password('password123')
 
 
-def test_login_page_is_self_contained(client):
+def test_login_page_is_self_contained(client, user):
     """The login page renders outside base.html, so it needs its own theme wiring."""
     body = client.get('/auth/login').get_data(as_text=True)
     assert 'js/theme.js' in body

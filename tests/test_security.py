@@ -58,7 +58,7 @@ def test_deactivated_user_cannot_log_in(client, db, user, login):
     assert response.status_code == 200  # re-renders the form, no redirect
 
 
-def test_anonymous_requests_redirect_to_login(client):
+def test_anonymous_requests_redirect_to_login(client, user):
     for path in ('/', '/assets/', '/work-orders/', '/pms/', '/admin/users'):
         response = client.get(path)
         assert response.status_code == 302, path

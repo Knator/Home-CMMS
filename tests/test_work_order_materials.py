@@ -376,3 +376,104 @@ def test_matching_ignores_case_and_padding(db, asset):
         db.session.commit()
 
     assert AssetMaterial.query.count() == 1
+
+
+# ── adding known parts by hand ─────────────────────────────────────────────
+
+def add_material(client, asset, **fields):
+    data = {'description': 'Anode rod', 'csrf_token': CSRF}
+    data.update(fields)
+    return client.post(f'/assets/{asset.id}/materials', data=data, follow_redirects=True)
+
+
+def test_a_known_part_can_be_recorded_without_a_work_order(client, db, asset, user, login):
+    """The point: part numbers you already know, without inventing a job."""
+    login()
+    add_material(client, asset, description='Anode rod', part_number='AR-4471', quantity='1')
+
+    recorded = AssetMaterial.query.one()
+    assert (recorded.description, recorded.part_number, recorded.quantity) == \
+           ('Anode rod', 'AR-4471', '1')
+    # Nothing has consumed it yet.
+    assert recorded.times_used == 0
+    assert recorded.last_used_on is None
+
+
+def test_a_description_is_required(client, db, asset, user, login):
+    login()
+    add_material(client, asset, description='   ')
+    assert AssetMaterial.query.count() == 0
+
+
+def test_adding_something_already_listed_updates_it(client, db, asset, user, login):
+    login()
+    add_material(client, asset, description='Anode rod', part_number='AR-4471')
+    response = add_material(client, asset, description='Anode rod', part_number='AR-4471',
+                            quantity='2')
+
+    assert AssetMaterial.query.count() == 1
+    assert AssetMaterial.query.one().quantity == '2'
+    assert 'already listed' in response.get_data(as_text=True)
+
+
+def test_a_hand_added_part_is_picked_up_by_a_later_work_order(client, db, asset, user, login):
+    """The two sources have to agree, or the list forks."""
+    login()
+    add_material(client, asset, description='Anode rod', part_number='AR-4471')
+
+    client.post('/work-orders/new', data=wo_form(
+        asset_id=asset.id, status='completed', completed_date='2026-05-01',
+        material_count='1', material_0_description='Anode rod',
+        material_0_part_number='AR-4471', tool_count='0'),
+        content_type='multipart/form-data')
+
+    recorded = AssetMaterial.query.one()
+    assert recorded.times_used == 1
+    assert recorded.last_used_on == date(2026, 5, 1)
+
+
+def test_a_material_can_be_edited(client, db, asset, user, login):
+    login()
+    add_material(client, asset, description='Anode rod')
+    material = AssetMaterial.query.one()
+
+    client.post(f'/assets/{asset.id}/materials/{material.id}/edit',
+                data={'description': 'Anode rod (magnesium)', 'part_number': 'AR-4471-M',
+                      'quantity': '1', 'csrf_token': CSRF})
+
+    assert material.description == 'Anode rod (magnesium)'
+    assert material.part_number == 'AR-4471-M'
+
+
+def test_a_material_can_be_removed(client, db, asset, user, login):
+    login()
+    add_material(client, asset)
+    material = AssetMaterial.query.one()
+
+    client.post(f'/assets/{asset.id}/materials/{material.id}/delete',
+                data={'csrf_token': CSRF})
+    assert AssetMaterial.query.count() == 0
+
+
+def test_another_assets_material_cannot_be_touched(client, db, asset, user, login):
+    other = create_asset(name='Someone else')
+    db.session.add(AssetMaterial(asset_id=other.id, description='Theirs'))
+    db.session.commit()
+    theirs = AssetMaterial.query.filter_by(description='Theirs').one()
+
+    login()
+    client.post(f'/assets/{asset.id}/materials/{theirs.id}/delete', data={'csrf_token': CSRF})
+    assert AssetMaterial.query.count() == 1
+
+
+def test_material_changes_need_csrf(client, db, asset, user, login):
+    login()
+    assert client.post(f'/assets/{asset.id}/materials',
+                       data={'description': 'x'}).status_code == 403
+
+
+def test_the_asset_page_offers_the_form(client, db, asset, user, login):
+    login()
+    body = client.get(f'/assets/{asset.id}').get_data(as_text=True)
+    assert 'Add material' in body
+    assert f'/assets/{asset.id}/materials' in body

@@ -9,8 +9,10 @@ from app.models.asset import Asset, ASSET_CATEGORIES
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
+from app.models.asset_material import AssetMaterial
 from app.services import (
-    asset_delete_blockers, create_asset, hierarchy_ordered, selectable_locations,
+    _match_existing_material, asset_delete_blockers, create_asset, hierarchy_ordered,
+    selectable_locations,
 )
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads, is_image_file,
@@ -267,6 +269,86 @@ def _apply_photo(asset):
         db.session.flush()          # assign the new attachment an id
         asset.image_attachment_id = saved[0].id
     return True
+
+
+# ── Materials ──────────────────────────────────────────────────────────────
+#
+# Usually these accumulate from completed work orders, but a part number you
+# already know is worth recording without inventing a job to hang it on.
+
+@bp.route('/<int:id>/materials', methods=['POST'])
+@login_required
+def add_material(id):
+    validate_csrf()
+    asset = db.get_or_404(Asset, id)
+
+    description = request.form.get('description', '').strip()
+    part_number = request.form.get('part_number', '').strip() or None
+    quantity = request.form.get('quantity', '').strip() or None
+
+    if not description:
+        flash('Give the material a description.', 'error')
+        return redirect(url_for('assets.detail', id=id))
+
+    # Same matching the work order roll-up uses, so adding something already on
+    # the list fills in what is missing instead of creating a near-duplicate.
+    existing = AssetMaterial.query.filter_by(asset_id=id).all()
+    match = _match_existing_material(existing, description, part_number)
+    if match is not None:
+        match.part_number = part_number or match.part_number
+        match.quantity = quantity or match.quantity
+        db.session.commit()
+        flash(f"'{match.description}' was already listed; updated it instead.", 'info')
+        return redirect(url_for('assets.detail', id=id))
+
+    db.session.add(AssetMaterial(
+        asset_id=id, description=description, part_number=part_number,
+        quantity=quantity,
+        # Nothing has used it yet; a completed work order will start the count.
+        times_used=0,
+    ))
+    db.session.commit()
+    flash('Material added.', 'success')
+    return redirect(url_for('assets.detail', id=id))
+
+
+@bp.route('/<int:id>/materials/<int:material_id>/edit', methods=['POST'])
+@login_required
+def edit_material(id, material_id):
+    validate_csrf()
+    db.get_or_404(Asset, id)
+    material = db.session.get(AssetMaterial, material_id)
+    if material is None or material.asset_id != id:
+        flash('That material could not be found.', 'error')
+        return redirect(url_for('assets.detail', id=id))
+
+    description = request.form.get('description', '').strip()
+    if not description:
+        flash('The description cannot be empty.', 'error')
+        return redirect(url_for('assets.detail', id=id))
+
+    material.description = description
+    material.part_number = request.form.get('part_number', '').strip() or None
+    material.quantity = request.form.get('quantity', '').strip() or None
+    db.session.commit()
+    flash('Material updated.', 'success')
+    return redirect(url_for('assets.detail', id=id))
+
+
+@bp.route('/<int:id>/materials/<int:material_id>/delete', methods=['POST'])
+@login_required
+def delete_material(id, material_id):
+    validate_csrf()
+    db.get_or_404(Asset, id)
+    material = db.session.get(AssetMaterial, material_id)
+    if material is None or material.asset_id != id:
+        flash('That material could not be found.', 'error')
+        return redirect(url_for('assets.detail', id=id))
+
+    db.session.delete(material)
+    db.session.commit()
+    flash('Material removed.', 'success')
+    return redirect(url_for('assets.detail', id=id))
 
 
 @bp.route('/<int:id>/attachments', methods=['POST'])

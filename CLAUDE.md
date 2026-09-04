@@ -200,6 +200,18 @@ regenerate every day until someone completed the work.
 
 `PM.advance_schedule()` anchors the next due date to the **previous due date**, not to the day it ran, so a late tick or a manual "Generate WO Now" doesn't shift every future occurrence. If a PM is several intervals overdue, whole intervals are skipped — one catch-up WO, not a backlog.
 
+### First-run setup (`app/setup/`)
+While `User.query.count() == 0`, `/setup` offers to create the first administrator and a
+`before_request` gate redirects everything else there (the API answers 503 JSON; the public
+API docs stay reachable). One account closes it permanently — the POST re-checks inside the
+request so two simultaneous visitors cannot both become admin.
+
+This is the pattern Immich, Home Assistant, Nextcloud and Gitea use, and it carries the same
+residual risk: until the account exists, whoever reaches the page first gets it. Mitigations,
+in increasing order of strictness: a loud warning logged on every start while it is open;
+`SETUP_WINDOW_MINUTES` to bound the window Portainer-style; or `ADMIN_*` env vars, which
+create the account before anything listens and close the window entirely.
+
 ### Auth & Security
 - Passwords: `werkzeug.security.generate_password_hash` (pbkdf2:sha256)
 - CSRF: `generate_csrf_token()` / `validate_csrf()` in `app/utils.py` (constant-time compare); every POST form includes `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">`

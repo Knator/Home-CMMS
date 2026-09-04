@@ -229,7 +229,9 @@ def test_asset_summary_handles_no_location(client, db, user, login):
     assert data['location_name'] is None
 
 
-def test_asset_summary_requires_login(client, db):
+def test_asset_summary_requires_login(client, db, user):
+    # `user` so the instance is past first-run setup; otherwise everything
+    # redirects to /setup rather than the login page.
     asset_id = 1
     response = client.get(f'/assets/{asset_id}/summary')
     assert response.status_code == 302

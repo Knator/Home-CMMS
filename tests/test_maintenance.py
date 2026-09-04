@@ -34,7 +34,7 @@ def test_page_requires_admin(client, db, user, login):
     assert '/admin' not in response.headers['Location']
 
 
-def test_page_requires_login(client, db):
+def test_page_requires_login(client, db, user):
     response = client.get('/admin/maintenance')
     assert '/auth/login' in response.headers['Location']
 

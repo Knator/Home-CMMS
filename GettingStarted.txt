@@ -105,10 +105,18 @@ This guide takes you from a fresh clone to a running, testable app.
  4. CREATE THE FIRST ADMIN USER
 --------------------------------------------------------------------------------
 
+  Either start the app and open it in a browser — with no users yet you are
+  taken to a setup page that creates the first administrator — or do it from the
+  command line:
+
       python create_admin.py
 
   It prompts for username, email, and password (min 8 characters, entered
-  twice, not echoed to the screen). This account has the 'admin' role and can
+  twice, not echoed to the screen).
+
+  The setup page is open to anyone who can reach the app until an account
+  exists, so complete it before putting the app on an untrusted network. Set
+  SETUP_WINDOW_MINUTES to close it automatically a few minutes after startup. This account has the 'admin' role and can
   manage other users. Safe to re-run — it refuses duplicate usernames/emails.
 
 
@@ -428,6 +436,11 @@ This guide takes you from a fresh clone to a running, testable app.
   Materials take a part number as well as a description and quantity.
 
   MATERIALS USED, ON THE ASSET
+  You can add part numbers you already know directly on the asset page — no
+  work order needed. Adding one that is already listed updates it rather than
+  creating a duplicate, and a later work order using the same part starts
+  counting against the entry you made.
+
   When a work order against an asset is COMPLETED, its materials are added to
   that asset's "Materials Used" list — so next time you need the part, open the
   asset and the number is there. Using the same part again updates the existing

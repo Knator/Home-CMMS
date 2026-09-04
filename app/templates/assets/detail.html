@@ -115,7 +115,8 @@
     <table>
       <thead>
         <tr><th>Material</th><th>Part number</th><th class="col-hide-sm">Qty</th>
-            <th class="col-hide-sm">Times used</th><th>Last used</th><th class="col-hide-sm">From</th></tr>
+            <th class="col-hide-sm">Times used</th><th>Last used</th>
+            <th class="col-hide-sm">From</th><th></th></tr>
       </thead>
       <tbody>
         {% for m in used %}
@@ -123,12 +124,34 @@
           <td>{{ m.description }}</td>
           <td class="mono-cell">{{ m.part_number or '—' }}</td>
           <td class="col-hide-sm">{{ m.quantity or '—' }}</td>
-          <td class="col-hide-sm">{{ m.times_used }}</td>
+          <td class="col-hide-sm">{{ m.times_used or '—' }}</td>
           <td>{{ m.last_used_on.strftime('%Y-%m-%d') if m.last_used_on else '—' }}</td>
           <td class="col-hide-sm">
             {% if m.last_work_order %}
               <a class="row-link" href="{{ url_for('work_orders.detail', id=m.last_work_order.id) }}">{{ m.last_work_order.wo_number }}</a>
             {% else %}—{% endif %}
+          </td>
+          <td>
+            <details class="attachment-rename">
+              <summary class="btn btn-ghost btn-sm">Edit</summary>
+              <form method="post" action="{{ url_for('assets.edit_material', id=asset.id, material_id=m.id) }}"
+                    class="rename-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="text" name="description" value="{{ m.description }}"
+                       placeholder="Material" aria-label="Material" required>
+                <input type="text" name="part_number" value="{{ m.part_number or '' }}"
+                       placeholder="Part number" maxlength="80" aria-label="Part number">
+                <input type="text" name="quantity" value="{{ m.quantity or '' }}"
+                       placeholder="Qty" maxlength="60" aria-label="Quantity">
+                <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+              </form>
+            </details>
+            <form method="post" action="{{ url_for('assets.delete_material', id=asset.id, material_id=m.id) }}"
+                  style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-ghost btn-sm text-danger"
+                      onclick="return confirm('Remove this material from the list?')">Delete</button>
+            </form>
           </td>
         </tr>
         {% endfor %}
@@ -136,10 +159,27 @@
     </table>
     {% else %}
       <div class="card-body text-muted">
-        No materials recorded yet. Complete a work order against this asset with materials
-        listed and they will be collected here for future reference.
+        No materials recorded yet. Add part numbers you already know below, or complete a
+        work order against this asset with materials listed and they will be collected here.
       </div>
     {% endif %}
+  </div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('assets.add_material', id=asset.id) }}"
+          class="upload-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="description" placeholder="Material, e.g. Anode rod"
+             aria-label="Material" required>
+      <input type="text" name="part_number" placeholder="Part number" maxlength="80"
+             class="upload-name" aria-label="Part number">
+      <input type="text" name="quantity" placeholder="Qty" maxlength="60"
+             class="tiny-number" aria-label="Quantity">
+      <button type="submit" class="btn btn-secondary btn-sm">Add material</button>
+    </form>
+    <span class="field-hint">
+      Recording a part you already know saves hunting for the number later. Completed work
+      orders add to this list automatically and keep the usage count.
+    </span>
   </div>
 </div>
 

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Set up Home CMMS</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-toggle">
+    <button type="button" class="theme-toggle" onclick="toggleTheme()"
+            aria-pressed="false" aria-label="Switch between light and dark mode"
+            title="Switch to dark mode">
+      <span class="icon-light" aria-hidden="true">&#9788;</span>
+      <span class="icon-dark" aria-hidden="true">&#9790;</span>
+    </button>
+  </div>
+  <div class="login-card setup-card">
+    <div class="login-title">Welcome to Home CMMS</div>
+    <div class="login-subtitle">Create your administrator account to get started.</div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}" style="margin-bottom:14px;">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="alert alert-warning" style="margin-bottom:16px;">
+      This page is open to anyone who can reach this instance, and closes for good
+      once an account exists. Complete it now, before putting this on an untrusted
+      network.
+    </div>
+
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group" style="margin-bottom:14px;">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" value="{{ username }}"
+               autocomplete="username" autofocus required>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" value="{{ email }}"
+               autocomplete="email" required>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" minlength="8"
+               autocomplete="new-password" required>
+        <span class="field-hint">At least 8 characters.</span>
+      </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label for="confirm_password">Confirm password</label>
+        <input type="password" id="confirm_password" name="confirm_password"
+               minlength="8" autocomplete="new-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+        Create administrator
+      </button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

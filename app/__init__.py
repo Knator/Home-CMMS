@@ -6,7 +6,7 @@ from flask import Flask, flash, jsonify, redirect, render_template, request, url
 from app.extensions import db, migrate, login_manager
 from app.utils import (
     generate_csrf_token, format_file_size, format_duration, thumbnails_available,
-    format_datetime, local_timezone_name,
+    format_datetime, local_timezone_name, utcnow,
 )
 from config import Config
 
@@ -80,6 +80,7 @@ def create_app(config_class=Config, config_overrides=None):
     from app.admin import bp as admin_bp
     from app.attachments import bp as attachments_bp
     from app.api import bp as api_bp
+    from app.setup import bp as setup_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -91,6 +92,7 @@ def create_app(config_class=Config, config_overrides=None):
     app.register_blueprint(admin_bp)
     app.register_blueprint(attachments_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(setup_bp)
 
     def _is_api_request():
         return request.path.startswith('/api/')
@@ -116,11 +118,40 @@ def create_app(config_class=Config, config_overrides=None):
             return jsonify({'error': 'Internal server error.'}), 500
         return error, 500
 
+    @app.before_request
+    def require_first_run_setup():
+        """Send an unconfigured instance to setup rather than a login it cannot pass."""
+        from app.setup.routes import needs_setup
+
+        allowed = {'setup.first_run', 'static', 'api.documentation', 'api.openapi'}
+        if request.endpoint in allowed or request.endpoint is None:
+            return None
+        if not needs_setup():
+            return None
+        if _is_api_request():
+            return jsonify({'error': 'This instance has not been set up yet.'}), 503
+        return redirect(url_for('setup.first_run'))
+
     @app.errorhandler(413)
     def file_too_large(error):
         limit_mb = app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)
         flash(f'That file is too large. The limit is {limit_mb} MB.', 'error')
         return redirect(request.referrer or url_for('main.dashboard')), 302
+
+    # Recorded so an optional bounded setup window can be measured from start.
+    app.config['STARTED_AT'] = utcnow()
+
+    with app.app_context():
+        try:
+            from app.setup.routes import needs_setup
+            if needs_setup():
+                app.logger.warning(
+                    'No users exist: first-run setup is OPEN at /setup. Anyone who can '
+                    'reach this instance can claim the administrator account until you '
+                    'complete it.'
+                )
+        except Exception:      # a database that is not migrated yet, typically
+            app.logger.info('Could not check for existing users yet (run: flask db upgrade).')
 
     # Start the PM scheduler. Skipped in the reloader's parent process (it would
     # run twice), and skipped entirely by the CLI scripts and the test suite,

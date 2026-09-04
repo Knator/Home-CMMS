@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Setup window closed — Home CMMS</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card setup-card">
+    <div class="login-title">Setup window closed</div>
+    <div class="login-subtitle">
+      No account was created within {{ minutes }} minutes of startup.
+    </div>
+    <p class="field-hint" style="margin-top:14px;line-height:1.6;">
+      The window is limited so an instance left running unattended cannot be claimed
+      by anyone who happens to find it. Restart the application to open it again:
+    </p>
+    <pre class="code-block">docker compose restart cmms</pre>
+    <p class="field-hint">
+      Or create the account without this page:
+    </p>
+    <pre class="code-block">docker compose exec cmms python create_admin.py</pre>
+  </div>
+</div>
+</body>
+</html>

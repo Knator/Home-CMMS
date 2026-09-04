@@ -13,10 +13,22 @@ cd home-cmms
 cp .env.docker.example .env
 $EDITOR .env                     # at minimum, set TZ
 docker compose up -d
-docker compose exec cmms python create_admin.py
 ```
 
-Open `http://<your-host>:8080` and sign in.
+Open `http://<your-host>:8080`. On a fresh instance you land on a **setup page**
+that creates the first administrator account.
+
+> **Complete setup straight away.** Until an account exists, anyone who can reach
+> the instance can claim the administrator account — this is how Immich, Home
+> Assistant, Nextcloud and Gitea all behave. The page closes permanently once one
+> account exists. Do not put a fresh instance on an untrusted network before
+> finishing setup.
+>
+> Two ways to avoid that window entirely:
+> * set `ADMIN_USERNAME`/`ADMIN_PASSWORD`, so the account is created before
+>   anything starts listening; or
+> * set `SETUP_WINDOW_MINUTES=5`, which closes the page that long after startup
+>   and requires a restart to reopen — the approach Portainer takes.
 
 The first start creates the database, generates a signing key, and applies all
 migrations. It takes a few seconds.
@@ -35,6 +47,7 @@ Everything is optional. The defaults give a working LAN install.
 | `FLASK_ENV` | *unset* | Set to `production` **only when served over HTTPS**. See the warning below. |
 | `TRUST_PROXY_HEADERS` | *off* | Set to `1` **only** when a reverse proxy you control sits in front. See below. |
 | `ADMIN_USERNAME` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` | *unset* | Optional unattended first admin. Prefer creating the account interactively so the password never sits in a file. |
+| `SETUP_WINDOW_MINUTES` | `0` (no limit) | Closes the first-run setup page this many minutes after startup. Restart to reopen. |
 | `GUNICORN_TIMEOUT` | `120` | Seconds before a request is killed. The default is generous because a 50 MB upload on a slow link must not be cut off. |
 | `DATABASE_URL` | `sqlite:///instance/home_cmms.db` | Rarely worth changing. |
 | `UPLOAD_FOLDER` | `/app/uploads` | Where attachments live inside the container. |
@@ -91,8 +104,10 @@ orders. One worker is ample for a household.
 **Set `TZ`.** Otherwise every timestamp reads as UTC. Confirm it under
 *Admin → Maintenance → System*, which shows the timezone in use.
 
-**Create the admin interactively** rather than via `ADMIN_PASSWORD`, so the
-password never lands in a file or in `docker inspect` output:
+**Create the first admin on the setup page**, which is the simplest route and
+keeps the password out of files and `docker inspect` output. If you would rather
+not have an open setup window at all, use `ADMIN_USERNAME`/`ADMIN_PASSWORD`, or
+create the account from the command line before exposing the port:
 
 ```bash
 docker compose exec cmms python create_admin.py

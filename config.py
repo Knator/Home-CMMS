@@ -119,6 +119,11 @@ class Config:
     # Only enable behind a reverse proxy you control. If nothing strips
     # X-Forwarded-For, a client can set it freely and both spoof its address in
     # the audit log and dodge the per-address rate limit.
+    # Optionally bound the first-run setup window, the way Portainer does. 0
+    # leaves it open until an account is created, which is what most self-hosted
+    # projects do.
+    SETUP_WINDOW_MINUTES = int(os.environ.get('SETUP_WINDOW_MINUTES', '0') or 0)
+
     TRUST_PROXY_HEADERS = os.environ.get('TRUST_PROXY_HEADERS', '') in ('1', 'true', 'True', 'yes')
 
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or os.path.join(BASE_DIR, 'uploads')

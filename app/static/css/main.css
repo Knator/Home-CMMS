@@ -1582,3 +1582,7 @@ body.nav-open .nav-toggle-bars::after  { transform: translateY(-6px) rotate(-45d
 }
 
 .pager-position { font-size: 12px; color: var(--text-secondary); }
+
+/* First-run setup: a little wider than the login card, since it asks more. */
+.setup-card { max-width: 440px; }
+.setup-card .code-block { margin: 6px 0 14px; }

@@ -35,6 +35,29 @@ from app.utils import utcnow, validate_csrf
 MIN_PASSWORD_LENGTH = 8
 
 
+def database_ready():
+    """Whether the schema exists yet.
+
+    Wiping instance/ to start over also removes the database, and SQLAlchemy
+    will happily create an empty file on connect — so the tables are missing and
+    every query fails. Detecting that is the difference between a stack trace
+    and a page telling you which command to run.
+
+    The result is cached once true: a database can go from missing to present
+    while running (someone applies migrations), but not back.
+    """
+    if current_app.config.get('_SCHEMA_READY'):
+        return True
+    try:
+        from sqlalchemy import inspect
+        ready = inspect(db.engine).has_table('users')
+    except Exception:
+        return False
+    if ready:
+        current_app.config['_SCHEMA_READY'] = True
+    return ready
+
+
 def needs_setup():
     """True while the instance has no users at all."""
     return User.query.count() == 0
@@ -53,6 +76,8 @@ def window_expired():
 
 @bp.route('/setup', methods=['GET', 'POST'])
 def first_run():
+    if not database_ready():
+        return render_template('setup/no_database.html'), 503
     if not needs_setup():
         # Closed for good; nothing here can create a second administrator.
         return redirect(url_for('auth.login'))

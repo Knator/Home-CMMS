@@ -278,6 +278,11 @@ clear the lockouts under *Admin → Maintenance → Sign-in Attempts*.
 **Everyone signed out after an update.** The `instance` volume was not persistent,
 so a new signing key was generated. Check your volume mounts.
 
+**"Database not initialised".** The schema is missing — a new install whose
+first start was interrupted, or a wiped `instance` volume. Restart the container;
+the entrypoint applies migrations on every start. Outside Docker, run
+`flask db upgrade`.
+
 **Image previews missing.** Pillow failed to install; check the build log. The app
 still works, it just shows file-type chips instead of thumbnails.
 

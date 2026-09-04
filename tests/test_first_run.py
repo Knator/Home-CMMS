@@ -176,3 +176,51 @@ def test_an_empty_instance_does_not_show_a_login_page(client, db):
 
 def test_the_login_page_returns_once_an_account_exists(client, db, user):
     assert client.get('/auth/login').status_code == 200
+
+
+# ── a wiped or brand-new instance directory ────────────────────────────────
+
+def test_a_missing_schema_explains_itself(app, monkeypatch):
+    """Clearing instance/ removes the database too. SQLAlchemy then creates an
+    empty file, so every query fails with 'no such table' — a stack trace where
+    a one-line instruction belongs."""
+    from app.setup import routes as setup_routes
+
+    monkeypatch.setattr(setup_routes, 'database_ready', lambda: False)
+    app.config.pop('_SCHEMA_READY', None)
+
+    client = app.test_client()
+    response = client.get('/')
+    assert response.status_code == 503
+    body = response.get_data(as_text=True)
+    assert 'Database not initialised' in body
+    assert 'flask db upgrade' in body
+
+
+def test_the_api_reports_a_missing_schema_as_json(app, monkeypatch):
+    from app.setup import routes as setup_routes
+
+    monkeypatch.setattr(setup_routes, 'database_ready', lambda: False)
+    app.config.pop('_SCHEMA_READY', None)
+
+    response = app.test_client().get('/api/v1/assets')
+    assert response.status_code == 503
+    assert 'flask db upgrade' in response.get_json()['error']
+
+
+def test_setup_itself_does_not_break_without_a_schema(app, monkeypatch):
+    from app.setup import routes as setup_routes
+
+    monkeypatch.setattr(setup_routes, 'database_ready', lambda: False)
+    app.config.pop('_SCHEMA_READY', None)
+
+    response = app.test_client().get('/setup')
+    assert response.status_code == 503
+    assert 'flask db upgrade' in response.get_data(as_text=True)
+
+
+def test_a_ready_schema_is_detected(app, db):
+    from app.setup.routes import database_ready
+
+    app.config.pop('_SCHEMA_READY', None)
+    assert database_ready() is True

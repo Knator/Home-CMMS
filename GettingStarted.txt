@@ -19,7 +19,7 @@ This guide takes you from a fresh clone to a running, testable app.
 
 --------------------------------------------------------------------------------
 
-  - Python 3.11 or newer (the checked-in .venv uses 3.14)
+  - Python 3.11 or newer
 
   That is the whole list. SQLite ships with Python, so there is no database
   server to install, start, or configure.
@@ -32,7 +32,12 @@ This guide takes you from a fresh clone to a running, testable app.
       source .venv/bin/activate
       pip install -r requirements.txt
 
-  If .venv does not exist or is broken, recreate it:
+  If .venv does not exist or is broken, recreate it. A venv breaks if the
+  Python it was built against is removed or upgraded — the symptom is:
+
+      bad interpreter: No such file or directory
+
+  It holds nothing you cannot rebuild from requirements.txt:
 
       python -m venv .venv
       source .venv/bin/activate
@@ -550,8 +555,11 @@ This guide takes you from a fresh clone to a running, testable app.
  11. TROUBLESHOOTING
 --------------------------------------------------------------------------------
 
-  "no such table: users"
-      - You have not run the migrations yet. Run:  flask db upgrade
+  "Database not initialised" page
+      - The schema does not exist yet — usually a new install, or you cleared
+        the instance folder. Run:  flask db upgrade
+        Then reload; you will be offered the first-run setup page. In Docker
+        this happens automatically, so just restart the container.
 
   "Target database is not up to date" / table already exists
       - You changed models without migrating. Run:

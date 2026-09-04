@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Database not initialised — Home CMMS</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card setup-card">
+    <div class="login-title">Database not initialised</div>
+    <div class="login-subtitle">
+      The database has no tables yet, so there is nothing to sign in to.
+    </div>
+    <p class="field-hint" style="margin-top:14px;line-height:1.6;">
+      This is normal on a brand new install, or after clearing the
+      <code>instance</code> folder. Create the schema:
+    </p>
+    <pre class="code-block">flask db upgrade</pre>
+    <p class="field-hint">In Docker, this runs automatically at startup:</p>
+    <pre class="code-block">docker compose restart cmms</pre>
+    <p class="field-hint">
+      Then reload this page. You will be offered a setup page to create the first
+      administrator account.
+    </p>
+  </div>
+</div>
+</body>
+</html>

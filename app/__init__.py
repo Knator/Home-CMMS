@@ -121,11 +121,20 @@ def create_app(config_class=Config, config_overrides=None):
     @app.before_request
     def require_first_run_setup():
         """Send an unconfigured instance to setup rather than a login it cannot pass."""
-        from app.setup.routes import needs_setup
+        from app.setup.routes import database_ready, needs_setup
 
         allowed = {'setup.first_run', 'static', 'api.documentation', 'api.openapi'}
         if request.endpoint in allowed or request.endpoint is None:
             return None
+
+        if not database_ready():
+            # An empty or wiped instance directory. Say which command fixes it
+            # rather than failing with "no such table".
+            if _is_api_request():
+                return jsonify({'error': 'The database has not been initialised. '
+                                         'Run: flask db upgrade'}), 503
+            return render_template('setup/no_database.html'), 503
+
         if not needs_setup():
             return None
         if _is_api_request():

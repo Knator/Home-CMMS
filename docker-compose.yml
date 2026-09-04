@@ -1,0 +1,66 @@
+# Home CMMS — docker compose deployment.
+#
+#   1. cp .env.docker.example .env
+#   2. edit .env  (at minimum set TZ)
+#   3. docker compose up -d
+#   4. docker compose exec cmms python create_admin.py
+#
+# Then open http://<host>:8080
+
+services:
+  cmms:
+    build: .
+    # Or, once published:
+    # image: ghcr.io/YOUR-USERNAME/home-cmms:latest
+    container_name: home-cmms
+    restart: unless-stopped
+
+    ports:
+      - "${WEB_PORT:-8080}:8000"
+
+    environment:
+      # Your timezone, so displayed times match your clock. Without it the
+      # container runs on UTC.
+      TZ: "${TZ:-UTC}"
+
+      # Optional. Left unset, a key is generated on first run and kept in
+      # instance/secret_key. Set it if you would rather manage it yourself, or
+      # if the instance volume is not persistent.
+      SECRET_KEY: "${SECRET_KEY:-}"
+
+      # Set only when this is served over HTTPS. It marks cookies Secure, and a
+      # Secure cookie is never sent over plain http — turning it on without TLS
+      # locks you out.
+      FLASK_ENV: "${FLASK_ENV:-}"
+
+      # Enable only when a reverse proxy you control sits in front. Otherwise a
+      # client can forge X-Forwarded-For and dodge the sign-in rate limit.
+      TRUST_PROXY_HEADERS: "${TRUST_PROXY_HEADERS:-}"
+
+      # Optional first-admin bootstrap. Prefer creating the account with
+      # `docker compose exec` so the password never sits in a file.
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+
+    volumes:
+      # The database, the generated secret key and backups.
+      - cmms-instance:/app/instance
+      # Attachments and photos. Much larger than the database.
+      - cmms-uploads:/app/uploads
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/auth/login > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+    # Modest hardening: the app never needs to write outside its two volumes,
+    # and never needs new privileges.
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  cmms-instance:
+  cmms-uploads:

@@ -116,6 +116,11 @@ class Config:
     REMEMBER_COOKIE_SAMESITE = 'Lax'
     REMEMBER_COOKIE_DURATION = timedelta(days=30)
 
+    # Only enable behind a reverse proxy you control. If nothing strips
+    # X-Forwarded-For, a client can set it freely and both spoof its address in
+    # the audit log and dodge the per-address rate limit.
+    TRUST_PROXY_HEADERS = os.environ.get('TRUST_PROXY_HEADERS', '') in ('1', 'true', 'True', 'yes')
+
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or os.path.join(BASE_DIR, 'uploads')
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
     ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp',

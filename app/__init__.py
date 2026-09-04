@@ -21,6 +21,12 @@ def create_app(config_class=Config, config_overrides=None):
     if config_overrides:
         app.config.update(config_overrides)
 
+    if app.config.get('TRUST_PROXY_HEADERS'):
+        # One hop: the reverse proxy directly in front of us. Trusting more
+        # would let a client forge the chain.
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(levelname)s [%(name)s] %(message)s',

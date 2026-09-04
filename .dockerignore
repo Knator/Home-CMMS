@@ -1,0 +1,17 @@
+# Never bake local state or secrets into an image layer.
+.env
+instance/
+uploads/*
+!uploads/.gitkeep
+
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.gitignore
+.idea/
+
+tests/
+*.md
+GettingStarted.txt

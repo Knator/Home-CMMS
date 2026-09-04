@@ -13,6 +13,10 @@ This guide takes you from a fresh clone to a running, testable app.
 
 --------------------------------------------------------------------------------
  0. PREREQUISITES
+
+  Running this in Docker instead? See DOCKER.md — it covers compose, the
+  environment variables, what lives in each volume, and backup and restore.
+
 --------------------------------------------------------------------------------
 
   - Python 3.11 or newer (the checked-in .venv uses 3.14)

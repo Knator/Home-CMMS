@@ -15,6 +15,21 @@ Home CMMS — a self-hosted Flask application for home maintenance management. T
 - **Frontend:** Jinja2 server-rendered templates, plain CSS, minimal vanilla JS
 - **Tests:** pytest
 
+## Deployment
+`Dockerfile`, `docker-compose.yml` and `docker/entrypoint.sh` package the app; `DOCKER.md`
+is the user-facing guide. The entrypoint runs `flask db upgrade`, optionally seeds an admin
+from `ADMIN_*`, then execs gunicorn with **one worker** — SQLite takes a single writer and
+the PM scheduler lives in-process, so a second worker means duplicate work orders. The image
+runs as uid 10001 and persists `/app/instance` and `/app/uploads`.
+
+`TRUST_PROXY_HEADERS` (off by default) enables `ProxyFix`. It must stay off without a proxy
+in front, or a client can forge `X-Forwarded-For` to dodge the sign-in rate limit; it must be
+**on** behind one, or every request shares the proxy's address and one failing user locks
+everybody out.
+
+`create_admin.py` takes `--username/--email/--password` or `ADMIN_*`, plus `--if-missing` so
+the entrypoint can run it on every start.
+
 ## Environment Setup
 
 ```bash

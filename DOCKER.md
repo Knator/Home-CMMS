@@ -7,9 +7,26 @@ services — no database server, no Redis, no internet connection required at ru
 
 ## Quick start
 
+You need the source, because the image is built from it. Either clone the repo:
+
 ```bash
-git clone https://github.com/YOUR-USERNAME/home-cmms.git
-cd home-cmms
+git clone https://github.com/Knator/Home-CMMS.git
+cd Home-CMMS
+```
+
+…or, if you already have a working copy, just use it — nothing needs cloning:
+
+```bash
+cd /path/to/Home-CMMS
+```
+
+If the repository is **private**, cloning needs a credential: GitHub removed
+password authentication in 2021. Use a personal access token as the password, or
+an SSH key, or make the repository public.
+
+Then:
+
+```bash
 cp .env.docker.example .env
 $EDITOR .env                     # at minimum, set TZ
 docker compose up -d

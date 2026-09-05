@@ -418,8 +418,27 @@ backups and system health, Immich's orphaned-file repair, LubeLogger's single-ar
 - **Backups** — one `.tar.gz` of the database plus `uploads/`. The database is captured with
   `VACUUM INTO`, never a file copy, because in WAL mode a copy silently misses everything
   still in the `-wal` sidecar. Thumbnails are excluded; they rebuild. Optional retention
-  prunes to the newest N. **Restore is deliberately manual** and documented on the page —
-  overwriting a live database from a web form is too easy to do by accident.
+  prunes to the newest N.
+- **Restore** (`restore_backup()`) replaces the database and uploads from an archive, from
+  the maintenance page or the first-run setup screen. Order matters and is the whole design:
+  `inspect_backup()` validates first so a wrong file costs nothing; a `pre-restore-<stamp>`
+  safety copy is taken; the database is swapped with the engine disposed and the `-wal`/`-shm`
+  sidecars deleted (they belong to the replaced file); then `flask db upgrade` runs so an
+  older backup opens. `_safe_members()` rejects absolute paths, `..`, links and anything
+  outside `home_cmms.db`/`uploads/` — a tar member is an arbitrary write primitive otherwise.
+  A **failed safety copy does not block the restore**: it usually fails because the current
+  database is unreadable, which is exactly when someone is restoring.
+  `rotate_secret_key()` then invalidates every session, because the restored database can
+  map a session cookie's user id to a different account; it returns False when `SECRET_KEY`
+  comes from the environment, which the app cannot change.
+  Safety copies are ordinary backups (`is_backup_name()` accepts both prefixes, so they
+  list, download and delete) but `prune_backups()` skips them — pruning away the undo copy
+  is exactly the moment someone needs it.
+  The setup-screen path takes no safety copy and no confirmation (an instance with no users
+  has nothing to lose) and refuses a backup containing no accounts, which would otherwise
+  leave an instance nobody can sign into.
+  Upload size is bounded by `MAX_UPLOAD_MB`; restoring from `instance/backups` has no limit,
+  which is the documented route for a large archive.
 - **Storage integrity** — attachments are polymorphic with no foreign key, so the table and
   the filesystem can drift. `scan_storage()` is read-only and reports records whose file is
   missing, records whose owning entity is gone, files nothing references, and stale

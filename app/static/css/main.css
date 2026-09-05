@@ -1449,6 +1449,18 @@ body.nav-open .nav-toggle-bars::after  { transform: translateY(-6px) rotate(-45d
 .restore-note { margin-top: 16px; }
 .restore-note summary { cursor: pointer; font-size: 13px; color: var(--accent); }
 
+/* Restore offer on the first-run setup card. */
+.setup-restore {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.setup-restore summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--accent);
+}
+
 .code-block {
   margin: 8px 0;
   padding: 12px;

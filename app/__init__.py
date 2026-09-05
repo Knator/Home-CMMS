@@ -123,7 +123,8 @@ def create_app(config_class=Config, config_overrides=None):
         """Send an unconfigured instance to setup rather than a login it cannot pass."""
         from app.setup.routes import database_ready, needs_setup
 
-        allowed = {'setup.first_run', 'static', 'api.documentation', 'api.openapi'}
+        allowed = {'setup.first_run', 'setup.restore', 'static',
+                   'api.documentation', 'api.openapi'}
         if request.endpoint in allowed or request.endpoint is None:
             return None
 
@@ -144,7 +145,10 @@ def create_app(config_class=Config, config_overrides=None):
     @app.errorhandler(413)
     def file_too_large(error):
         limit_mb = app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)
-        flash(f'That file is too large. The limit is {limit_mb} MB.', 'error')
+        flash(f'That file is too large. The limit is {limit_mb} MB — raise '
+              'MAX_UPLOAD_MB to accept bigger ones. A backup archive can also be '
+              'restored by copying it into instance/backups instead of uploading.',
+              'error')
         return redirect(request.referrer or url_for('main.dashboard')), 302
 
     # Recorded so an optional bounded setup window can be measured from start.

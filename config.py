@@ -127,7 +127,11 @@ class Config:
     TRUST_PROXY_HEADERS = os.environ.get('TRUST_PROXY_HEADERS', '') in ('1', 'true', 'True', 'yes')
 
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or os.path.join(BASE_DIR, 'uploads')
-    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
+    # Applies to any single request, so it caps both an attachment and an
+    # uploaded backup archive. Raise it if you restore by upload and your
+    # archive is larger; restoring from instance/backups has no such limit.
+    MAX_UPLOAD_MB = int(os.environ.get('MAX_UPLOAD_MB', '50') or 50)
+    MAX_CONTENT_LENGTH = MAX_UPLOAD_MB * 1024 * 1024
     ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp',
                           'doc', 'docx', 'txt', 'xlsx', 'csv', 'zip'}
     # Raster formats only. SVG is deliberately excluded: it can carry script and

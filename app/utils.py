@@ -195,7 +195,10 @@ def store_uploads(entity_type, entity_id, rows, uploaded_by):
     saved, errors = [], []
     for file, display_name in rows:
         if not allowed_file(file.filename):
-            errors.append(f"'{file.filename}' was not saved — that file type is not allowed.")
+            # Naming the extension beats listing the ~100 that are accepted.
+            suffix = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+            detail = f'.{suffix} files are not accepted' if suffix else 'it has no file extension'
+            errors.append(f"'{file.filename}' was not saved — {detail}.")
             continue
         stored, original, size, mime = save_attachment(file, entity_type, entity_id)
         attachment = Attachment(

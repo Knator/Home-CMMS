@@ -113,7 +113,7 @@
           <label for="image">Add a photo</label>
           {% endif %}
           <input type="file" id="image" name="image"
-                 accept="image/png,image/jpeg,image/gif,image/webp">
+                 accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/avif">
           {% if not (is_edit and asset.image) %}
           <label for="image_caption" class="mt-1">Caption</label>
           <input type="text" id="image_caption" name="image_caption" maxlength="255"

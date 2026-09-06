@@ -278,6 +278,26 @@ an uncast copy preserves text that isn't a well-formed number. See migration `71
 ### File Uploads
 Files stored at `UPLOAD_FOLDER/<entity_type>/<entity_id>/<uuid>_<original_name>`.
 
+**What may be attached.** `ALLOWED_EXTENSIONS` is assembled in `config.py` from named
+groups — documents, images, video, audio, CAD/3D, archives, data — so adding a format means
+adding it to the group it belongs to. It is generous (~100 extensions, including `mp4`,
+`mov`, `dwg`, `dxf`, `step`, `stl`, `heic`, raw camera formats) because a phone clip of the
+noise a pump is making is often the whole point of the attachment.
+
+It stays an **allowlist** and deliberately excludes executables and scripts (`exe`, `msi`,
+`bat`, `cmd`, `ps1`, `sh`, `jar`, `js`, `vbs`) and renderable markup (`html`, `htm`,
+`xhtml`, `svg`). Nothing in the app executes an upload and downloads are always
+`as_attachment=True`, so this is depth rather than the only defence — it stops the instance
+being a convenient host for someone else's malware.
+
+`IMAGE_EXTENSIONS` is **narrower than** the images in the allowlist: it is what the inline
+route will serve and what thumbnails are attempted for, so it holds only formats a browser
+can render. HEIC, TIFF and raw are downloadable but never previewable, and `svg` is in
+neither. The rejection message names the refused extension rather than listing the hundred
+that are accepted.
+
+`MAX_UPLOAD_MB` defaults to **100**, raised from 50 for video.
+
 `Attachment.display_name` is an optional friendly label; `att.label` renders it (falling
 back to the filename) and `att.download_name` appends the original extension so a label
 like "Furnace manual" still saves as a `.pdf`. Rename via `attachments.rename`.

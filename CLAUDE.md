@@ -360,6 +360,21 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
   select stays in the DOM, enabled and named, so it still submits and remains the single
   source of truth — the widget writes `select.value` and dispatches a `change` event, so
   existing listeners keep working. Without JS you get a plain select.
+- `initUnsavedWarning()` warns before a part-filled form is abandoned. A form opts in with
+  `data-warn-unsaved`; all five entity forms carry it, create and edit alike. It hangs on
+  **`beforeunload`**, which covers every way of leaving — sidebar link, back button, reload,
+  closing the tab — in one place. The cost is a browser-controlled dialog whose wording
+  cannot be set; intercepting link clicks instead would read better but cover in-app links
+  only and silently miss the back button.
+  Dirtiness is a **snapshot comparison**, not a "something was typed" flag, so typing a
+  value and undoing it leaves the form clean instead of nagging on the way out. Named
+  controls only, in DOM order, so adding or removing a repeatable row counts as a change and
+  the combobox's unnamed filter input does not. Any submit anywhere on the page disarms it —
+  saving is not abandoning, and neither is deleting from an edit screen.
+  Removing an iframe does **not** run its `beforeunload`, so the picker modal has to ask the
+  framed page directly via `window.homeCmmsFormDirty` before tearing it down. Note the close
+  button binds `() => close()`, not `close`: passing the listener straight in hands the event
+  object over as the `force` argument, which is truthy, and the check would never run.
 - **Creating a record from the picker that needs it** (`_pickers.html`, `initCreateModal()`).
   Every asset / location / job-plan `<select>` on a form carries a `+`. It is a real link to
   the real create page (`target="_blank"`, `rel="noopener"`), so with JS off it opens in a

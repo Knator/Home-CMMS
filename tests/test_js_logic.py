@@ -158,3 +158,71 @@ def test_the_row_being_dragged_is_ignored():
         rowAfterPointer(c, 5) === null;
     ''') is True
 
+
+
+# ── warning before abandoning a part-filled form ───────────────────────────
+#
+# Dirtiness is a snapshot comparison rather than a "something was typed" flag,
+# so these pin the cases where the difference shows.
+
+def dirty_after(setup):
+    """Build a form, arm the warning, apply `setup`, and report dirtiness."""
+    return run('''
+        var form = makeForm([
+          {name: 'name', value: 'Furnace'},
+          {name: 'notes', value: ''},
+          {name: 'active', type: 'checkbox', checked: true}
+        ]);
+        initUnsavedWarning();
+        ''' + setup + '''
+        window.homeCmmsFormDirty();
+    ''')
+
+
+def test_an_untouched_form_is_not_dirty():
+    assert dirty_after('') is False
+
+
+def test_editing_a_field_makes_it_dirty():
+    assert dirty_after("form.elements[1].value = 'some notes';") is True
+
+
+def test_typing_and_undoing_leaves_it_clean():
+    """The reason for comparing against a snapshot rather than watching for
+    keystrokes: this must not nag on the way out."""
+    assert dirty_after('''
+        form.elements[1].value = 'oops';
+        form.elements[1].value = '';
+    ''') is False
+
+
+def test_toggling_a_checkbox_makes_it_dirty():
+    assert dirty_after('form.elements[2].checked = false;') is True
+
+
+def test_adding_a_repeatable_row_makes_it_dirty():
+    """Rows are added as new named controls, not by editing existing ones."""
+    assert dirty_after('''
+        var extra = makeInput('material_1_description', '');
+        form.elements.push(extra);
+    ''') is True
+
+
+def test_removing_a_row_makes_it_dirty():
+    assert dirty_after('form.elements.pop();') is True
+
+
+def test_submitting_disarms_the_warning():
+    """Saving is not abandoning."""
+    assert dirty_after('''
+        form.elements[1].value = 'real edits';
+        fireSubmit();
+    ''') is False
+
+
+def test_a_value_that_merely_looks_like_another_field_is_not_confused():
+    """Fields are joined with separators that cannot occur in a value, so
+    'a' + 'bc' cannot masquerade as 'ab' + 'c'."""
+    assert dirty_after('''
+        form.elements[0].value = 'Furnace' + '\\u0001' + 'x';
+    ''') is True

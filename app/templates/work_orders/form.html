@@ -8,7 +8,7 @@
 <div class="form-shell" style="--shell-max: 900px;">
   <div class="card">
     <div class="card-body">
-      <form method="post" enctype="multipart/form-data">
+      <form method="post" enctype="multipart/form-data" data-warn-unsaved>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-grid">
           <div class="form-group full">

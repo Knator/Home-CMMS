@@ -92,3 +92,49 @@ function makeRow(kind, fields) {
   });
   return row;
 }
+
+/* ── enough of a <form> to exercise the unsaved-changes check ──
+   initUnsavedWarning() reads form.elements, listens for submit on document and
+   beforeunload on window, and publishes window.homeCmmsFormDirty. All four are
+   stubbed here; nothing else in main.js needs them. */
+function FakeForm() {
+  FakeEl.call(this, 'form');
+  this.elements = [];
+}
+FakeForm.prototype = Object.create(FakeEl.prototype);
+FakeForm.prototype.constructor = FakeForm;
+
+var WATCHED_FORM = null;
+
+function makeForm(fields) {
+  var form = new FakeForm();
+  (fields || []).forEach(function (f) {
+    var el = new FakeEl(f.type === 'checkbox' ? 'input' : 'input');
+    el.type = f.type || 'text';
+    el.name = f.name;            // an unnamed control is skipped by design
+    el.value = f.value === undefined ? '' : f.value;
+    el.checked = !!f.checked;
+    form.elements.push(el);
+  });
+  WATCHED_FORM = form;
+  return form;
+}
+
+document.querySelector = function (selector) {
+  if (selector === 'form[data-warn-unsaved]') return WATCHED_FORM;
+  return null;
+};
+
+var SUBMIT_HANDLERS = [];
+document.addEventListener = (function (original) {
+  return function (name, fn, capture) {
+    if (name === 'submit') { SUBMIT_HANDLERS.push(fn); return; }
+    return original.call(this, name, fn, capture);
+  };
+}(document.addEventListener));
+
+function fireSubmit() {
+  SUBMIT_HANDLERS.forEach(function (fn) { fn({}); });
+}
+
+window.addEventListener = function () {};

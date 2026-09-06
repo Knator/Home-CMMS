@@ -9,7 +9,7 @@ cleaning — without keeping any of it in your head.
 One container, two volumes, no external services. No database server, no Redis,
 no internet connection required at runtime.
 
-![The Home CMMS dashboard](docs/images/dashboard.png)
+![The Home CMMS dashboard](docs/images/dashboard.jpg)
 
 ---
 

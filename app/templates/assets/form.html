@@ -24,23 +24,27 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Location</label>
-            <select name="location_id" data-searchable>
+            <label for="location_id">Location</label>
+            <select name="location_id" id="location_id" data-searchable>
               <option value="">— None —</option>
               {% for loc in locations %}
                 <option value="{{ loc.id }}" {{ 'selected' if is_edit and asset.location_id == loc.id }}>{{ loc.name }} ({{ loc.location_number }})</option>
               {% endfor %}
             </select>
+            <span class="field-hint" id="location-hint" hidden></span>
           </div>
           <div class="form-group">
-            <label>Parent Asset</label>
-            <select name="parent_id" data-searchable>
+            <label for="parent_id">Parent Asset</label>
+            <select name="parent_id" id="parent_id" data-searchable
+                    data-summary-url="{{ url_for('assets.summary', id=0) }}"
+                    data-summary-label="parent"
+                    data-only-when-empty>
               <option value="">— None (top level) —</option>
               {% for p in parents %}
                 <option value="{{ p.id }}" {{ 'selected' if is_edit and asset.parent_id == p.id }}>{{ p.path_label }} ({{ p.asset_number }})</option>
               {% endfor %}
             </select>
-            <span class="field-hint">For sub-assemblies, e.g. a compressor inside an HVAC unit. An asset cannot sit beneath one of its own children.</span>
+            <span class="field-hint">For sub-assemblies, e.g. a compressor inside an HVAC unit. An asset cannot sit beneath one of its own children. Picking a parent fills in the Location above if you have left it blank.</span>
           </div>
           <div class="form-group">
             <label>Status</label>

@@ -157,3 +157,4 @@ def test_the_row_being_dragged_is_ignored():
         c.appendChild(a);
         rowAfterPointer(c, 5) === null;
     ''') is True
+

@@ -224,21 +224,36 @@ document.addEventListener('DOMContentLoaded', () => {
   initAlerts();
 });
 
-/* ── Work order form: inherit the asset's location ──
-   Picking an asset pulls its location across, the way Maximo derives location
-   from the asset. Only re-derives when the asset changes, so a location the
-   user set by hand afterwards is left alone. */
-function initAssetLocationLink() {
-  const assetSelect = document.getElementById('asset_id');
-  const locationSelect = document.getElementById('location_id');
-  const hint = document.getElementById('location-hint');
-  if (!assetSelect || !locationSelect) return;
+/* ── Deriving a location from another record ──
+   Maximo derives a work order's location from its asset, and the same reasoning
+   applies to a child asset, which normally sits wherever its parent does. One
+   implementation serves both: any <select data-summary-url> names an endpoint
+   returning {location_id, location_name, location_path}, and #location_id is
+   filled from whatever it selects.
 
-  // The template is url_for('assets.summary', id=0), i.e. ".../assets/0/summary".
-  // Swapping the trailing "/0/summary" is unambiguous; a bare "0" replacement
-  // would also match a zero elsewhere in the path.
-  const template = assetSelect.dataset.summaryUrl || '';
-  const buildUrl = (id) => template.replace(/\/0\/summary$/, `/${id}/summary`);
+   The two forms want different things when a location is already set, so that
+   is opt-in per form via data-only-when-empty:
+     * work orders and PMs re-derive on every asset change — the asset
+       determines the location, so following it is the point;
+     * the asset form fills only a location the user left blank, because a
+       child asset may legitimately sit somewhere other than its parent and
+       silently relocating it on a parent change would destroy a real choice.
+   A value this code filled in is not "a real choice", so it tracks its own
+   writes and will replace those — otherwise the first auto-fill would freeze
+   the field and picking a different parent would appear to do nothing. */
+function initAssetLocationLink() {
+  const locationSelect = document.getElementById('location_id');
+  const sources = document.querySelectorAll('select[data-summary-url]');
+  if (!locationSelect || !sources.length) return;
+
+  const hint = document.getElementById('location-hint');
+  let autoFilledValue = null;
+
+  // A location the user picks by hand outranks anything derived, so stop
+  // treating the field as ours the moment they touch it themselves.
+  locationSelect.addEventListener('change', () => {
+    if (locationSelect.value !== autoFilledValue) autoFilledValue = null;
+  });
 
   function setHint(message) {
     if (!hint) return;
@@ -246,44 +261,60 @@ function initAssetLocationLink() {
     hint.hidden = !message;
   }
 
-  assetSelect.addEventListener('change', async () => {
-    const assetId = assetSelect.value;
-    if (!assetId) {
-      setHint('');
-      return;
-    }
+  sources.forEach((source) => {
+    // The template is url_for('assets.summary', id=0), i.e. ".../assets/0/summary".
+    // Swapping the trailing "/0/summary" is unambiguous; a bare "0" replacement
+    // would also match a zero elsewhere in the path.
+    const template = source.dataset.summaryUrl || '';
+    const buildUrl = (id) => template.replace(/\/0\/summary$/, `/${id}/summary`);
+    const onlyWhenEmpty = source.dataset.onlyWhenEmpty !== undefined;
 
-    try {
-      const response = await fetch(buildUrl(assetId), {
-        headers: { 'Accept': 'application/json' },
-      });
-      if (!response.ok) return;
-      const data = await response.json();
-
-      if (!data.location_id) {
-        setHint('That asset has no location set.');
+    source.addEventListener('change', async () => {
+      const sourceId = source.value;
+      if (!sourceId) {
+        setHint('');
         return;
       }
 
-      // The picker only lists Active locations, so an asset sitting in a
-      // retired one would have nothing to select — add it rather than silently
-      // doing nothing.
-      let option = locationSelect.querySelector(`option[value="${data.location_id}"]`);
-      if (!option) {
-        option = document.createElement('option');
-        option.value = data.location_id;
-        option.textContent = data.location_name;
-        locationSelect.appendChild(option);
+      if (onlyWhenEmpty && locationSelect.value
+          && locationSelect.value !== autoFilledValue) {
+        return;
       }
-      locationSelect.value = String(data.location_id);
-      // The location picker may have been upgraded to a searchable combobox,
-      // which only re-reads the select when it sees a change event. Setting
-      // .value alone would update the form but not what the user sees.
-      locationSelect.dispatchEvent(new Event('change', { bubbles: true }));
-      setHint(`Location set from asset: ${data.location_path || data.location_name}`);
-    } catch (e) {
-      /* offline or the request failed: leave the field as the user left it */
-    }
+
+      try {
+        const response = await fetch(buildUrl(sourceId), {
+          headers: { 'Accept': 'application/json' },
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+
+        if (!data.location_id) {
+          setHint('That record has no location set.');
+          return;
+        }
+
+        // The picker only lists Active locations, so a record sitting in a
+        // retired one would have nothing to select — add it rather than
+        // silently doing nothing.
+        let option = locationSelect.querySelector(`option[value="${data.location_id}"]`);
+        if (!option) {
+          option = document.createElement('option');
+          option.value = data.location_id;
+          option.textContent = data.location_name;
+          locationSelect.appendChild(option);
+        }
+        locationSelect.value = String(data.location_id);
+        autoFilledValue = locationSelect.value;
+        // The location picker may have been upgraded to a searchable combobox,
+        // which only re-reads the select when it sees a change event. Setting
+        // .value alone would update the form but not what the user sees.
+        locationSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        setHint(`Location set from ${source.dataset.summaryLabel || 'asset'}: `
+                + `${data.location_path || data.location_name}`);
+      } catch (e) {
+        /* offline or the request failed: leave the field as the user left it */
+      }
+    });
   });
 }
 

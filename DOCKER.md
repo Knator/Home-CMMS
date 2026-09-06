@@ -13,8 +13,14 @@ git clone https://github.com/Knator/Home-CMMS.git
 cd Home-CMMS
 cp .env.docker.example .env
 $EDITOR .env                     # at minimum, set TZ
-docker compose up -d
+docker compose up -d --build
 ```
+
+> **Always pass `--build` after the source changes.** This stack builds from the
+> repository rather than pulling a published image, and plain `docker compose up -d`
+> happily reuses the image it built last time. Deleting the working directory and
+> re-cloning does not help — the stale image is what runs, and the symptom is code
+> you have already fixed still misbehaving.
 
 Open `http://<your-host>:8080`. On a fresh instance you land on a **setup page**
 that creates the first administrator account.
@@ -120,7 +126,8 @@ put TLS in front, set `FLASK_ENV=production` and `TRUST_PROXY_HEADERS=1`, and
 read the security notes at the end.
 
 **Check for updates deliberately.** There is no auto-update. Pull, rebuild, and
-restart — migrations run automatically on start.
+restart — migrations run automatically on start. `--build` is not optional: without
+it the old image is reused and nothing you pulled takes effect.
 
 ```bash
 git pull && docker compose up -d --build

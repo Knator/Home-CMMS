@@ -2,8 +2,11 @@
 #
 #   1. cp .env.docker.example .env
 #   2. edit .env  (at minimum set TZ)
-#   3. docker compose up -d
+#   3. docker compose up -d --build
 #   4. docker compose exec cmms python create_admin.py
+#
+# Pass --build every time the source changes: this builds from the repository,
+# and a plain `up -d` silently reuses the previously built image.
 #
 # Then open http://<host>:8080
 

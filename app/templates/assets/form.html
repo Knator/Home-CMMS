@@ -1,4 +1,5 @@
-{% extends 'base.html' %}
+{% extends layout %}
+{% from '_pickers.html' import add_new %}
 {% set is_edit = asset is not none %}
 {% block title %}{{ 'Edit' if is_edit else 'New' }} Asset — Home CMMS{% endblock %}
 {% block page_title %}{{ 'Edit' if is_edit else 'New' }} Asset{% endblock %}
@@ -25,17 +26,21 @@
           </div>
           <div class="form-group">
             <label for="location_id">Location</label>
-            <select name="location_id" id="location_id" data-searchable>
+            <div class="picker-row">
+              <select name="location_id" id="location_id" data-searchable>
               <option value="">— None —</option>
               {% for loc in locations %}
                 <option value="{{ loc.id }}" {{ 'selected' if is_edit and asset.location_id == loc.id }}>{{ loc.name }} ({{ loc.location_number }})</option>
               {% endfor %}
             </select>
+              {{ add_new('location', url_for('locations.create'), 'location_id', 'location') }}
+            </div>
             <span class="field-hint" id="location-hint" hidden></span>
           </div>
           <div class="form-group">
             <label for="parent_id">Parent Asset</label>
-            <select name="parent_id" id="parent_id" data-searchable
+            <div class="picker-row">
+              <select name="parent_id" id="parent_id" data-searchable
                     data-summary-url="{{ url_for('assets.summary', id=0) }}"
                     data-summary-label="parent"
                     data-only-when-empty>
@@ -44,6 +49,8 @@
                 <option value="{{ p.id }}" {{ 'selected' if is_edit and asset.parent_id == p.id }}>{{ p.path_label }} ({{ p.asset_number }})</option>
               {% endfor %}
             </select>
+              {{ add_new('asset', url_for('assets.create'), 'parent_id', 'parent asset') }}
+            </div>
             <span class="field-hint">For sub-assemblies, e.g. a compressor inside an HVAC unit. An asset cannot sit beneath one of its own children. Picking a parent fills in the Location above if you have left it blank.</span>
           </div>
           <div class="form-group">

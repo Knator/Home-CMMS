@@ -362,3 +362,27 @@ def allow_large_upload():
     from flask import request
 
     request.max_content_length = NO_PRACTICAL_UPLOAD_LIMIT
+
+
+# ── creating a record from inside a picker ─────────────────────────────────
+#
+# A form rendered with ?embedded=1 is running in the modal behind a "+" button
+# on another form. Success there must not navigate: the page underneath still
+# holds a half-filled work order. So instead of the usual redirect-to-detail it
+# renders a page that hands the new record back to the opener, which inserts the
+# option and selects it.
+
+def is_embedded():
+    """Whether this request is a create form running inside a picker modal."""
+    from flask import request
+
+    return request.args.get('embedded') == '1'
+
+
+def embedded_created(kind, record_id, label, **extra):
+    """The response a create route returns instead of redirecting."""
+    from flask import render_template
+
+    payload = {'kind': kind, 'id': record_id, 'label': label}
+    payload.update(extra)
+    return render_template('_created.html', payload=payload)

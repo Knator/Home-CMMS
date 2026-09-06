@@ -1,0 +1,28 @@
+{# Handed back to the picker modal instead of a redirect.
+
+   The parent page owns the select that triggered this, so it is told what was
+   created and inserts the option itself. Sending the id and label rather than
+   asking the parent to re-fetch keeps it to one message and no extra request.
+
+   targetOrigin is this instance's own origin, never "*": the payload names a
+   real record, and a wildcard would hand it to any page that framed us. #}
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Created</title></head>
+<body>
+<p>Created. You can close this window.</p>
+<script>
+  (function () {
+    var detail = {{ payload|tojson }};
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ source: 'home-cmms', type: 'record-created',
+                                  detail: detail }, window.location.origin);
+    } else if (window.opener) {
+      window.opener.postMessage({ source: 'home-cmms', type: 'record-created',
+                                  detail: detail }, window.location.origin);
+      window.close();
+    }
+  }());
+</script>
+</body>
+</html>

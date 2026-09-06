@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends layout %}
 {% set is_edit = job_plan is not none %}
 {% block title %}{{ 'Edit' if is_edit else 'New' }} Job Plan — Home CMMS{% endblock %}
 {% block page_title %}{{ 'Edit' if is_edit else 'New' }} Job Plan{% endblock %}

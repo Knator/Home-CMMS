@@ -554,6 +554,118 @@ function initMobileNav() {
 
 document.addEventListener('DOMContentLoaded', initMobileNav);
 
+/* ── Create a record from the picker beside it ──
+   The "+" next to an asset / location / job plan select is a real link to the
+   real create page, so with JS off it opens in a new tab and nothing is lost.
+   Here it opens in a dialog instead, because the form underneath usually holds
+   a half-finished work order that must not be navigated away from.
+
+   The dialog frames the actual create page (?embedded=1 strips the sidebar), so
+   there is no second copy of the form to keep in step — same fields, same
+   validation, same CSRF. On success that page posts the new record back and the
+   option is inserted here, so nothing has to be reloaded to see it. */
+function initCreateModal() {
+  const buttons = document.querySelectorAll('a[data-create-modal]');
+  if (!buttons.length) return;
+
+  let overlay = null;
+  let lastFocus = null;
+  let pending = null;   // the select awaiting a new record
+
+  function close() {
+    if (!overlay) return;
+    overlay.remove();
+    overlay = null;
+    pending = null;
+    document.body.style.overflow = '';
+    if (lastFocus) lastFocus.focus();
+  }
+
+  function open(url, target, label) {
+    close();
+    lastFocus = document.activeElement;
+    pending = document.getElementById(target);
+
+    overlay = document.createElement('div');
+    overlay.className = 'create-modal';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', `Create a new ${label}`);
+
+    const panel = document.createElement('div');
+    panel.className = 'create-modal-panel';
+
+    const bar = document.createElement('div');
+    bar.className = 'create-modal-bar';
+    const title = document.createElement('span');
+    title.textContent = `New ${label}`;
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'create-modal-close';
+    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.innerHTML = '&times;';
+    closeBtn.addEventListener('click', close);
+    bar.appendChild(title);
+    bar.appendChild(closeBtn);
+
+    const frame = document.createElement('iframe');
+    frame.className = 'create-modal-frame';
+    frame.title = `Create a new ${label}`;
+    frame.src = url + (url.includes('?') ? '&' : '?') + 'embedded=1';
+
+    panel.appendChild(bar);
+    panel.appendChild(frame);
+    overlay.appendChild(panel);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+    closeBtn.focus();
+  }
+
+  // The created record arrives from the framed page. Both checks matter: the
+  // origin, because any page can postMessage to us, and the marker, because
+  // other libraries post their own traffic through the same channel.
+  window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin) return;
+    const data = event.data;
+    if (!data || data.source !== 'home-cmms' || data.type !== 'record-created') return;
+    const record = data.detail || {};
+    if (!pending || !record.id) { close(); return; }
+
+    let option = pending.querySelector(`option[value="${record.id}"]`);
+    if (!option) {
+      option = document.createElement('option');
+      option.value = record.id;
+      option.textContent = record.label;
+      pending.appendChild(option);
+    }
+    pending.value = String(record.id);
+    // The searchable combobox and the location-inheritance both listen for
+    // change, so dispatching it is what makes the new value visible and lets a
+    // new asset fill in its location too.
+    pending.dispatchEvent(new Event('change', { bubbles: true }));
+    close();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+  });
+
+  buttons.forEach((button) => {
+    button.addEventListener('click', (e) => {
+      // Let ctrl/cmd-click still open a real tab.
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      open(button.getAttribute('href'),
+           button.dataset.createTarget,
+           button.dataset.createKind.replace('_', ' '));
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initCreateModal);
+
 /* ── Image lightbox ──
    Thumbnails link to the full image, so without JS a click opens it in a new
    tab. With JS, view it in place instead. */

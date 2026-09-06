@@ -49,7 +49,7 @@ Everything is optional. The defaults give a working LAN install.
 | `TRUST_PROXY_HEADERS` | *off* | Set to `1` **only** when a reverse proxy you control sits in front. See below. |
 | `ADMIN_USERNAME` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` | *unset* | Optional unattended first admin. Prefer creating the account interactively so the password never sits in a file. |
 | `SETUP_WINDOW_MINUTES` | `0` (no limit) | Closes the first-run setup page this many minutes after startup. Restart to reopen. |
-| `MAX_UPLOAD_MB` | `50` | Largest single upload, for both attachments and a backup archive being restored. Raise it only if you restore by upload; copying the archive into `instance/backups` has no limit. |
+| `MAX_UPLOAD_MB` | `50` | Largest single **attachment**. Restoring a backup is exempt, however large the archive. |
 | `GUNICORN_TIMEOUT` | `120` | Seconds before a request is killed. The default is generous because a 50 MB upload on a slow link must not be cut off. |
 | `DATABASE_URL` | `sqlite:///instance/home_cmms.db` | Rarely worth changing. |
 | `UPLOAD_FOLDER` | `/app/uploads` | Where attachments live inside the container. |
@@ -189,9 +189,10 @@ confirmation box, and press Restore. The app:
 5. rotates `SECRET_KEY` and signs everyone out — the restored database can map
    the user id in an existing session cookie to a different account.
 
-Uploads are capped by `MAX_UPLOAD_MB` (50 MB by default). For a larger archive,
-copy it into the backups folder instead and pick it from the list — no limit
-applies that way:
+The restore upload has **no size limit** — `MAX_UPLOAD_MB` bounds a single
+attachment, and a backup is the whole instance in one file. Copying a large
+archive into the backups folder and picking it from the list is still faster
+than pushing it through the browser:
 
 ```bash
 docker compose cp home-cmms-backup-YYYYMMDD-HHMMSS.tar.gz \

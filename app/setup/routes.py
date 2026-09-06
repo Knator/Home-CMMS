@@ -34,7 +34,7 @@ from app import maintenance
 from app.extensions import db
 from app.models.user import User
 from app.setup import bp
-from app.utils import utcnow, validate_csrf
+from app.utils import allow_large_upload, utcnow, validate_csrf
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -165,6 +165,7 @@ def restore():
         return render_template('setup/expired.html',
                                minutes=current_app.config['SETUP_WINDOW_MINUTES']), 403
 
+    allow_large_upload()   # before any request.form access, which parses the body
     validate_csrf()
 
     name = request.form.get('name', '').strip()
@@ -196,9 +197,10 @@ def _restore_from(path, label):
     except maintenance.RestoreError as error:
         flash(f'Restore refused: {error}', 'error')
         return redirect(url_for('setup.first_run'))
-    except Exception:
+    except Exception as error:
         current_app.logger.exception('Restore during first-run setup failed')
-        flash('The restore failed part-way. Check the application log.', 'error')
+        flash(f'The restore failed part-way: {error.__class__.__name__}: {error}',
+              'error')
         return redirect(url_for('setup.first_run'))
 
     users = summary.get('counts', {}).get('users', 0)

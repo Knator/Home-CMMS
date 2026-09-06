@@ -11,7 +11,9 @@ from app.admin import bp
 from app.extensions import db
 from app.models.user import User
 from app.models.api_token import ApiToken
-from app.utils import validate_csrf, admin_required, parse_int, utcnow
+from app.utils import (
+    validate_csrf, admin_required, parse_int, utcnow, allow_large_upload,
+)
 from app import maintenance
 from app import security
 
@@ -270,10 +272,10 @@ def _perform_restore(source_path, label):
     except RestoreError as error:
         flash(f'Restore refused: {error}', 'error')
         return _maintenance_result()
-    except Exception:
+    except Exception as error:
         current_app.logger.exception('Restore failed')
-        flash('The restore failed part-way. Check the application log; a safety copy '
-              'of the previous state is in the backups list.', 'error')
+        flash(f'The restore failed part-way: {error.__class__.__name__}: {error}. '
+              'A safety copy of the previous state is in the backups list.', 'error')
         return _maintenance_result()
 
     # Session cookies carry a user id, and the restored database may map that id
@@ -310,6 +312,7 @@ def _perform_restore(source_path, label):
 @admin_required
 def restore_backup():
     """Restore over the live instance. Destroys whatever is there now."""
+    allow_large_upload()   # before any request.form access, which parses the body
     validate_csrf()
 
     if not request.form.get('confirm'):

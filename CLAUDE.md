@@ -437,8 +437,15 @@ backups and system health, Immich's orphaned-file repair, LubeLogger's single-ar
   The setup-screen path takes no safety copy and no confirmation (an instance with no users
   has nothing to lose) and refuses a backup containing no accounts, which would otherwise
   leave an instance nobody can sign into.
-  Upload size is bounded by `MAX_UPLOAD_MB`; restoring from `instance/backups` has no limit,
-  which is the documented route for a large archive.
+  Both restore routes call `allow_large_upload()` **before touching `request.form`**, which
+  lifts `MAX_CONTENT_LENGTH` for that request: a backup is the whole instance in one file,
+  and the cap exists to bound a single attachment. Exceeding it does not yield a tidy 413
+  either — the body is cut off mid-upload and the browser reports a connection reset.
+- `_replace_directory_contents()` swaps what is *inside* `UPLOAD_FOLDER`, never the
+  directory itself. It is a **volume mount point** in Docker, and a mount point cannot be
+  renamed: `os.rename(uploads, uploads + '.replaced')` fails with EBUSY. Uploads are also
+  replaced *before* the database now, so the least reliable step cannot fail after the
+  point of no return and leave records pointing at files that were never restored.
 - **Storage integrity** — attachments are polymorphic with no foreign key, so the table and
   the filesystem can drift. `scan_storage()` is read-only and reports records whose file is
   missing, records whose owning entity is gone, files nothing references, and stale

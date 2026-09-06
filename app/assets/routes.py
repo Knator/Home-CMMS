@@ -17,7 +17,7 @@ from app.services import (
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads, is_image_file,
     entity_upload_dir, discard_thumbnail,
-    parse_date, parse_int, choice,
+    parse_date, parse_int, choice, is_embedded, embedded_created,
 )
 
 ENTITY = 'asset'
@@ -133,6 +133,10 @@ def create():
         # the asset exists — create_asset() has already committed.
         _apply_photo(asset)
         db.session.commit()
+        if is_embedded():
+            return embedded_created(
+                'asset', asset.id, f'{asset.name} ({asset.asset_number})',
+                location_id=asset.location_id)
         flash(f'Asset {asset.asset_number} created.', 'success')
         return redirect(url_for('assets.detail', id=asset.id))
 

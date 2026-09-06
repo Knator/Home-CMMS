@@ -1,0 +1,18 @@
+{# The "+" beside a record picker.
+
+   It is a real link to the real create page, so with JavaScript off (or if the
+   modal fails) it still works — it just opens in a new tab. initCreateModal()
+   upgrades it in place: same URL with ?embedded=1, shown in a dialog over the
+   current form, so a half-filled work order is never navigated away from.
+
+   `target` is the id of the <select> the new record should land in. #}
+{% macro add_new(kind, url, target, label) %}
+  <a class="picker-add" href="{{ url }}" target="_blank" rel="noopener"
+     data-create-modal
+     data-create-kind="{{ kind }}"
+     data-create-target="{{ target }}"
+     title="Create a new {{ label }}"
+     aria-label="Create a new {{ label }}">
+    <span aria-hidden="true">+</span>
+  </a>
+{% endmacro %}

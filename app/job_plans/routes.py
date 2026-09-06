@@ -9,6 +9,7 @@ from app.models.job_plan import (
 from app.models.attachment import Attachment
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads, upload_rows_from_form,
+    is_embedded, embedded_created,
     parse_int,
 )
 
@@ -48,6 +49,8 @@ def create():
         # Attachments are filed under the job plan's id, available after the flush.
         _store_form_uploads(job_plan.id)
         db.session.commit()
+        if is_embedded():
+            return embedded_created('job_plan', job_plan.id, job_plan.name)
         flash('Job plan created.', 'success')
         return redirect(url_for('job_plans.detail', id=job_plan.id))
 

@@ -1,4 +1,5 @@
-{% extends 'base.html' %}
+{% extends layout %}
+{% from '_pickers.html' import add_new %}
 {% block title %}{{ 'Edit' if location else 'New' }} Location — Home CMMS{% endblock %}
 {% block page_title %}{{ 'Edit Location' if location else 'New Location' }}{% endblock %}
 
@@ -15,13 +16,16 @@
         </div>
         <div class="form-group">
           <label for="parent_id">Parent Location</label>
-          <select id="parent_id" name="parent_id" data-searchable>
+          <div class="picker-row">
+            <select id="parent_id" name="parent_id" data-searchable>
             <option value="">— None (top level) —</option>
             {% for p in parents %}
               <option value="{{ p.id }}"
                 {{ 'selected' if location and location.parent_id == p.id }}>{{ p.path_label }} ({{ p.location_number }})</option>
             {% endfor %}
           </select>
+            {{ add_new('location', url_for('locations.create'), 'parent_id', 'parent location') }}
+          </div>
           <span class="field-hint">A location cannot sit beneath one of its own children. Names need only be unique among locations sharing the same parent.</span>
         </div>
         <div class="form-group">

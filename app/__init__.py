@@ -55,6 +55,14 @@ def create_app(config_class=Config, config_overrides=None):
             return None
         return user
 
+    # Form templates extend `layout`, so the same template serves the full page
+    # and the stripped-down version shown inside a picker modal. Done here
+    # rather than in every render_template call, of which there are ten.
+    @app.context_processor
+    def inject_layout():
+        from app.utils import is_embedded
+        return {'layout': 'embedded.html' if is_embedded() else 'base.html'}
+
     app.jinja_env.globals['csrf_token'] = generate_csrf_token
     app.jinja_env.globals['format_file_size'] = format_file_size
     app.jinja_env.globals['format_duration'] = format_duration

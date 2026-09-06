@@ -1598,3 +1598,96 @@ body.nav-open .nav-toggle-bars::after  { transform: translateY(-6px) rotate(-45d
 /* First-run setup: a little wider than the login card, since it asks more. */
 .setup-card { max-width: 440px; }
 .setup-card .code-block { margin: 6px 0 14px; }
+
+/* ── Record pickers with a "+" ── */
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.picker-row > select { flex: 1 1 auto; min-width: 0; }
+
+.picker-add {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--accent);
+  font-size: 20px;
+  line-height: 1;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.picker-add:hover { background: var(--surface-muted-hover); border-color: var(--accent); }
+.picker-add:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The searchable combobox replaces the select with a wrapper; keep it filling
+   the row so the button does not get pushed off the end. */
+.picker-row > .combo { flex: 1 1 auto; min-width: 0; }
+
+/* ── Create-record modal ── */
+.create-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.6);
+}
+.create-modal-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, 100%);
+  height: min(85dvh, 100%);
+  height: min(85vh, 100%);
+  background: var(--card-bg);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+}
+.create-modal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--card-border);
+  font-weight: 600;
+}
+.create-modal-close {
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.create-modal-close:hover { color: var(--text-primary); }
+.create-modal-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  border: 0;
+}
+
+/* The framed create page: no sidebar, so the content should not be inset for
+   one that is not there. */
+body.embedded { background: var(--card-bg); }
+.embedded-content { padding: 16px; height: auto; }
+
+@media (max-width: 700px) {
+  .create-modal { padding: 0; }
+  .create-modal-panel {
+    width: 100%;
+    height: 100dvh;
+    height: 100vh;
+    border-radius: 0;
+  }
+}

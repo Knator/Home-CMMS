@@ -1,4 +1,5 @@
-{% extends 'base.html' %}
+{% extends layout %}
+{% from '_pickers.html' import add_new %}
 {% set is_edit = pm is not none %}
 {% block title %}{{ 'Edit' if is_edit else 'New' }} PM Schedule — Home CMMS{% endblock %}
 {% block page_title %}{{ 'Edit' if is_edit else 'New' }} PM Schedule{% endblock %}
@@ -16,32 +17,41 @@
           </div>
           <div class="form-group">
             <label for="asset_id">Asset</label>
-            <select name="asset_id" id="asset_id" data-searchable
+            <div class="picker-row">
+              <select name="asset_id" id="asset_id" data-searchable
                     data-summary-url="{{ url_for('assets.summary', id=0) }}">
               <option value="">— None —</option>
               {% for a in assets %}
                 <option value="{{ a.id }}" {{ 'selected' if is_edit and pm.asset_id == a.id }}>{{ a.name }} ({{ a.asset_number }}){% if a.location %} — {{ a.location.path_label }}{% endif %}</option>
               {% endfor %}
             </select>
+              {{ add_new('asset', url_for('assets.create'), 'asset_id', 'asset') }}
+            </div>
           </div>
           <div class="form-group">
             <label for="location_id">Location</label>
-            <select name="location_id" id="location_id" data-searchable>
+            <div class="picker-row">
+              <select name="location_id" id="location_id" data-searchable>
               <option value="">— None —</option>
               {% for loc in locations %}
                 <option value="{{ loc.id }}" {{ 'selected' if is_edit and pm.location_id == loc.id }}>{{ loc.name }} ({{ loc.location_number }})</option>
               {% endfor %}
             </select>
+              {{ add_new('location', url_for('locations.create'), 'location_id', 'location') }}
+            </div>
             <span class="field-hint" id="location-hint" hidden></span>
           </div>
           <div class="form-group">
             <label>Job Plan</label>
-            <select name="job_plan_id" data-searchable>
+            <div class="picker-row">
+              <select name="job_plan_id" id="job_plan_id" data-searchable>
               <option value="">— None —</option>
               {% for jp in job_plans %}
                 <option value="{{ jp.id }}" {{ 'selected' if is_edit and pm.job_plan_id == jp.id }}>{{ jp.name }}</option>
               {% endfor %}
             </select>
+              {{ add_new('job_plan', url_for('job_plans.create'), 'job_plan_id', 'job plan') }}
+            </div>
           </div>
           <div class="form-group">
             <label>Interval (days) *</label>

@@ -12,6 +12,7 @@ from app.services import (
 )
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads,
+    is_embedded, embedded_created,
     parse_int, choice,
 )
 
@@ -97,6 +98,10 @@ def create():
             description=request.form.get('description', '').strip() or None,
             notes=request.form.get('notes', '').strip() or None,
         )
+        if is_embedded():
+            return embedded_created(
+                'location', location.id,
+                f'{location.name} ({location.location_number})')
         flash(f'Location {location.location_number} created.', 'success')
         return redirect(url_for('locations.detail', id=location.id))
 

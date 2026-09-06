@@ -360,6 +360,22 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
   select stays in the DOM, enabled and named, so it still submits and remains the single
   source of truth — the widget writes `select.value` and dispatches a `change` event, so
   existing listeners keep working. Without JS you get a plain select.
+- **Creating a record from the picker that needs it** (`_pickers.html`, `initCreateModal()`).
+  Every asset / location / job-plan `<select>` on a form carries a `+`. It is a real link to
+  the real create page (`target="_blank"`, `rel="noopener"`), so with JS off it opens in a
+  tab and nothing is lost; JS upgrades it into a dialog framing that same page with
+  `?embedded=1`. The form underneath usually holds a half-finished work order, so navigating
+  away is exactly what must not happen.
+  The dialog uses an **iframe of the real page**, not a second copy of the form: same fields,
+  same validation, same CSRF, nothing to keep in step. `?embedded=1` is read by a context
+  processor that swaps `layout` from `base.html` to `embedded.html`, which is why every form
+  template says `{% extends layout %}` and no `render_template` call had to change.
+  On success the create route returns `embedded_created()` instead of redirecting — a page
+  that `postMessage`s the new record to the opener, which inserts the option, selects it and
+  dispatches `change` (so the searchable combobox updates *and* a new asset's location is
+  inherited). `targetOrigin` is the instance's own origin, never `'*'`, and the listener
+  checks both origin and a `source: 'home-cmms'` marker. Validation errors re-render inside
+  the dialog because the query string rides along with the POST.
 - `initFieldTooltips()` mirrors each text field's value into its `title`, so hovering shows
   content too long for the box. It skips password fields and leaves an author-supplied
   `title` alone, and is re-run for dynamically added rows.

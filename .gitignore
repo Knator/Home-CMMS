@@ -3,10 +3,21 @@ __pycache__/
 *.pyc
 .env
 .pytest_cache/
+# Anything instance-shaped, not just the exact directory name. A directory
+# called "instance copy" slipped past `instance/` once and carried the
+# database, its backups and every uploaded photo into a public repository.
 instance/
+instance*/
 *.db
 *.db-wal
 *.db-shm
+# Backup artefacts. `*.db` does not match `home_cmms.db.backup-20260902-200110`,
+# because the name does not end in .db — that is exactly how they got committed.
+*.db.backup*
+*.db-snapshot*
+home-cmms-backup-*.tar.gz
+pre-restore-*.tar.gz
+backups/
 uploads/*
 !uploads/.gitkeep
 .idea/

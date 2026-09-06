@@ -175,7 +175,10 @@
         <tbody>
           {% for b in backups %}
           <tr>
-            <td class="mono-cell">{{ b.name }}</td>
+            <td class="mono-cell">
+              {{ b.name }}
+              {% if b.automatic %}<span class="badge badge-inactive">auto</span>{% endif %}
+            </td>
             <td>{{ format_file_size(b.size) }}</td>
             <td class="col-hide-sm">{{ format_datetime(b.created) }}</td>
             <td>
@@ -192,12 +195,67 @@
       <p class="text-muted">No backups yet.</p>
     {% endif %}
 
+  </div>
+</div>
+
+<!-- Restore -->
+<div class="card">
+  <div class="card-header"><span class="card-title">Restore</span></div>
+  <div class="card-body">
+    <p class="field-hint" style="margin-bottom:12px;">
+      Replaces the database and every uploaded file with the contents of a backup.
+      <strong>Everything currently in this instance is discarded.</strong> A copy of the
+      current state is archived first as <code>pre-restore-…</code> so a mistake can be
+      undone, the archive is checked before anything is touched, and any pending database
+      migrations are applied afterwards so an older backup still opens. Everyone is signed
+      out when it finishes.
+    </p>
+
+    <form method="post" action="{{ url_for('admin.restore_backup') }}"
+          enctype="multipart/form-data" class="form-shell">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group">
+        <label for="restore_name">Restore from an existing backup</label>
+        <select id="restore_name" name="name" data-searchable>
+          <option value="">— upload a file instead —</option>
+          {% for b in backups %}
+          <option value="{{ b.name }}">{{ b.name }} ({{ format_file_size(b.size) }})</option>
+          {% endfor %}
+        </select>
+        <div class="field-hint">
+          Anything in <code>{{ status.backups_path }}</code>. Copy an archive
+          there to restore a file this instance did not create — there is no upload size
+          limit that way.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="restore_archive">…or upload a backup archive</label>
+        <input type="file" id="restore_archive" name="archive" accept=".gz,.tgz,application/gzip">
+        <div class="field-hint">
+          No size limit — <code>MAX_UPLOAD_MB</code> caps attachments, not backups.
+          A large archive still uploads faster if you copy it into the backups
+          folder instead.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="confirm" value="1">
+          I understand this permanently replaces all current data.
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-danger"
+                onclick="return confirm('Replace all current data with this backup? This cannot be undone except from the pre-restore copy.')">Restore</button>
+      </div>
+    </form>
+
     <details class="restore-note">
-      <summary>How to restore</summary>
-      <p class="field-hint">
-        Restoring is deliberately a manual step — overwriting a live database from a web
-        form is too easy to do by accident. Stop the application, then:
-      </p>
+      <summary>Restoring by hand instead</summary>
+      <p class="field-hint">Stop the application, then:</p>
       <pre class="code-block">tar -xzf {{ backups[0].name if backups else 'home-cmms-backup-YYYYMMDD-HHMMSS.tar.gz' }} -C /tmp/restore
 cp /tmp/restore/home_cmms.db {{ status.database_path }}
 rm -f {{ status.database_path }}-wal {{ status.database_path }}-shm

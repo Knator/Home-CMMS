@@ -60,6 +60,44 @@
         Create administrator
       </button>
     </form>
+
+    <details class="setup-restore">
+      <summary>Restore from a backup instead</summary>
+      <p class="field-hint" style="margin:10px 0 14px;">
+        Moving an existing instance here, or recovering one? Restore a
+        <code>.tar.gz</code> backup and sign in with an account it contains, rather
+        than creating a new administrator. Nothing is lost: this instance has no
+        data yet.
+      </p>
+      <form method="post" action="{{ url_for('setup.restore') }}"
+            enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if backups %}
+        <div class="form-group" style="margin-bottom:14px;">
+          <label for="restore_name">Backup already on this server</label>
+          <select id="restore_name" name="name">
+            <option value="">— upload a file instead —</option>
+            {% for b in backups %}
+            <option value="{{ b.name }}">{{ b.name }} ({{ format_file_size(b.size) }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div class="form-group" style="margin-bottom:14px;">
+          <label for="restore_archive">Upload a backup archive</label>
+          <input type="file" id="restore_archive" name="archive"
+                 accept=".gz,.tgz,application/gzip">
+          <span class="field-hint">
+            Any size. A backup already on this server can also be copied into the
+            instance <code>backups</code> folder, where it appears in the list above.
+          </span>
+        </div>
+        <button type="submit" class="btn btn-secondary"
+                style="width:100%;justify-content:center;">
+          Restore backup
+        </button>
+      </form>
+    </details>
   </div>
 </div>
 </body>

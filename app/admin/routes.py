@@ -1,15 +1,19 @@
 import os
+import tempfile
 
 from flask import (
     render_template, redirect, url_for, flash, request, send_file, abort, current_app,
+    session,
 )
-from flask_login import login_required, current_user
+from flask_login import login_required, current_user, logout_user
 
 from app.admin import bp
 from app.extensions import db
 from app.models.user import User
 from app.models.api_token import ApiToken
-from app.utils import validate_csrf, admin_required, parse_int, utcnow
+from app.utils import (
+    validate_csrf, admin_required, parse_int, utcnow, allow_large_upload,
+)
 from app import maintenance
 from app import security
 
@@ -256,6 +260,85 @@ def delete_backup(name):
         flash(f'Backup {name} deleted.', 'success')
     else:
         flash('That backup could not be found.', 'error')
+    return _maintenance_result()
+
+
+def _perform_restore(source_path, label):
+    """Shared by both restore entry points. Returns a redirect."""
+    from app.maintenance import RestoreError
+
+    try:
+        summary = maintenance.restore_backup(source_path)
+    except RestoreError as error:
+        flash(f'Restore refused: {error}', 'error')
+        return _maintenance_result()
+    except Exception as error:
+        current_app.logger.exception('Restore failed')
+        flash(f'The restore failed part-way: {error.__class__.__name__}: {error}. '
+              'A safety copy of the previous state is in the backups list.', 'error')
+        return _maintenance_result()
+
+    # Session cookies carry a user id, and the restored database may map that id
+    # to a different account, so every existing session has to stop being valid.
+    # logout_user() also drops the separate remember-me cookie, which the
+    # session cookie's own expiry would not touch.
+    rotated = maintenance.rotate_secret_key()
+    logout_user()
+    session.clear()
+
+    # Flashes are stored in the session, so they are added after it is cleared,
+    # not before. The response cookie is signed with the new key.
+    counts = summary.get('counts', {})
+    detail = ', '.join(f'{value} {name}' for name, value in counts.items())
+    flash(f'Restored from {label}: {detail}.', 'success')
+    if summary.get('safety_copy'):
+        flash(f"The previous state was saved as {summary['safety_copy']} in case this "
+              'was a mistake.', 'info')
+    elif summary.get('safety_error'):
+        flash('The previous state could not be archived first '
+              f"({summary['safety_error']}), so this restore cannot be undone.",
+              'error')
+    if rotated:
+        flash('Everyone has been signed out; please sign in again.', 'info')
+    else:
+        flash('SECRET_KEY is set in the environment, so existing sessions remain '
+              'valid. Change it and restart if that matters to you.', 'error')
+
+    return redirect(url_for('auth.login'))
+
+
+@bp.route('/maintenance/restore', methods=['POST'])
+@login_required
+@admin_required
+def restore_backup():
+    """Restore over the live instance. Destroys whatever is there now."""
+    allow_large_upload()   # before any request.form access, which parses the body
+    validate_csrf()
+
+    if not request.form.get('confirm'):
+        flash('Tick the confirmation box: restoring replaces all current data.', 'error')
+        return _maintenance_result()
+
+    name = request.form.get('name', '').strip()
+    upload = request.files.get('archive')
+
+    if name:
+        if not maintenance.is_backup_name(name):
+            flash('That backup could not be found.', 'error')
+            return _maintenance_result()
+        source = os.path.join(maintenance.backup_dir(), name)
+        if not os.path.isfile(source):
+            flash('That backup could not be found.', 'error')
+            return _maintenance_result()
+        return _perform_restore(source, name)
+
+    if upload and upload.filename:
+        with tempfile.TemporaryDirectory() as scratch:
+            staged = os.path.join(scratch, 'uploaded-backup.tar.gz')
+            upload.save(staged)
+            return _perform_restore(staged, upload.filename)
+
+    flash('Choose a backup to restore, or upload one.', 'error')
     return _maintenance_result()
 
 

@@ -2,8 +2,11 @@
 #
 #   1. cp .env.docker.example .env
 #   2. edit .env  (at minimum set TZ)
-#   3. docker compose up -d
+#   3. docker compose up -d --build
 #   4. docker compose exec cmms python create_admin.py
+#
+# Pass --build every time the source changes: this builds from the repository,
+# and a plain `up -d` silently reuses the previously built image.
 #
 # Then open http://<host>:8080
 
@@ -36,6 +39,10 @@ services:
       # Enable only when a reverse proxy you control sits in front. Otherwise a
       # client can forge X-Forwarded-For and dodge the sign-in rate limit.
       TRUST_PROXY_HEADERS: "${TRUST_PROXY_HEADERS:-}"
+
+      # Largest single attachment in MB. Restoring a backup is exempt from
+      # this, however large the archive.
+      MAX_UPLOAD_MB: "${MAX_UPLOAD_MB:-50}"
 
       # Optional first-admin bootstrap. Prefer creating the account with
       # `docker compose exec` so the password never sits in a file.

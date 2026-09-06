@@ -6,14 +6,21 @@ services — no database server, no Redis, no internet connection required at ru
 ---
 
 ## Quick start
+cd to directory where to want to place project folder.
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/home-cmms.git
-cd home-cmms
+git clone https://github.com/Knator/Home-CMMS.git
+cd Home-CMMS
 cp .env.docker.example .env
 $EDITOR .env                     # at minimum, set TZ
-docker compose up -d
+docker compose up -d --build
 ```
+
+> **Always pass `--build` after the source changes.** This stack builds from the
+> repository rather than pulling a published image, and plain `docker compose up -d`
+> happily reuses the image it built last time. Deleting the working directory and
+> re-cloning does not help — the stale image is what runs, and the symptom is code
+> you have already fixed still misbehaving.
 
 Open `http://<your-host>:8080`. On a fresh instance you land on a **setup page**
 that creates the first administrator account.
@@ -28,7 +35,7 @@ that creates the first administrator account.
 > * set `ADMIN_USERNAME`/`ADMIN_PASSWORD`, so the account is created before
 >   anything starts listening; or
 > * set `SETUP_WINDOW_MINUTES=5`, which closes the page that long after startup
->   and requires a restart to reopen — the approach Portainer takes.
+>   and requires a restart to reopen.
 
 The first start creates the database, generates a signing key, and applies all
 migrations. It takes a few seconds.
@@ -48,6 +55,7 @@ Everything is optional. The defaults give a working LAN install.
 | `TRUST_PROXY_HEADERS` | *off* | Set to `1` **only** when a reverse proxy you control sits in front. See below. |
 | `ADMIN_USERNAME` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` | *unset* | Optional unattended first admin. Prefer creating the account interactively so the password never sits in a file. |
 | `SETUP_WINDOW_MINUTES` | `0` (no limit) | Closes the first-run setup page this many minutes after startup. Restart to reopen. |
+| `MAX_UPLOAD_MB` | `50` | Largest single **attachment**. Restoring a backup is exempt, however large the archive. |
 | `GUNICORN_TIMEOUT` | `120` | Seconds before a request is killed. The default is generous because a 50 MB upload on a slow link must not be cut off. |
 | `DATABASE_URL` | `sqlite:///instance/home_cmms.db` | Rarely worth changing. |
 | `UPLOAD_FOLDER` | `/app/uploads` | Where attachments live inside the container. |
@@ -118,7 +126,8 @@ put TLS in front, set `FLASK_ENV=production` and `TRUST_PROXY_HEADERS=1`, and
 read the security notes at the end.
 
 **Check for updates deliberately.** There is no auto-update. Pull, rebuild, and
-restart — migrations run automatically on start.
+restart — migrations run automatically on start. `--build` is not optional: without
+it the old image is reused and nothing you pulled takes effect.
 
 ```bash
 git pull && docker compose up -d --build
@@ -174,8 +183,39 @@ docker compose start
 
 ### Restoring
 
-Restoring is deliberately manual — overwriting a live database from a web form
-is too easy to do by accident.
+**From the Maintenance page** (Admin → Maintenance → Restore) is the easy path.
+Pick a backup already in `instance/backups`, or upload an archive, tick the
+confirmation box, and press Restore. The app:
+
+1. checks the archive first and refuses anything that is not a Home CMMS backup,
+   so a wrong file costs you nothing;
+2. archives the current state as `pre-restore-<timestamp>.tar.gz` in the backups
+   folder, so a mistake is undoable. These are never pruned by **Keep**;
+3. replaces the database and every uploaded file;
+4. applies any pending migrations, so an older backup still opens;
+5. rotates `SECRET_KEY` and signs everyone out — the restored database can map
+   the user id in an existing session cookie to a different account.
+
+The restore upload has **no size limit** — `MAX_UPLOAD_MB` bounds a single
+attachment, and a backup is the whole instance in one file. Copying a large
+archive into the backups folder and picking it from the list is still faster
+than pushing it through the browser:
+
+```bash
+docker compose cp home-cmms-backup-YYYYMMDD-HHMMSS.tar.gz \
+  cmms:/app/instance/backups/
+```
+
+**From the first-run setup screen.** A fresh instance with no accounts offers
+"Restore from a backup instead" under the account form. That is how you move an
+existing instance to a new host: start the container, restore, sign in with an
+account from the backup. Nothing is overwritten that mattered — the instance has
+no data yet — so there is no confirmation step and no `pre-restore` copy.
+
+If the backup contains no user accounts, setup stays open and says so, rather
+than leaving an instance nobody can sign in to.
+
+**By hand**, if you would rather not do it through the app:
 
 ```bash
 docker compose down
@@ -203,8 +243,13 @@ in. An untested backup is a hope, not a backup.
 
 ### What a restore does not bring back
 
-If `secret_key` is not in the backup, a new one is generated and everyone is
-signed out once. Data is unaffected.
+Backups hold the database and `uploads/` — not `instance/secret_key`. A restore
+through the app deliberately rotates that key anyway, and a manual restore
+generates a new one on first start. Either way everyone is signed out once and
+signs back in with the credentials from the restored database. Data is
+unaffected.
+
+Thumbnails are excluded from backups and rebuild themselves on demand.
 
 ---
 

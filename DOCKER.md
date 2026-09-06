@@ -55,8 +55,8 @@ Everything is optional. The defaults give a working LAN install.
 | `TRUST_PROXY_HEADERS` | *off* | Set to `1` **only** when a reverse proxy you control sits in front. See below. |
 | `ADMIN_USERNAME` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` | *unset* | Optional unattended first admin. Prefer creating the account interactively so the password never sits in a file. |
 | `SETUP_WINDOW_MINUTES` | `0` (no limit) | Closes the first-run setup page this many minutes after startup. Restart to reopen. |
-| `MAX_UPLOAD_MB` | `50` | Largest single **attachment**. Restoring a backup is exempt, however large the archive. |
-| `GUNICORN_TIMEOUT` | `120` | Seconds before a request is killed. The default is generous because a 50 MB upload on a slow link must not be cut off. |
+| `MAX_UPLOAD_MB` | `100` | Largest single **attachment**. Raise it for long video. Restoring a backup is exempt, however large the archive. |
+| `GUNICORN_TIMEOUT` | `120` | Seconds before a request is killed. The default is generous because a 100 MB upload on a slow link must not be cut off. |
 | `DATABASE_URL` | `sqlite:///instance/home_cmms.db` | Rarely worth changing. |
 | `UPLOAD_FOLDER` | `/app/uploads` | Where attachments live inside the container. |
 

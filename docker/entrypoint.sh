@@ -30,7 +30,7 @@ fi
 case "${1:-serve}" in
     serve)
         # One worker, deliberately — see the note in the Dockerfile.
-        # --timeout is generous because a 50 MB upload on a slow link must not
+        # --timeout is generous because a 100 MB upload on a slow link must not
         # be killed mid-request.
         exec gunicorn \
             --workers 1 \

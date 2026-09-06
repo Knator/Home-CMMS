@@ -13,11 +13,16 @@
 <div class="card">
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Username</th><th class="col-hide-sm">Email</th><th>Role</th><th>Status</th><th class="col-hide-sm">Last Login</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th class="col-hide-sm">Email</th><th>Role</th><th>Status</th><th class="col-hide-sm">Last Login</th><th></th></tr></thead>
       <tbody>
         {% for u in users %}
         <tr>
-          <td>{{ u.username }}</td>
+          {# Both, on the one screen where identity matters: the display name is
+             what everywhere else shows, the username is what they sign in with. #}
+          <td>
+            {{ u.label }}
+            {% if u.display_name %}<div class="field-hint">{{ u.username }}</div>{% endif %}
+          </td>
           <td class="col-hide-sm">{{ u.email }}</td>
           <td><span class="badge {{ 'priority-critical' if u.role == 'admin' else 'priority-low' }}">{{ u.role }}</span></td>
           <td>

@@ -17,6 +17,16 @@
           </div>
           {% endif %}
           <div class="form-group full">
+            <label for="display_name">Display Name</label>
+            <input type="text" id="display_name" name="display_name" maxlength="120"
+                   value="{{ user.display_name or '' if is_edit else '' }}">
+            <span class="field-hint">
+              What this person is called on screen — in assignment lists, on work
+              orders, in the corner of every page. Leave it blank to use the
+              username. Sign-in always uses the username.
+            </span>
+          </div>
+          <div class="form-group full">
             <label>Email *</label>
             <input type="email" name="email" value="{{ user.email if is_edit else '' }}" required>
           </div>

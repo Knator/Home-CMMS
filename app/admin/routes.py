@@ -28,7 +28,7 @@ def _other_active_admins(user_id):
 @login_required
 @admin_required
 def users():
-    all_users = User.query.order_by(User.username).all()
+    all_users = sorted(User.query.all(), key=lambda u: u.label.lower())
     return render_template('admin/users.html', users=all_users)
 
 
@@ -62,7 +62,8 @@ def create_user():
                 flash(e, 'error')
             return render_template('admin/user_form.html', user=None)
 
-        user = User(username=username, email=email, role=role)
+        user = User(username=username, email=email, role=role,
+                    display_name=request.form.get('display_name', '').strip() or None)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
@@ -105,6 +106,8 @@ def edit_user(id):
 
         user.email = email
         user.role = role
+        # Blank clears it, which puts the username back on screen.
+        user.display_name = request.form.get('display_name', '').strip() or None
         if new_password:
             user.set_password(new_password)
 

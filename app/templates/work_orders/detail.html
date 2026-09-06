@@ -48,7 +48,7 @@
       </div>
       <div class="detail-field">
         <div class="detail-label">Assigned To</div>
-        <div class="detail-value {{ 'empty' if not wo.assignee }}">{{ wo.assignee.username if wo.assignee else 'Unassigned' }}</div>
+        <div class="detail-value {{ 'empty' if not wo.assignee }}">{{ wo.assignee.label if wo.assignee else 'Unassigned' }}</div>
       </div>
       <div class="detail-field">
         <div class="detail-label">Due Date</div>

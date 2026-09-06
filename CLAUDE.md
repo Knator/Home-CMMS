@@ -362,12 +362,22 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
 - `initFieldTooltips()` mirrors each text field's value into its `title`, so hovering shows
   content too long for the box. It skips password fields and leaves an author-supplied
   `title` alone, and is re-run for dynamically added rows.
-- `initAssetLocationLink()` fetches `/assets/<id>/summary` when the **work order or PM** form's
-  asset changes and copies the asset's location across, the way Maximo derives location from
-  asset. A form opts in with `id="asset_id"`, `id="location_id"`, `data-summary-url` and a
-  `#location-hint` span. It **must dispatch a `change` event** after setting `location.value`:
-  the searchable combobox only re-reads the select on `change`, so a bare assignment updates
-  the submitted value but not what the user sees. It only re-derives on asset change, so a location set by hand afterwards survives; if the asset's location is not in the Active-only picker, the option is injected rather than silently failing
+- `initAssetLocationLink()` copies a location across from another record by fetching
+  `/assets/<id>/summary`, the way Maximo derives location from asset. It drives **three**
+  forms from one implementation: work orders and PMs (from the asset) and the asset form
+  itself (from the **parent asset**). A form opts in with `data-summary-url` on any select
+  plus `id="location_id"` and a `#location-hint` span; `data-summary-label` names the source
+  in the hint. It **must dispatch a `change` event** after setting `location.value`: the
+  searchable combobox only re-reads the select on `change`, so a bare assignment updates the
+  submitted value but not what the user sees. If the location is not in the Active-only
+  picker, the option is injected rather than silently failing.
+  `data-only-when-empty` splits the two behaviours. Work orders and PMs re-derive on every
+  asset change, because the asset *determines* the location. The asset form sets it only
+  when blank: a child asset may legitimately sit somewhere other than its parent, so
+  relocating it on a parent change would destroy a real choice. The code tracks the value it
+  wrote itself and will replace that — otherwise the first auto-fill would freeze the field
+  and picking a different parent would appear to do nothing. `test_location_inheritance.py`
+  pins the attribute contract from both ends, since a rename silently disables the feature
 
 ### REST API (`app/api/`, `/api/v1`)
 Records are addressed by their **numbers** (`AST-00001`, `LOC-00003`), never names: asset

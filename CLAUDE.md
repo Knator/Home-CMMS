@@ -37,6 +37,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env          # optional — every setting has a working default
+                              # (Docker uses .env.docker.example instead)
 flask db upgrade              # creates instance/home_cmms.db
 python create_admin.py        # create the first admin user
 flask run

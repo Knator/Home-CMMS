@@ -88,9 +88,8 @@
           <input type="file" id="restore_archive" name="archive"
                  accept=".gz,.tgz,application/gzip">
           <span class="field-hint">
-            Up to {{ (config.MAX_CONTENT_LENGTH // (1024 * 1024)) }} MB. A larger archive
-            can be copied into the instance <code>backups</code> folder instead, where it
-            appears in the list above.
+            Any size. A backup already on this server can also be copied into the
+            instance <code>backups</code> folder, where it appears in the list above.
           </span>
         </div>
         <button type="submit" class="btn btn-secondary"

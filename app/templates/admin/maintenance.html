@@ -234,8 +234,9 @@
         <label for="restore_archive">…or upload a backup archive</label>
         <input type="file" id="restore_archive" name="archive" accept=".gz,.tgz,application/gzip">
         <div class="field-hint">
-          Up to {{ (config.MAX_CONTENT_LENGTH // (1024 * 1024)) }} MB; raise
-          <code>MAX_UPLOAD_MB</code> for a larger archive.
+          No size limit — <code>MAX_UPLOAD_MB</code> caps attachments, not backups.
+          A large archive still uploads faster if you copy it into the backups
+          folder instead.
         </div>
       </div>
 

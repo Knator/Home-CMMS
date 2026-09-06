@@ -339,3 +339,26 @@ def format_file_size(size_bytes):
         if size_bytes < limit:
             return f"{size_bytes / (limit / 1024):.1f} {unit}"
     return f"{size_bytes / 1024 ** 4:.1f} TB"
+
+
+# A backup archive is the whole instance in one file, so it is legitimately far
+# larger than MAX_CONTENT_LENGTH, which exists to bound a single *attachment*.
+# Werkzeug offers no "unlimited" sentinel — assigning None to
+# request.max_content_length makes it fall back to the config value again — so
+# this is a ceiling high enough to be unlimited for any real instance while
+# still bounding a runaway request.
+NO_PRACTICAL_UPLOAD_LIMIT = 64 * 1024 ** 3  # 64 GB
+
+
+def allow_large_upload():
+    """Lift the per-request upload cap, for restore only.
+
+    Must be called before anything touches request.form or request.files: the
+    limit is enforced by the form parser, and by then it is too late. Exceeding
+    it does not produce a tidy 413 either — the server stops reading the body
+    part-way and the browser reports a connection reset, which is why the cap
+    is lifted here rather than merely raised.
+    """
+    from flask import request
+
+    request.max_content_length = NO_PRACTICAL_UPLOAD_LIMIT

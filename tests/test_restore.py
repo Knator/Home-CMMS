@@ -17,6 +17,7 @@ from flask_migrate import stamp
 from app import maintenance
 from app.maintenance import RestoreError
 from app.models.asset import Asset
+from app.models.attachment import Attachment
 from app.models.user import User
 from app.services import create_asset
 from tests.conftest import CSRF, make_user, prime_csrf
@@ -464,3 +465,108 @@ def test_setup_restore_is_closed_once_an_account_exists(stamped, client, app):
     # Refused before doing anything: the archive was never opened, so the only
     # thing in the backups folder is still the one backup that was made.
     assert [b['name'] for b in maintenance.list_backups()] == [created['name']]
+
+
+# ── the two failures found running this against a real container ───────────
+
+def test_restore_works_when_uploads_is_a_mount_point(stamped, app, monkeypatch):
+    """UPLOAD_FOLDER is a volume mount in Docker, and mount points cannot be renamed.
+
+    The first version moved the directory aside wholesale, which fails with
+    EBUSY on a mount — and did so *after* the database had been swapped, so the
+    instance came back with its records but none of its files.
+    """
+    make_user('alice', role='admin')
+    create_asset(name='Dryer')
+    write_upload(app, 'asset/1/manual.pdf', b'the original manual')
+    created = maintenance.create_backup()
+
+    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], 'asset/1/manual.pdf'))
+    write_upload(app, 'asset/1/wrong.pdf', b'should not survive')
+
+    uploads = os.path.abspath(app.config['UPLOAD_FOLDER'])
+    real_rename = os.rename
+
+    def rename_refusing_the_mount_point(src, dst, *args, **kwargs):
+        if os.path.abspath(src) == uploads:
+            raise OSError(16, 'Device or resource busy')
+        return real_rename(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(os, 'rename', rename_refusing_the_mount_point)
+
+    maintenance.restore_backup(os.path.join(maintenance.backup_dir(), created['name']))
+
+    restored = os.path.join(uploads, 'asset/1/manual.pdf')
+    assert open(restored, 'rb').read() == b'the original manual'
+    assert not os.path.exists(os.path.join(uploads, 'asset/1/wrong.pdf'))
+    # No scaffolding left behind for the storage scan to trip over.
+    assert not [e for e in os.listdir(uploads) if e.startswith('.replaced-')]
+
+
+def test_restore_accepts_an_archive_larger_than_the_attachment_limit(
+        stamped, client, login, app):
+    """A 50.8 MB archive hit MAX_CONTENT_LENGTH and the browser saw a connection
+    reset rather than any error, because the body is cut off mid-upload."""
+    make_user('admin', role='admin')
+    create_asset(name='Compressor')
+    created = maintenance.create_backup()
+    archive_bytes = open(
+        os.path.join(maintenance.backup_dir(), created['name']), 'rb').read()
+
+    Asset.query.delete()
+    # Far below the archive's size, so the request is refused unless the
+    # restore route lifts the cap for itself.
+    app.config['MAX_CONTENT_LENGTH'] = 128
+
+    login('admin')
+    prime_csrf(client)
+    response = client.post('/admin/maintenance/restore', data={
+        'csrf_token': CSRF,
+        'confirm': '1',
+        'archive': (io.BytesIO(archive_bytes), 'big-backup.tar.gz'),
+    }, content_type='multipart/form-data')
+
+    assert response.status_code == 302
+    assert [a.name for a in Asset.query.all()] == ['Compressor']
+
+
+def test_setup_restore_also_accepts_an_oversized_archive(stamped, client, app):
+    make_user('alice', role='admin')
+    create_asset(name='Generator')
+    created = maintenance.create_backup()
+    archive_bytes = open(
+        os.path.join(maintenance.backup_dir(), created['name']), 'rb').read()
+
+    Asset.query.delete()
+    User.query.delete()
+    from app.extensions import db as _db
+    _db.session.commit()
+    app.config['MAX_CONTENT_LENGTH'] = 128
+
+    prime_csrf(client)
+    response = client.post('/setup/restore', data={
+        'csrf_token': CSRF,
+        'archive': (io.BytesIO(archive_bytes), 'big-backup.tar.gz'),
+    }, content_type='multipart/form-data')
+
+    assert response.status_code == 302
+    assert '/auth/login' in response.headers['Location']
+    assert [u.username for u in User.query.all()] == ['alice']
+
+
+def test_ordinary_attachment_uploads_still_respect_the_limit(stamped, client, login, app):
+    """Lifting the cap must apply to restore only, not to every upload."""
+    make_user('admin', role='admin')
+    asset = create_asset(name='Compressor')
+    app.config['MAX_CONTENT_LENGTH'] = 2048
+    login('admin')
+    prime_csrf(client)
+
+    response = client.post(f'/assets/{asset.id}/attachments', data={
+        'csrf_token': CSRF,
+        'file': (io.BytesIO(b'x' * 50_000), 'big.pdf'),
+    }, content_type='multipart/form-data', follow_redirects=True)
+
+    # The 413 handler turns it into a flash rather than a raw error page.
+    assert b'too large' in response.data
+    assert Attachment.query.count() == 0

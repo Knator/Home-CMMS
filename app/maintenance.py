@@ -543,6 +543,48 @@ def _safety_snapshot():
     return name
 
 
+def _replace_directory_contents(source, target):
+    """Swap what is *inside* a directory, never the directory itself.
+
+    UPLOAD_FOLDER is a mount point in a container (docker-compose maps a volume
+    onto /app/uploads), and a mount point cannot be renamed or removed: the
+    obvious `os.rename(uploads, uploads + '.replaced')` fails with EBUSY. That
+    aborted the restore *after* the database had already been swapped, which is
+    the worst possible place to stop.
+
+    So only children are moved. The old ones are set aside inside the target —
+    the one place guaranteed to be on the same filesystem, so the move is a
+    rename and not a copy — and deleted once the new set has landed.
+    """
+    os.makedirs(target, exist_ok=True)
+    aside = os.path.join(target, f'.replaced-{os.getpid()}-{int(time.time())}')
+    os.makedirs(aside, exist_ok=True)
+
+    try:
+        for entry in os.listdir(target):
+            if entry == os.path.basename(aside):
+                continue
+            shutil.move(os.path.join(target, entry), os.path.join(aside, entry))
+
+        for entry in sorted(os.listdir(source)):
+            origin = os.path.join(source, entry)
+            destination = os.path.join(target, entry)
+            if os.path.isdir(origin):
+                shutil.copytree(origin, destination)
+            else:
+                shutil.copy2(origin, destination)
+    except Exception:
+        # Put back whatever was moved, so a failure here leaves the attachments
+        # as they were rather than half-swapped.
+        for entry in os.listdir(aside):
+            destination = os.path.join(target, entry)
+            if not os.path.exists(destination):
+                shutil.move(os.path.join(aside, entry), destination)
+        raise
+    finally:
+        shutil.rmtree(aside, ignore_errors=True)
+
+
 def restore_backup(path, take_safety_copy=True):
     """Replace the database and uploads with the contents of an archive.
 
@@ -576,6 +618,14 @@ def restore_backup(path, take_safety_copy=True):
             archive.extractall(scratch, members=list(_safe_members(archive)),
                                filter='data')
 
+        # Uploads first, database last. Both are points of no return, but the
+        # database swap is a single copy of one file and is by far the least
+        # likely to fail, so doing it last keeps the window in which a failure
+        # leaves records pointing at missing files as small as possible.
+        restored_uploads = os.path.join(scratch, 'uploads')
+        if os.path.isdir(restored_uploads):
+            _replace_directory_contents(restored_uploads, uploads)
+
         # Close pooled connections so the file underneath can be swapped, and
         # drop any session state pointing at the old database.
         db.session.remove()
@@ -588,15 +638,6 @@ def restore_backup(path, take_safety_copy=True):
             sidecar = f'{db_path}{suffix}'
             if os.path.exists(sidecar):
                 os.remove(sidecar)
-
-        restored_uploads = os.path.join(scratch, 'uploads')
-        if os.path.isdir(restored_uploads):
-            previous = f'{uploads}.replaced'
-            shutil.rmtree(previous, ignore_errors=True)
-            if os.path.isdir(uploads):
-                os.rename(uploads, previous)
-            shutil.copytree(restored_uploads, uploads)
-            shutil.rmtree(previous, ignore_errors=True)
 
         db.engine.dispose()
 

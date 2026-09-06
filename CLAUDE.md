@@ -213,6 +213,21 @@ in increasing order of strictness: a loud warning logged on every start while it
 `SETUP_WINDOW_MINUTES` to bound the window Portainer-style; or `ADMIN_*` env vars, which
 create the account before anything listens and close the window entirely.
 
+### User display names
+`User.display_name` is what people are called on screen; `username` remains the identity —
+unique, what authenticates, and what the API addresses users by. `User.label` renders one or
+the other, mirroring `Attachment.label`, and every display site goes through it.
+
+The column is **nullable rather than seeded with the username**, so NULL means "not set" and
+the label keeps following a renamed username; a copy taken at creation would silently go
+stale. It is deliberately **not unique** — two people called Alex is a real situation, and
+this never addresses anybody. Clearing the field stores NULL, not `''`, which puts the
+username back.
+
+Lists of users are sorted in Python by `label`, since ordering by username looks arbitrary
+once the two differ. The **API keeps reporting `username`** in `assigned_to`: clients POST
+that value back to assign work, and a non-unique display name cannot address a user.
+
 ### Auth & Security
 - Passwords: `werkzeug.security.generate_password_hash` (pbkdf2:sha256)
 - CSRF: `generate_csrf_token()` / `validate_csrf()` in `app/utils.py` (constant-time compare); every POST form includes `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">`

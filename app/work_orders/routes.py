@@ -93,7 +93,10 @@ def _form_options(wo=None):
         assets=selectable_assets(include_id=wo.asset_id if wo else None),
         locations=selectable_locations(include_id=wo.location_id if wo else None),
         job_plans=JobPlan.query.order_by(JobPlan.name).all(),
-        users=User.query.filter_by(is_active=True).order_by(User.username).all(),
+        # Sorted by what the list actually shows. Ordering by username would
+        # look arbitrary once display names differ from it.
+        users=sorted(User.query.filter_by(is_active=True).all(),
+                     key=lambda u: u.label.lower()),
         statuses=WO_STATUSES, priorities=WO_PRIORITIES, wo_types=WO_TYPES,
     )
 

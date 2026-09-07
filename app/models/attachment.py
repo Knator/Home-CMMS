@@ -33,6 +33,12 @@ class Attachment(db.Model):
         return self.extension in current_app.config['IMAGE_EXTENSIONS']
 
     @property
+    def is_viewable(self):
+        """Whether clicking the name should show it rather than download it."""
+        from flask import current_app
+        return self.extension in current_app.config['VIEWABLE_EXTENSIONS']
+
+    @property
     def extension(self):
         _, _, ext = self.original_filename.rpartition('.')
         return ext.lower() if ext else ''

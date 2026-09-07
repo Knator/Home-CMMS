@@ -1,6 +1,10 @@
 {# Shared attachment UI. Used by every entity detail page so naming, previews,
    renaming and deleting behave identically wherever files are shown. #}
 
+{# The preview slot is always a link, whether or not there is a thumbnail to
+   put in it. A video or a PDF has no thumbnail but is still worth opening, so
+   its extension chip goes to the same place the file name does; a format that
+   cannot be displayed downloads instead. #}
 {% macro preview(att) %}
   {% if att.is_image and thumbnails_available %}
     {# href works without JS (opens the full image in a tab); the lightbox
@@ -8,16 +12,55 @@
     <a class="attachment-thumb" href="{{ url_for('attachments.inline', id=att.id) }}"
        data-lightbox data-caption="{{ att.label }}" target="_blank" rel="noopener"
        aria-label="View {{ att.label }} full size">
-      {# If the preview cannot be produced the request 404s; swap in the
-         extension chip rather than leaving a broken image. #}
+      {# If the preview cannot be produced the request 404s. The chip is
+         rendered up front and merely revealed, rather than built as an HTML
+         string inside the handler. secure_filename() already strips the quotes
+         that would be needed to break out of that string, so this is not a
+         live hole being closed — it removes the dependency on that being true,
+         and keeps the surrounding link, which rebuilding the element destroyed. #}
       <img src="{{ url_for('attachments.thumbnail', id=att.id) }}"
            alt="Preview of {{ att.label }}" loading="lazy" decoding="async"
-           onerror="this.closest('.attachment-thumb').outerHTML =
-                    '<span class=\'attachment-icon\' aria-hidden=\'true\'>{{ att.extension | upper or 'FILE' }}</span>';">
+           onerror="this.hidden = true; this.nextElementSibling.hidden = false;">
+      <span class="attachment-icon attachment-icon-inset" hidden
+            aria-hidden="true">{{ att.extension | upper or 'FILE' }}</span>
     </a>
+  {% elif att.is_viewable %}
+    <a class="attachment-icon" href="{{ url_for('attachments.inline', id=att.id) }}"
+       {% if att.is_image %}data-lightbox data-caption="{{ att.label }}"{% endif %}
+       target="_blank" rel="noopener" aria-label="View {{ att.label }}"
+       >{{ att.extension | upper or 'FILE' }}</a>
   {% else %}
-    <span class="attachment-icon" aria-hidden="true">{{ att.extension | upper or 'FILE' }}</span>
+    <a class="attachment-icon" href="{{ url_for('attachments.download', id=att.id) }}"
+       download aria-label="Download {{ att.label }}"
+       title="This file type cannot be shown in the browser"
+       >{{ att.extension | upper or 'FILE' }}</a>
   {% endif %}
+{% endmacro %}
+
+
+{# Clicking the name views the file, the way clicking the thumbnail does:
+   images open in the lightbox, everything else the browser can render opens in
+   a tab. A format that cannot be displayed — a CAD file, an archive — has
+   nothing to show, so its name still downloads. The Download button beside it
+   is how you save any of them regardless. #}
+{% macro name_link(att) %}
+  {% if att.is_image %}
+    <a class="attachment-name" href="{{ url_for('attachments.inline', id=att.id) }}"
+       data-lightbox data-caption="{{ att.label }}" target="_blank" rel="noopener">{{ att.label }}</a>
+  {% elif att.is_viewable %}
+    <a class="attachment-name" href="{{ url_for('attachments.inline', id=att.id) }}"
+       target="_blank" rel="noopener">{{ att.label }}</a>
+  {% else %}
+    <a class="attachment-name" href="{{ url_for('attachments.download', id=att.id) }}"
+       title="This file type cannot be shown in the browser">{{ att.label }}</a>
+  {% endif %}
+{% endmacro %}
+
+
+{% macro download_button(att) %}
+  <a class="btn btn-ghost btn-sm" download
+     href="{{ url_for('attachments.download', id=att.id) }}"
+     aria-label="Download {{ att.label }}">Download</a>
 {% endmacro %}
 
 
@@ -28,12 +71,13 @@
     <li class="attachment-item">
       {{ preview(att) }}
       <div class="attachment-main">
-        <a class="attachment-name" href="{{ url_for('attachments.download', id=att.id) }}">{{ att.label }}</a>
+        {{ name_link(att) }}
         {% if att.display_name %}
           <span class="attachment-file" title="Stored filename">{{ att.original_filename }}</span>
         {% endif %}
       </div>
       <span class="attachment-meta">{{ format_file_size(att.file_size) }} · {{ format_datetime(att.uploaded_at, '%Y-%m-%d') }}</span>
+      {{ download_button(att) }}
       <details class="attachment-rename">
         <summary class="btn btn-ghost btn-sm">Rename</summary>
         <form method="post" action="{{ url_for('attachments.rename', id=att.id) }}" class="rename-form">
@@ -75,13 +119,14 @@
     <li class="attachment-item">
       {{ preview(item.attachment) }}
       <div class="attachment-main">
-        <a class="attachment-name" href="{{ url_for('attachments.download', id=item.attachment.id) }}">{{ item.attachment.label }}</a>
+        {{ name_link(item.attachment) }}
         {% if item.attachment.display_name %}
           <span class="attachment-file">{{ item.attachment.original_filename }}</span>
         {% endif %}
       </div>
       <span class="source-tag">{{ item.source_label }}: {{ item.source_name }}</span>
       <span class="attachment-meta">{{ format_file_size(item.attachment.file_size) }}</span>
+      {{ download_button(item.attachment) }}
     </li>
     {% endfor %}
   </ul>

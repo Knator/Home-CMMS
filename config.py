@@ -185,3 +185,23 @@ class Config:
     # can carry script, and HEIC/TIFF/raw because the browser cannot show them —
     # they are downloadable, just not previewable.
     IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif'}
+
+    # Served inline, so the browser renders them instead of saving them. Wider
+    # than IMAGE_EXTENSIONS because a PDF manual or a clip of a fault is worth
+    # looking at without downloading first — but still a curated list, because
+    # inline is the disposition where content type matters.
+    #
+    # Everything here is either inert to a browser (raster images, video, audio)
+    # or forced to text/plain below. Nothing that a browser would parse as
+    # markup is in it, and `html`, `htm`, `xhtml` and `svg` cannot be uploaded
+    # in the first place. Responses carry nosniff, so the declared type is the
+    # one the browser uses.
+    TEXT_VIEW_EXTENSIONS = {'txt', 'md', 'log', 'csv', 'tsv', 'json', 'xml',
+                            'yaml', 'yml'}
+    VIEWABLE_EXTENSIONS = (
+        IMAGE_EXTENSIONS
+        | {'pdf'}
+        | {'mp4', 'm4v', 'mov', 'webm', 'ogg'}          # what browsers play
+        | {'mp3', 'm4a', 'wav', 'aac', 'oga', 'opus', 'flac'}
+        | TEXT_VIEW_EXTENSIONS
+    )

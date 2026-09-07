@@ -134,6 +134,22 @@ def is_image_file(filename):
     )
 
 
+def is_viewable_file(filename):
+    """Whether this may be served inline for the browser to render."""
+    return (
+        '.' in filename and
+        filename.rsplit('.', 1)[1].lower() in current_app.config['VIEWABLE_EXTENSIONS']
+    )
+
+
+def is_text_view_file(filename):
+    """Text-ish formats, which are forced to text/plain when served inline."""
+    return (
+        '.' in filename and
+        filename.rsplit('.', 1)[1].lower() in current_app.config['TEXT_VIEW_EXTENSIONS']
+    )
+
+
 def entity_upload_dir(entity_type, entity_id):
     return os.path.join(current_app.config['UPLOAD_FOLDER'], entity_type, str(entity_id))
 

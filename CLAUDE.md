@@ -334,6 +334,22 @@ refuses to stand in with an original larger than `THUMBNAIL_FALLBACK_MAX_BYTES` 
 preview. A thumbnail that still fails degrades to the extension chip via `onerror`. The cache lives outside the per-entity upload directory, so
 `purge_entity_attachments()` and the delete routes clear it explicitly.
 
+**Viewing versus downloading.** Clicking an attachment's **name** shows the file; a separate
+Download button beside Rename saves it. `attachments.inline` serves
+`VIEWABLE_EXTENSIONS` — images, PDF, the video and audio formats browsers play, and text —
+which is deliberately **wider than `IMAGE_EXTENSIONS`** (what gets thumbnails) and
+**narrower than `ALLOWED_EXTENSIONS`** (what can be uploaded). A CAD file or an archive has
+nothing to show, so its name downloads instead and `inline` 404s.
+
+Inline is the disposition where content type matters, so: `nosniff` on every response, no
+markup format in the set (`html`/`svg` cannot even be uploaded), and `TEXT_VIEW_EXTENSIONS`
+are forced to `text/plain` — served as its own type, XML can carry a stylesheet that runs
+script in this origin.
+
+`name_link()` and `download_button()` in `_attachments.html` are shared by the owned and
+related lists, so both behave identically. Note `Attachment.is_viewable`, like `is_image`,
+imports `current_app` **inside** the property — the module does not import it at top level.
+
 Clicking a thumbnail opens the full image in a lightbox via `attachments.inline`
 (`as_attachment=False`), so it is viewed rather than downloaded. The anchor's `href` points
 at the same URL, so without JavaScript the click just opens the image in a new tab.

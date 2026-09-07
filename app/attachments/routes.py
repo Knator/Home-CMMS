@@ -8,6 +8,7 @@ from app.extensions import db
 from app.models.attachment import Attachment
 from app.utils import (
     validate_csrf, entity_upload_dir, is_image_file, build_thumbnail, discard_thumbnail,
+    is_viewable_file, is_text_view_file,
     THUMBNAIL_FALLBACK_MAX_BYTES,
 )
 
@@ -58,20 +59,27 @@ def _back_to_entity(entity_type, entity_id):
 @bp.route('/<int:id>/inline')
 @login_required
 def inline(id):
-    """Serve an image for display in an <img> tag rather than as a download.
+    """Serve a file for the browser to render rather than save.
 
-    Restricted to raster image extensions and sent with nosniff, so a file that
-    is not really an image cannot be coaxed into executing in the page.
+    Restricted to VIEWABLE_EXTENSIONS — images, PDF, the video and audio formats
+    browsers play, and text — and sent with nosniff, so a file that is not
+    really what its extension claims cannot be sniffed into something that
+    executes. Text-ish formats are forced to text/plain: served as their own
+    type, XML in particular can carry a stylesheet that runs script in this
+    origin, and as plain text it cannot.
     """
     att = db.get_or_404(Attachment, id)
-    if not is_image_file(att.original_filename):
+    if not is_viewable_file(att.original_filename):
         abort(404)
 
     file_path = _attachment_path(att)
     if not os.path.exists(file_path):
         abort(404)
 
-    response = send_file(file_path, as_attachment=False)
+    kwargs = {'as_attachment': False}
+    if is_text_view_file(att.original_filename):
+        kwargs['mimetype'] = 'text/plain'
+    response = send_file(file_path, **kwargs)
     response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
 

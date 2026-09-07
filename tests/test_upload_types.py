@@ -113,12 +113,15 @@ def test_only_browser_renderable_images_are_served_inline(app):
     assert 'svg' not in inline and 'svg' not in allowed
 
 
-def test_video_is_never_served_inline(app, signed_in, wo):
-    """A video is not an image; the inline route must refuse it."""
+def test_video_is_viewable_but_is_still_not_an_image(app, signed_in, wo):
+    """Video is served inline so it can be watched in place — but it is not an
+    image, so it gets no thumbnail and cannot be an asset photo."""
     upload(signed_in, wo.id, 'clip.mp4')
     att = Attachment.query.filter_by(original_filename='clip.mp4').one()
-    assert signed_in.get(f'/attachments/{att.id}/inline').status_code == 404
+    assert signed_in.get(f'/attachments/{att.id}/inline').status_code == 200
     assert signed_in.get(f'/attachments/{att.id}/download').status_code == 200
+    assert att.is_viewable and not att.is_image
+    assert 'mp4' not in app.config['IMAGE_EXTENSIONS']
 
 
 # ── the size limit ─────────────────────────────────────────────────────────

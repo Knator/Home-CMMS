@@ -134,6 +134,22 @@ def is_image_file(filename):
     )
 
 
+def is_viewable_file(filename):
+    """Whether this may be served inline for the browser to render."""
+    return (
+        '.' in filename and
+        filename.rsplit('.', 1)[1].lower() in current_app.config['VIEWABLE_EXTENSIONS']
+    )
+
+
+def is_text_view_file(filename):
+    """Text-ish formats, which are forced to text/plain when served inline."""
+    return (
+        '.' in filename and
+        filename.rsplit('.', 1)[1].lower() in current_app.config['TEXT_VIEW_EXTENSIONS']
+    )
+
+
 def entity_upload_dir(entity_type, entity_id):
     return os.path.join(current_app.config['UPLOAD_FOLDER'], entity_type, str(entity_id))
 
@@ -195,7 +211,10 @@ def store_uploads(entity_type, entity_id, rows, uploaded_by):
     saved, errors = [], []
     for file, display_name in rows:
         if not allowed_file(file.filename):
-            errors.append(f"'{file.filename}' was not saved — that file type is not allowed.")
+            # Naming the extension beats listing the ~100 that are accepted.
+            suffix = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+            detail = f'.{suffix} files are not accepted' if suffix else 'it has no file extension'
+            errors.append(f"'{file.filename}' was not saved — {detail}.")
             continue
         stored, original, size, mime = save_attachment(file, entity_type, entity_id)
         attachment = Attachment(

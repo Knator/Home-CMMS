@@ -554,6 +554,57 @@ function initMobileNav() {
 
 document.addEventListener('DOMContentLoaded', initMobileNav);
 
+/* ── Warning before abandoning a part-filled form ──
+   A misclick on a sidebar link throws away a long work order with no warning.
+   beforeunload covers every way of leaving — link, back button, reload, closing
+   the tab — in one place, at the cost of a browser-controlled dialog whose
+   wording cannot be set. That trade is worth it: intercepting clicks instead
+   would cover in-app links only, and silently miss the back button.
+
+   Dirtiness is decided by comparing the form against a snapshot taken at load,
+   not by watching for keystrokes, so typing something and then undoing it does
+   not leave the page falsely "dirty" and nagging on the way out. */
+function initUnsavedWarning() {
+  const form = document.querySelector('form[data-warn-unsaved]');
+  if (!form) return;
+
+  let submitting = false;
+
+  function snapshot() {
+    // Named controls in DOM order, so adding, removing or reordering a
+    // repeatable row registers as a change like any edit. File inputs
+    // contribute their filename because File objects are not comparable, and
+    // the combobox's filter input is skipped: it has no name, and typing in it
+    // changes nothing until an option is actually chosen.
+    return Array.from(form.elements)
+      .filter((el) => el.name)
+      .map((el) => (el.type === 'checkbox' || el.type === 'radio'
+        ? `${el.name}\u0000${el.checked ? 1 : 0}`
+        : `${el.name}\u0000${el.value}`))
+      .join('\u0001');
+  }
+
+  const original = snapshot();
+  const isDirty = () => !submitting && snapshot() !== original;
+
+  // Saving is not abandoning. Any submit on the page counts, so deleting from
+  // an edit screen does not argue with you about the edits you are discarding
+  // on purpose.
+  document.addEventListener('submit', () => { submitting = true; }, true);
+
+  window.addEventListener('beforeunload', (event) => {
+    if (!isDirty()) return;
+    event.preventDefault();
+    event.returnValue = '';   // some browsers still require this to prompt
+  });
+
+  // Removing an iframe does not run its beforeunload, so a create form open in
+  // the picker modal has to be asked directly before the dialog is torn down.
+  window.homeCmmsFormDirty = isDirty;
+}
+
+document.addEventListener('DOMContentLoaded', initUnsavedWarning);
+
 /* ── Create a record from the picker beside it ──
    The "+" next to an asset / location / job plan select is a real link to the
    real create page, so with JS off it opens in a new tab and nothing is lost.
@@ -572,8 +623,24 @@ function initCreateModal() {
   let lastFocus = null;
   let pending = null;   // the select awaiting a new record
 
-  function close() {
+  // The framed page is same-origin, so it can be asked whether it holds unsaved
+  // work. It has to be asked: tearing an iframe out of the DOM does not run its
+  // beforeunload, so the usual warning never fires for the dialog.
+  function frameIsDirty() {
+    try {
+      const frame = overlay && overlay.querySelector('iframe');
+      const win = frame && frame.contentWindow;
+      return !!(win && typeof win.homeCmmsFormDirty === 'function'
+                && win.homeCmmsFormDirty());
+    } catch (e) {
+      return false;   // torn down mid-check, or not readable
+    }
+  }
+
+  function close(force) {
     if (!overlay) return;
+    if (!force && frameIsDirty()
+        && !window.confirm('Discard this part-filled form?')) return;
     overlay.remove();
     overlay = null;
     pending = null;
@@ -582,7 +649,7 @@ function initCreateModal() {
   }
 
   function open(url, target, label) {
-    close();
+    close(true);
     lastFocus = document.activeElement;
     pending = document.getElementById(target);
 
@@ -604,7 +671,9 @@ function initCreateModal() {
     closeBtn.className = 'create-modal-close';
     closeBtn.setAttribute('aria-label', 'Close');
     closeBtn.innerHTML = '&times;';
-    closeBtn.addEventListener('click', close);
+    // Not `('click', close)`: that hands the event object in as `force`,
+    // which is truthy, and the unsaved-work check would never run.
+    closeBtn.addEventListener('click', () => close());
     bar.appendChild(title);
     bar.appendChild(closeBtn);
 
@@ -631,7 +700,7 @@ function initCreateModal() {
     const data = event.data;
     if (!data || data.source !== 'home-cmms' || data.type !== 'record-created') return;
     const record = data.detail || {};
-    if (!pending || !record.id) { close(); return; }
+    if (!pending || !record.id) { close(true); return; }
 
     let option = pending.querySelector(`option[value="${record.id}"]`);
     if (!option) {
@@ -645,7 +714,7 @@ function initCreateModal() {
     // change, so dispatching it is what makes the new value visible and lets a
     // new asset fill in its location too.
     pending.dispatchEvent(new Event('change', { bubbles: true }));
-    close();
+    close(true);
   });
 
   document.addEventListener('keydown', (e) => {

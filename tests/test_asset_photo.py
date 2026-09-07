@@ -148,16 +148,25 @@ def test_inline_route_serves_the_image(client, db, user, login):
     assert response.headers['X-Content-Type-Options'] == 'nosniff'
 
 
-def test_inline_route_refuses_non_images(client, db, user, login):
-    """Only raster images may be served inline."""
+def test_inline_route_refuses_what_the_browser_cannot_display(client, db, user, login):
+    """Inline is no longer images-only — a PDF is viewable, and so are video,
+    audio and text. It is still a curated list, so a format with nothing to
+    show is refused rather than rendered."""
     asset = create_asset(name='Furnace')
     login()
-    client.post(f'/assets/{asset.id}/attachments',
-                data={'file': (io.BytesIO(b'%PDF'), 'manual.pdf'), 'csrf_token': CSRF},
-                content_type='multipart/form-data')
-    pdf = Attachment.query.filter_by(original_filename='manual.pdf').one()
+    for content, filename in ((b'%PDF', 'manual.pdf'), (b'DWG', 'layout.dwg')):
+        client.post(f'/assets/{asset.id}/attachments',
+                    data={'file': (io.BytesIO(content), filename), 'csrf_token': CSRF},
+                    content_type='multipart/form-data')
 
-    assert client.get(f'/attachments/{pdf.id}/inline').status_code == 404
+    pdf = Attachment.query.filter_by(original_filename='manual.pdf').one()
+    dwg = Attachment.query.filter_by(original_filename='layout.dwg').one()
+
+    assert client.get(f'/attachments/{pdf.id}/inline').status_code == 200
+    assert client.get(f'/attachments/{dwg.id}/inline').status_code == 404
+    # Being viewable does not make it a photo: that is a separate check, and
+    # test_non_image_upload_is_rejected covers it.
+    assert not pdf.is_image
 
 
 def test_inline_route_requires_login(client, db, user, login):

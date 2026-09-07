@@ -130,10 +130,78 @@ class Config:
     # Applies to any single request, so it caps both an attachment and an
     # uploaded backup archive. Raise it if you restore by upload and your
     # archive is larger; restoring from instance/backups has no such limit.
-    MAX_UPLOAD_MB = int(os.environ.get('MAX_UPLOAD_MB', '50') or 50)
+    # 100 MB by default: a phone clip of a fault is easily tens of megabytes,
+    # and a video of the noise a pump is making is often the whole point of the
+    # attachment.
+    MAX_UPLOAD_MB = int(os.environ.get('MAX_UPLOAD_MB', '100') or 100)
     MAX_CONTENT_LENGTH = MAX_UPLOAD_MB * 1024 * 1024
-    ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp',
-                          'doc', 'docx', 'txt', 'xlsx', 'csv', 'zip'}
-    # Raster formats only. SVG is deliberately excluded: it can carry script and
-    # these are served inline rather than as a download.
-    IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
+    # Everything here is only ever handed back by the download route, which
+    # always sends as_attachment=True — the browser saves it rather than
+    # rendering it. The inline route serves IMAGE_EXTENSIONS and nothing else.
+    #
+    # Still an allowlist rather than a denylist, and it deliberately holds no
+    # executable or script format (exe, msi, bat, cmd, ps1, sh, jar, js, vbs)
+    # and no markup that a browser would run if it ever were rendered (html,
+    # htm, xhtml, svg). Nothing in the app executes an upload, so this is depth
+    # rather than the only defence: it stops the instance being used as a
+    # convenient place to host someone else's malware.
+    DOCUMENT_EXTENSIONS = {
+        'pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'md',
+        'xls', 'xlsx', 'ods', 'csv', 'tsv',
+        'ppt', 'pptx', 'odp',
+    }
+    IMAGE_FILE_EXTENSIONS = {
+        'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif',
+        # Raw and phone formats: kept downloadable even though the browser
+        # cannot display them and Pillow cannot thumbnail them unaided.
+        'heic', 'heif', 'tif', 'tiff', 'dng', 'raw', 'cr2', 'nef', 'arw',
+    }
+    VIDEO_EXTENSIONS = {
+        'mp4', 'm4v', 'mov', 'webm', 'mkv', 'avi', 'wmv', 'mpg', 'mpeg', '3gp',
+    }
+    AUDIO_EXTENSIONS = {
+        'mp3', 'm4a', 'wav', 'aac', 'ogg', 'oga', 'opus', 'flac', 'wma',
+    }
+    # 2D drawings, 3D models and the native formats of the common packages.
+    CAD_EXTENSIONS = {
+        'dwg', 'dxf', 'dwf', 'dgn',
+        'step', 'stp', 'iges', 'igs', 'stl', '3mf', 'obj', 'ply', '3ds',
+        'skp', 'f3d', 'f3z', 'sldprt', 'sldasm', 'slddrw',
+        'ipt', 'iam', 'idw', 'catpart', 'catproduct', 'prt', 'asm',
+        'scad', 'gcode', 'x_t', 'x_b', 'sat',
+    }
+    ARCHIVE_EXTENSIONS = {'zip', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'rar'}
+    DATA_EXTENSIONS = {'json', 'xml', 'yaml', 'yml', 'log', 'ics', 'eml', 'vcf'}
+
+    ALLOWED_EXTENSIONS = (
+        DOCUMENT_EXTENSIONS | IMAGE_FILE_EXTENSIONS | VIDEO_EXTENSIONS
+        | AUDIO_EXTENSIONS | CAD_EXTENSIONS | ARCHIVE_EXTENSIONS
+        | DATA_EXTENSIONS
+    )
+
+    # What the inline route will serve and what thumbnails are attempted for:
+    # raster formats a browser can actually render. SVG is excluded because it
+    # can carry script, and HEIC/TIFF/raw because the browser cannot show them —
+    # they are downloadable, just not previewable.
+    IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif'}
+
+    # Served inline, so the browser renders them instead of saving them. Wider
+    # than IMAGE_EXTENSIONS because a PDF manual or a clip of a fault is worth
+    # looking at without downloading first — but still a curated list, because
+    # inline is the disposition where content type matters.
+    #
+    # Everything here is either inert to a browser (raster images, video, audio)
+    # or forced to text/plain below. Nothing that a browser would parse as
+    # markup is in it, and `html`, `htm`, `xhtml` and `svg` cannot be uploaded
+    # in the first place. Responses carry nosniff, so the declared type is the
+    # one the browser uses.
+    TEXT_VIEW_EXTENSIONS = {'txt', 'md', 'log', 'csv', 'tsv', 'json', 'xml',
+                            'yaml', 'yml'}
+    VIEWABLE_EXTENSIONS = (
+        IMAGE_EXTENSIONS
+        | {'pdf'}
+        | {'mp4', 'm4v', 'mov', 'webm', 'ogg'}          # what browsers play
+        | {'mp3', 'm4a', 'wav', 'aac', 'oga', 'opus', 'flac'}
+        | TEXT_VIEW_EXTENSIONS
+    )

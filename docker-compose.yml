@@ -42,7 +42,7 @@ services:
 
       # Largest single attachment in MB. Restoring a backup is exempt from
       # this, however large the archive.
-      MAX_UPLOAD_MB: "${MAX_UPLOAD_MB:-50}"
+      MAX_UPLOAD_MB: "${MAX_UPLOAD_MB:-100}"
 
       # Optional first-admin bootstrap. Prefer creating the account with
       # `docker compose exec` so the password never sits in a file.

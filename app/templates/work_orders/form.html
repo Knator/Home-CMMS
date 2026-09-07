@@ -8,7 +8,7 @@
 <div class="form-shell" style="--shell-max: 900px;">
   <div class="card">
     <div class="card-body">
-      <form method="post" enctype="multipart/form-data">
+      <form method="post" enctype="multipart/form-data" data-warn-unsaved>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-grid">
           <div class="form-group full">
@@ -98,7 +98,7 @@
             <select name="assigned_to">
               <option value="">— Unassigned —</option>
               {% for u in users %}
-                <option value="{{ u.id }}" {{ 'selected' if is_edit and wo.assigned_to == u.id }}>{{ u.username }}</option>
+                <option value="{{ u.id }}" {{ 'selected' if is_edit and wo.assigned_to == u.id }}>{{ u.label }}</option>
               {% endfor %}
             </select>
           </div>

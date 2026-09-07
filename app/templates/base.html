@@ -53,7 +53,7 @@
     <div class="topbar-title">{% block page_title %}{% endblock %}</div>
     <div class="topbar-right">
       {% if current_user.is_authenticated %}
-      <span class="topbar-user">{{ current_user.username }}</span>
+      <span class="topbar-user">{{ current_user.label }}</span>
       <a href="{{ url_for('auth.change_password') }}" class="topbar-link">Change Password</a>
       <a href="{{ url_for('auth.logout') }}" class="topbar-link">Logout</a>
       {% else %}

@@ -213,6 +213,21 @@ in increasing order of strictness: a loud warning logged on every start while it
 `SETUP_WINDOW_MINUTES` to bound the window Portainer-style; or `ADMIN_*` env vars, which
 create the account before anything listens and close the window entirely.
 
+### User display names
+`User.display_name` is what people are called on screen; `username` remains the identity —
+unique, what authenticates, and what the API addresses users by. `User.label` renders one or
+the other, mirroring `Attachment.label`, and every display site goes through it.
+
+The column is **nullable rather than seeded with the username**, so NULL means "not set" and
+the label keeps following a renamed username; a copy taken at creation would silently go
+stale. It is deliberately **not unique** — two people called Alex is a real situation, and
+this never addresses anybody. Clearing the field stores NULL, not `''`, which puts the
+username back.
+
+Lists of users are sorted in Python by `label`, since ordering by username looks arbitrary
+once the two differ. The **API keeps reporting `username`** in `assigned_to`: clients POST
+that value back to assign work, and a non-unique display name cannot address a user.
+
 ### Auth & Security
 - Passwords: `werkzeug.security.generate_password_hash` (pbkdf2:sha256)
 - CSRF: `generate_csrf_token()` / `validate_csrf()` in `app/utils.py` (constant-time compare); every POST form includes `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">`
@@ -263,6 +278,26 @@ an uncast copy preserves text that isn't a well-formed number. See migration `71
 ### File Uploads
 Files stored at `UPLOAD_FOLDER/<entity_type>/<entity_id>/<uuid>_<original_name>`.
 
+**What may be attached.** `ALLOWED_EXTENSIONS` is assembled in `config.py` from named
+groups — documents, images, video, audio, CAD/3D, archives, data — so adding a format means
+adding it to the group it belongs to. It is generous (~100 extensions, including `mp4`,
+`mov`, `dwg`, `dxf`, `step`, `stl`, `heic`, raw camera formats) because a phone clip of the
+noise a pump is making is often the whole point of the attachment.
+
+It stays an **allowlist** and deliberately excludes executables and scripts (`exe`, `msi`,
+`bat`, `cmd`, `ps1`, `sh`, `jar`, `js`, `vbs`) and renderable markup (`html`, `htm`,
+`xhtml`, `svg`). Nothing in the app executes an upload and downloads are always
+`as_attachment=True`, so this is depth rather than the only defence — it stops the instance
+being a convenient host for someone else's malware.
+
+`IMAGE_EXTENSIONS` is **narrower than** the images in the allowlist: it is what the inline
+route will serve and what thumbnails are attempted for, so it holds only formats a browser
+can render. HEIC, TIFF and raw are downloadable but never previewable, and `svg` is in
+neither. The rejection message names the refused extension rather than listing the hundred
+that are accepted.
+
+`MAX_UPLOAD_MB` defaults to **100**, raised from 50 for video.
+
 `Attachment.display_name` is an optional friendly label; `att.label` renders it (falling
 back to the filename) and `att.download_name` appends the original extension so a label
 like "Furnace manual" still saves as a `.pdf`. Rename via `attachments.rename`.
@@ -298,6 +333,22 @@ refuses to stand in with an original larger than `THUMBNAIL_FALLBACK_MAX_BYTES` 
 13 MB photo into a 48px box stalled desktop scrolling for seconds, which is worse than no
 preview. A thumbnail that still fails degrades to the extension chip via `onerror`. The cache lives outside the per-entity upload directory, so
 `purge_entity_attachments()` and the delete routes clear it explicitly.
+
+**Viewing versus downloading.** Clicking an attachment's **name** shows the file; a separate
+Download button beside Rename saves it. `attachments.inline` serves
+`VIEWABLE_EXTENSIONS` — images, PDF, the video and audio formats browsers play, and text —
+which is deliberately **wider than `IMAGE_EXTENSIONS`** (what gets thumbnails) and
+**narrower than `ALLOWED_EXTENSIONS`** (what can be uploaded). A CAD file or an archive has
+nothing to show, so its name downloads instead and `inline` 404s.
+
+Inline is the disposition where content type matters, so: `nosniff` on every response, no
+markup format in the set (`html`/`svg` cannot even be uploaded), and `TEXT_VIEW_EXTENSIONS`
+are forced to `text/plain` — served as its own type, XML can carry a stylesheet that runs
+script in this origin.
+
+`name_link()` and `download_button()` in `_attachments.html` are shared by the owned and
+related lists, so both behave identically. Note `Attachment.is_viewable`, like `is_image`,
+imports `current_app` **inside** the property — the module does not import it at top level.
 
 Clicking a thumbnail opens the full image in a lightbox via `attachments.inline`
 (`as_attachment=False`), so it is viewed rather than downloaded. The anchor's `href` points
@@ -360,6 +411,21 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
   select stays in the DOM, enabled and named, so it still submits and remains the single
   source of truth — the widget writes `select.value` and dispatches a `change` event, so
   existing listeners keep working. Without JS you get a plain select.
+- `initUnsavedWarning()` warns before a part-filled form is abandoned. A form opts in with
+  `data-warn-unsaved`; all five entity forms carry it, create and edit alike. It hangs on
+  **`beforeunload`**, which covers every way of leaving — sidebar link, back button, reload,
+  closing the tab — in one place. The cost is a browser-controlled dialog whose wording
+  cannot be set; intercepting link clicks instead would read better but cover in-app links
+  only and silently miss the back button.
+  Dirtiness is a **snapshot comparison**, not a "something was typed" flag, so typing a
+  value and undoing it leaves the form clean instead of nagging on the way out. Named
+  controls only, in DOM order, so adding or removing a repeatable row counts as a change and
+  the combobox's unnamed filter input does not. Any submit anywhere on the page disarms it —
+  saving is not abandoning, and neither is deleting from an edit screen.
+  Removing an iframe does **not** run its `beforeunload`, so the picker modal has to ask the
+  framed page directly via `window.homeCmmsFormDirty` before tearing it down. Note the close
+  button binds `() => close()`, not `close`: passing the listener straight in hands the event
+  object over as the `force` argument, which is truthy, and the check would never run.
 - **Creating a record from the picker that needs it** (`_pickers.html`, `initCreateModal()`).
   Every asset / location / job-plan `<select>` on a form carries a `+`. It is a real link to
   the real create page (`target="_blank"`, `rel="noopener"`), so with JS off it opens in a

@@ -545,6 +545,32 @@ This guide takes you from a fresh clone to a running, testable app.
     get one catch-up work order, not a backlog of them.
   - The work order and the schedule advance commit as ONE transaction, so a
     crash between them cannot produce a duplicate on the next tick.
+
+  - CANCELLING A GENERATED WORK ORDER DOES NOT AFFECT THE PM. The schedule
+    advanced at the moment the work order was created, not when it was
+    finished, so cancelling only skips that occurrence. Nothing is re-raised
+    and the next work order arrives on its normal date. Cancel October's
+    filter change and you simply get November's.
+
+    Two consequences follow from that, and neither is obvious:
+
+        * A FLOATING PM WHOSE WORK ORDERS ARE ALWAYS CANCELLED BEHAVES LIKE A
+          FIXED ONE. Floating anchors to the last COMPLETION, and a cancelled
+          work order has no completion date, so there is nothing for it to
+          anchor to. The only thing moving the date is the advance that
+          happens at generation.
+
+        * COMPLETING A WORK ORDER AND THEN CANCELLING IT LEAVES THE COMPLETION
+          COUNTED. The completion date is kept when the status changes, so a
+          floating PM stays anchored to work that was afterwards retracted.
+          The date is preserved on purpose — it stops an edit that does not
+          carry the field from wiping history — but it means "cancelled" and
+          "never done" are not the same thing to the scheduler. If you cancel
+          a work order you had marked completed, clear its Completed date too
+          when you want the PM to forget it.
+
+    If a cancelled occurrence still needs doing, raise it again with
+    "Generate WO Now" on the PM, or create an unplanned work order for it.
   - Because it only runs hourly, a newly-due PM may take up to an hour to fire
     on its own. Use "Generate WO Now" on the PM page to trigger it instantly.
   - A PM that fails to generate is logged and skipped; the others in that pass

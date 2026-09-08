@@ -50,6 +50,21 @@ def run_pm_check(app):
         return generated
 
 
+def run_auto_archive(app):
+    """Archive work orders that have sat closed for longer than the setting.
+
+    Cheap when switched off: the service reads one cached preference and
+    returns, without touching the work order table at all.
+    """
+    with app.app_context():
+        from app.services import auto_archive_closed_work_orders
+        try:
+            return auto_archive_closed_work_orders()
+        except Exception:
+            log.exception('Auto-archive pass failed')
+            return 0
+
+
 def start_scheduler(app):
     scheduler = BackgroundScheduler(daemon=True)
     scheduler.add_job(
@@ -59,9 +74,17 @@ def start_scheduler(app):
         # firing every missed hour.
         coalesce=True, max_instances=1, misfire_grace_time=3600,
     )
+    # Registered whether or not auto-archiving is switched on, because the
+    # setting can change while the app runs and turning it on should not need a
+    # restart. The job itself returns immediately when it is off.
+    scheduler.add_job(
+        run_auto_archive, 'interval', hours=1, args=[app], id='auto_archive',
+        replace_existing=True,
+        coalesce=True, max_instances=1, misfire_grace_time=3600,
+    )
     scheduler.start()
     atexit.register(lambda: scheduler.shutdown(wait=False))
     # Kept on the app so the maintenance page can report the next run time.
     app.extensions['pm_scheduler'] = scheduler
-    log.info("PM scheduler started (hourly)")
+    log.info("Scheduler started (hourly: PM check, auto-archive)")
     return scheduler

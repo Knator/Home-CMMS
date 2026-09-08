@@ -1,5 +1,8 @@
 from datetime import date, timedelta
-from app.utils import utcnow
+
+from sqlalchemy.orm import validates
+
+from app.utils import to_local, utcnow
 from app.extensions import db
 
 WO_STATUSES = ['open', 'in_progress', 'on_hold', 'completed', 'cancelled']
@@ -52,8 +55,25 @@ class WorkOrder(db.Model):
     # everything this record *displays* comes from the snapshot, so renaming an
     # asset or a location later cannot rewrite history. Same reasoning as
     # WorkOrderItem being a copy rather than a live view of the job plan.
+    # When the status last changed — Maximo's statusdate. Needed because a
+    # cancelled work order otherwise carries no date at all: completed_date is
+    # only set on completion, and updated_at moves whenever anything is edited,
+    # so adding a note would reset an auto-archive clock built on it.
+    status_changed_at = db.Column(db.DateTime)
     archived_at = db.Column(db.DateTime)
     archived_snapshot = db.Column(db.JSON)
+
+    @validates('status')
+    def _stamp_status_change(self, _key, value):
+        """Stamp every status change, wherever it is made.
+
+        A validator rather than a line in each route: status is set from the
+        create and edit forms, the API, the PM generator and the tests, and one
+        of those would eventually be missed.
+        """
+        if value != self.status:
+            self.status_changed_at = utcnow()
+        return value
 
     items = db.relationship(
         'WorkOrderItem', backref='work_order', lazy='dynamic',
@@ -110,6 +130,22 @@ class WorkOrder(db.Model):
             self.status not in ('completed', 'cancelled') and
             date.today() >= self.overdue_from
         )
+
+    @property
+    def closed_on(self):
+        """The local calendar date this work order stopped being live.
+
+        completed_date first: it is the date the work was actually done, is
+        user-editable, and is what someone means by "completed on". Cancelled
+        work has no such field, so it falls back to when the status changed.
+        """
+        if self.completed_date:
+            return self.completed_date
+        if self.status_changed_at:
+            # Stored UTC, compared against a local calendar date like every
+            # other Date in the schema.
+            return to_local(self.status_changed_at).date()
+        return None
 
     @property
     def is_archived(self):

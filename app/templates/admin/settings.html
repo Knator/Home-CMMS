@@ -82,8 +82,51 @@
     </div>
   </div>
 
+  <div class="card">
+    <div class="card-header"><span class="card-title">Auto-Archiving</span></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="auto_archive_enabled" value="1"
+                 {{ 'checked' if settings.auto_archive_enabled.value }}>
+          Automatically archive closed work orders
+        </label>
+        <div class="field-hint">
+          Off by default. Archiving cannot be undone, so letting it happen
+          without anyone asking should be a decision rather than a default.
+          While this is off no check runs at all.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="auto_archive_days">Days before archiving</label>
+        <input type="number" id="auto_archive_days" name="auto_archive_days"
+               min="0" max="3650"
+               value="{{ settings.auto_archive_days.value }}">
+        <div class="field-hint">
+          Counted from the completion date for completed work, and from the day
+          it was cancelled for cancelled work — not from the last time anyone
+          edited it, so adding a note does not restart the clock. The check runs
+          hourly.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="form-actions">
     <button type="submit" class="btn btn-primary">Save settings</button>
   </div>
 </form>
+
+{% if settings.auto_archive_enabled.value %}
+<form method="post" action="{{ url_for('admin.run_auto_archive_now') }}"
+      style="margin-top:12px;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="btn btn-secondary btn-sm"
+          onclick="return confirm('Archive every closed work order past the cut-off now? This cannot be undone.')">Run auto-archive now</button>
+  <span class="field-hint">
+    Applies the rule immediately instead of waiting for the next hourly check.
+  </span>
+</form>
+{% endif %}
 {% endblock %}

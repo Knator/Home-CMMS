@@ -587,6 +587,27 @@ still wins because a view runs after `before_request`.
 per *app context* — normally one per request, but not when an outer context is held, which is
 how the test suite runs. The same trap `IsolatedClient` documents for Flask-Login.
 
+**Auto-archiving** (`auto_archive_enabled`, default **off**; `auto_archive_days`, default 90)
+archives work that has been closed longer than the window. Off by default because archiving
+cannot be undone, and doing it unasked should be a decision. While it is off
+`auto_archive_closed_work_orders()` returns before touching the work order table at all.
+
+The reference date is `WorkOrder.closed_on`: `completed_date` when there is one — the date
+the work was actually done, and user-editable — otherwise the local date from
+`status_changed_at`. **Not `updated_at`**, which moves whenever anything is edited, so adding
+a note would restart the clock.
+
+`status_changed_at` exists because a cancelled work order otherwise carries no date at all.
+It is maintained by a `@validates('status')` hook rather than a line in each route, since
+status is set from the create and edit forms, the API, the PM generator and the tests, and
+one of those would eventually be missed. Migration `84b7eef551cb` backfills it from
+`completed_date`, then `updated_at` — without that, every existing closed record would look
+freshly closed and wait the full window.
+
+The hourly job is registered whether or not the feature is on, because the setting can change
+while the app runs and switching it on should not need a restart. `/admin/settings/auto-archive/run`
+applies the rule immediately, so the effect can be seen rather than waited for.
+
 `allow_archived_deletion` (default on) gates both the Delete button and the route, since a
 hidden button is a convenience and not a rule.
 

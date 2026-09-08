@@ -20,6 +20,12 @@ DEFAULTS = {
                              'Enforce a maximum attachment size'),
     'max_upload_mb': ('int', 100, 'MAX_UPLOAD_MB',
                       'Maximum attachment size, in MB'),
+    # Off by default: auto-archiving changes records without anyone asking, and
+    # archiving cannot be undone. Opting in should be a decision.
+    'auto_archive_enabled': ('bool', False, None,
+                             'Automatically archive closed work orders'),
+    'auto_archive_days': ('int', 90, None,
+                          'Days a closed work order waits before archiving'),
 }
 
 # What "no limit" means when the limit is switched off. Werkzeug has no
@@ -182,3 +188,10 @@ def upload_limit_bytes():
 
 def archived_deletion_allowed():
     return get('allow_archived_deletion')
+
+
+def auto_archive_after_days():
+    """How many days a closed work order waits, or None when switched off."""
+    if not get('auto_archive_enabled'):
+        return None
+    return max(0, get('auto_archive_days'))

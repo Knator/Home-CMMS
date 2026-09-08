@@ -1731,3 +1731,26 @@ body.embedded { background: var(--card-bg); }
   line-height: 1.5;
 }
 .record-notice strong { color: var(--text-primary); }
+
+
+/* ── Settings page: one block per preference ──
+   Separation comes from the gap between blocks, not from an <hr>. A rule drawn
+   as an element sits in the markup whether or not anything follows it, and
+   renders with the browser's own margins; `.setting + .setting` only ever draws
+   between two settings, and never above the first or below the last.
+
+   Fields belonging to the *same* preference sit closer together than the gap
+   between preferences, so grouping is legible without reading the labels — an
+   on/off switch and the number it governs read as one thing. */
+.setting + .setting {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.setting .form-group + .form-group { margin-top: 12px; }
+.setting .form-group:last-child { margin-bottom: 0; }
+
+/* The hint explains the setting; it should not be part of the label, or
+   clicking it toggles the checkbox. Indented to the checkbox's text instead. */
+.setting .checkbox-label + .field-hint { margin-left: 24px; }

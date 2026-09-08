@@ -557,6 +557,39 @@ LAN box, where that renders blank. **When adding an endpoint, add an entry to `E
 `test_api_docs.py` fails if a route is undocumented *or* documented but missing, which is
 what stops the reference drifting from the code.
 
+### Settings (`app/settings.py`, `app/models/setting.py`, `/admin/settings`)
+Admin-only **in-app preferences**, deliberately separate from Maintenance: Maintenance is
+about keeping the instance running (backups, storage, database, scheduler), Settings is about
+how the application behaves for the people using it.
+
+Preferences live in a key/value `settings` table, **not in `.env`**. The environment
+describes the deployment — where the database is, what port to listen on — and is needed
+before the app starts; a preference is chosen by an admin while it runs and should not need
+a file edit and a restart. Rewriting `.env` from the app was considered and rejected: it is
+an artifact the operator owns, is often mounted read-only in a container, and writing to it
+races with their edits and loses their comments. Immich, Nextcloud and Home Assistant all
+bootstrap from the environment and keep runtime preferences in their own storage.
+
+Precedence is **env → stored → config default**. A variable that is actually set wins and
+the field renders disabled with "Set by the environment", because setting one is a deliberate
+act by whoever runs the server. `ENV_SETTING_OVERRIDES` in `config.py` records which were
+genuinely set (empty means unset). Adding a preference means one entry in `DEFAULTS` and no
+migration.
+
+`upload_limit_bytes()` is the subtle one: a *chosen* value is whole MB, but with nothing
+chosen it returns `MAX_CONTENT_LENGTH` **in bytes** rather than converting to MB and back —
+the setting's granularity must not coarsen a limit that was configured precisely. It is
+applied in a `before_request` because `MAX_CONTENT_LENGTH` is fixed at start-up and this can
+change while running; the restore routes raise it again for themselves afterwards, which
+still wins because a view runs after `before_request`.
+
+`begin_request()` clears the per-request cache explicitly. The cache lives on `g`, which is
+per *app context* — normally one per request, but not when an outer context is held, which is
+how the test suite runs. The same trap `IsolatedClient` documents for Flask-Login.
+
+`allow_archived_deletion` (default on) gates both the Delete button and the route, since a
+hidden button is a convenience and not a rule.
+
 ### Maintenance (`app/maintenance.py`, `/admin/maintenance`)
 Admin-only housekeeping, modelled on what self-hosted apps generally need (Home Assistant's
 backups and system health, Immich's orphaned-file repair, LubeLogger's single-archive export):

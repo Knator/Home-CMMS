@@ -24,6 +24,7 @@ from app.services import (
     record_materials_on_asset, related_attachments, selectable_assets,
     selectable_locations, sync_pm_schedule,
 )
+from app.settings import archived_deletion_allowed
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads, upload_rows_from_form,
     parse_date, parse_int, choice,
@@ -289,9 +290,13 @@ def edit(id):
 def delete(id):
     validate_csrf()
     wo = db.get_or_404(WorkOrder, id)
-    # Deleting an archived work order is allowed. Archiving freezes what the
-    # record *says* — it is not a retention lock, and an archive you cannot
-    # remove is a filing cabinet with no bin beside it.
+    # Whether an archive may be emptied is a house rule, not a law, so it is a
+    # setting. On by default: an archive with no bin beside it is a problem of
+    # its own. Checked here rather than trusted to the hidden button.
+    if wo.is_archived and not archived_deletion_allowed():
+        flash('Deleting archived work orders is switched off in Settings.',
+              'error')
+        return redirect(url_for('work_orders.detail', id=id))
     purge_entity_attachments(ENTITY, id)
     db.session.delete(wo)
     db.session.commit()

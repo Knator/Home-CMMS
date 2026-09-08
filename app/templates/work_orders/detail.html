@@ -221,6 +221,7 @@
 </div>
 {% endif %}
 
+{% if not wo.is_archived or archived_deletion_allowed() %}
 <div class="danger-zone">
   <h3>Delete Work Order</h3>
   <form method="post" action="{{ url_for('work_orders.delete', id=wo.id) }}">
@@ -228,4 +229,5 @@
     <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this work order?')">Delete Work Order</button>
   </form>
 </div>
+{% endif %}
 {% endblock %}

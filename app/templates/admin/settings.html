@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}Settings — Home CMMS{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Settings</h1>
+    <div class="header-meta">
+      <span class="breadcrumb-path">How the application behaves</span>
+    </div>
+  </div>
+  <div class="page-actions">
+    <a href="{{ url_for('admin.maintenance_page') }}" class="btn btn-ghost">Maintenance</a>
+  </div>
+</div>
+
+<p class="field-hint" style="margin-bottom:16px;">
+  Preferences for the application itself. Anything to do with keeping the
+  instance running — backups, storage, the database, the scheduler — lives on
+  the <a href="{{ url_for('admin.maintenance_page') }}">Maintenance</a> page.
+</p>
+
+<form method="post" class="form-shell">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Work Orders</span></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="allow_archived_deletion" value="1"
+                 {{ 'checked' if settings.allow_archived_deletion.value }}>
+          Allow archived work orders to be deleted
+        </label>
+        <div class="field-hint">
+          On by default — archiving freezes what a record says, it is not a
+          retention lock. Switch it off to make the archive permanent: the
+          Delete button disappears from archived work orders and the server
+          refuses the request even if it is sent directly. Live work orders are
+          unaffected either way.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Attachments</span></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="upload_limit_enabled" value="1"
+                 {{ 'checked' if settings.upload_limit_enabled.value }}>
+          Enforce a maximum attachment size
+        </label>
+        <div class="field-hint">
+          Off means any size is accepted. The only real ceiling then is disk
+          space, and a single very large upload is held in memory or a temporary
+          file while it arrives — worth leaving on unless you have a reason.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="max_upload_mb">Maximum attachment size (MB)</label>
+        <input type="number" id="max_upload_mb" name="max_upload_mb" min="1" max="102400"
+               value="{{ settings.max_upload_mb.value }}"
+               {{ 'disabled' if settings.max_upload_mb.locked }}>
+        {% if settings.max_upload_mb.locked %}
+          <div class="field-hint">
+            <strong>Set by the environment.</strong>
+            <code>{{ settings.max_upload_mb.env_var }}</code> is set for this
+            instance, so it governs and this field is read-only. Remove it from
+            your <code>.env</code> and restart to manage the limit here instead.
+          </div>
+        {% else %}
+          <div class="field-hint">
+            Applies to a single attachment. Restoring a backup is exempt however
+            large the archive.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save settings</button>
+  </div>
+</form>
+{% endblock %}

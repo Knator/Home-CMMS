@@ -2,7 +2,12 @@ from datetime import date, timedelta
 from app.utils import utcnow
 from app.extensions import db
 
-WO_STATUSES = ['open', 'in_progress', 'on_hold', 'completed', 'cancelled']
+WO_STATUSES = ['open', 'in_progress', 'on_hold', 'completed', 'cancelled',
+                'archived']
+# Statuses a person may pick on the edit form. Archiving is deliberately not one
+# of them: it is irreversible, so it is a separate deliberate action rather than
+# something a mis-click on a dropdown can do.
+WO_EDITABLE_STATUSES = [s for s in WO_STATUSES if s != 'archived']
 WO_PRIORITIES = ['low', 'medium', 'high', 'critical']
 WO_TYPES = ['planned', 'unplanned']
 
@@ -12,6 +17,7 @@ STATUS_COLORS = {
     'on_hold': 'status-on-hold',
     'completed': 'status-completed',
     'cancelled': 'status-cancelled',
+    'archived': 'status-archived',
 }
 
 PRIORITY_COLORS = {
@@ -46,6 +52,14 @@ class WorkOrder(db.Model):
     created_at = db.Column(db.DateTime, default=utcnow)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+    # Set when the work order is archived. The foreign keys above are kept, so
+    # the asset is still reachable and still protected from deletion — but
+    # everything this record *displays* comes from the snapshot, so renaming an
+    # asset or a location later cannot rewrite history. Same reasoning as
+    # WorkOrderItem being a copy rather than a live view of the job plan.
+    archived_at = db.Column(db.DateTime)
+    archived_snapshot = db.Column(db.JSON)
 
     items = db.relationship(
         'WorkOrderItem', backref='work_order', lazy='dynamic',
@@ -102,6 +116,20 @@ class WorkOrder(db.Model):
             self.status not in ('completed', 'cancelled') and
             date.today() >= self.overdue_from
         )
+
+    @property
+    def is_archived(self):
+        return self.status == 'archived'
+
+    @property
+    def can_be_archived(self):
+        """Only finished work can be archived: archiving is finalising, and an
+        open work order still has changes coming."""
+        return self.status == 'completed'
+
+    def snapshot_value(self, key, default=None):
+        """A frozen display value, or None when this is not archived."""
+        return (self.archived_snapshot or {}).get(key, default)
 
     @property
     def status_class(self):

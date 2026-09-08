@@ -5,6 +5,7 @@ from datetime import date
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
+from app.utils import utcnow
 from app.models.work_order import WorkOrder
 
 log = logging.getLogger(__name__)
@@ -448,3 +449,58 @@ def record_materials_on_asset(work_order):
             updated += 1
 
     return added, updated
+
+
+# ── archiving ──────────────────────────────────────────────────────────────
+#
+# Archiving finalises a completed work order. It is one-way and the record
+# becomes immutable, so everything it displays is frozen at this moment: rename
+# an asset next year and the archived work order still reads what it read on the
+# day the job was signed off.
+#
+# The foreign keys are deliberately kept. The snapshot is what gets *displayed*,
+# but the links still let you reach the asset, and an asset with archived work
+# logged against it stays protected from deletion — which is the same Maximo
+# rule the delete blockers enforce everywhere else.
+
+
+class NotArchivable(Exception):
+    """A work order that cannot be archived. The message is shown to the user."""
+
+
+def archive_snapshot(wo):
+    """Freeze everything the work order displays about other records.
+
+    Stored as one JSON blob rather than a column per field: it is only ever read
+    back for display, never queried or joined, so a dozen mostly-NULL columns on
+    every live work order would be cost without benefit.
+    """
+    asset, location = wo.asset, wo.location
+    job_plan, pm = wo.job_plan, wo.source_pm
+    return {
+        'asset_number': asset.asset_number if asset else None,
+        'asset_name': asset.name if asset else None,
+        'asset_path': asset.path_label if asset else None,
+        'location_number': location.location_number if location else None,
+        'location_name': location.name if location else None,
+        'location_path': location.path_label if location else None,
+        'job_plan_name': job_plan.name if job_plan else None,
+        'pm_name': pm.name if pm else None,
+        'assignee': wo.assignee.label if wo.assignee else None,
+        'creator': wo.creator.label if wo.creator else None,
+    }
+
+
+def archive_work_order(wo):
+    """Freeze and archive a completed work order. One-way."""
+    if wo.is_archived:
+        raise NotArchivable('That work order is already archived.')
+    if not wo.can_be_archived:
+        raise NotArchivable(
+            'Only a completed work order can be archived. Complete it first.')
+
+    wo.archived_snapshot = archive_snapshot(wo)
+    wo.archived_at = utcnow()
+    wo.status = 'archived'
+    db.session.commit()
+    return wo

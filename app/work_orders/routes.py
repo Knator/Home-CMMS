@@ -5,15 +5,18 @@ from flask_login import login_required, current_user
 
 from app.work_orders import bp
 from app.extensions import db
-from app.models.work_order import WorkOrder, WO_STATUSES, WO_PRIORITIES, WO_TYPES
+from app.models.work_order import (
+    WorkOrder, WO_STATUSES, WO_EDITABLE_STATUSES, WO_PRIORITIES, WO_TYPES,
+)
 from app.models.job_plan import JobPlan
 from app.models.user import User
 from app.models.attachment import Attachment
 from app.models.mixins import ITEM_MATERIAL, ITEM_TOOL
 from app.models.work_order_item import WorkOrderItem
 from app.services import (
-    copy_job_plan_items, create_work_order, record_materials_on_asset,
-    related_attachments, selectable_assets, selectable_locations, sync_pm_schedule,
+    archive_work_order, copy_job_plan_items, create_work_order, NotArchivable,
+    record_materials_on_asset, related_attachments, selectable_assets,
+    selectable_locations, sync_pm_schedule,
 )
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads, upload_rows_from_form,
@@ -21,6 +24,19 @@ from app.utils import (
 )
 
 ENTITY = 'work_order'
+
+
+def _refuse_if_archived(wo):
+    """Archived work orders are immutable. Returns a redirect, or None.
+
+    Every write path consults this — edit, delete, attachments — rather than
+    relying on the buttons being hidden, because a hidden button is a UI
+    convenience and not a rule.
+    """
+    if not wo.is_archived:
+        return None
+    flash(f'{wo.wo_number} is archived and can no longer be changed.', 'error')
+    return redirect(url_for('work_orders.detail', id=wo.id))
 
 
 def _resolve_completed_date(status, current=None):
@@ -97,7 +113,7 @@ def _form_options(wo=None):
         # look arbitrary once display names differ from it.
         users=sorted(User.query.filter_by(is_active=True).all(),
                      key=lambda u: u.label.lower()),
-        statuses=WO_STATUSES, priorities=WO_PRIORITIES, wo_types=WO_TYPES,
+        statuses=WO_EDITABLE_STATUSES, priorities=WO_PRIORITIES, wo_types=WO_TYPES,
     )
 
 
@@ -113,6 +129,9 @@ def index():
         q = q.filter_by(status=status)
     else:
         status = ''
+        # Archived work is history, not a working list. It stays out of the
+        # default view and is reachable by filtering for it explicitly.
+        q = q.filter(WorkOrder.status != 'archived')
     if wo_type in WO_TYPES:
         q = q.filter_by(wo_type=wo_type)
     else:
@@ -126,6 +145,8 @@ def index():
     return render_template(
         'work_orders/list.html',
         work_orders=work_orders,
+        # The full list here, including 'archived': filtering for it is the only
+        # way to see archived work, since the default view hides it.
         statuses=WO_STATUSES, priorities=WO_PRIORITIES, wo_types=WO_TYPES,
         selected_status=status, selected_type=wo_type, selected_priority=priority,
         today=date.today(),
@@ -201,6 +222,9 @@ def detail(id):
 @login_required
 def edit(id):
     wo = db.get_or_404(WorkOrder, id)
+    refusal = _refuse_if_archived(wo)
+    if refusal:
+        return refusal
     options = _form_options(wo)
 
     if request.method == 'POST':
@@ -251,6 +275,9 @@ def edit(id):
 def delete(id):
     validate_csrf()
     wo = db.get_or_404(WorkOrder, id)
+    refusal = _refuse_if_archived(wo)
+    if refusal:
+        return refusal
     purge_entity_attachments(ENTITY, id)
     db.session.delete(wo)
     db.session.commit()
@@ -258,11 +285,32 @@ def delete(id):
     return redirect(url_for('work_orders.index'))
 
 
+@bp.route('/<int:id>/archive', methods=['POST'])
+@login_required
+def archive(id):
+    """Finalise a completed work order. One-way, so it is its own action rather
+    than a value on the status dropdown."""
+    validate_csrf()
+    wo = db.get_or_404(WorkOrder, id)
+    try:
+        archive_work_order(wo)
+    except NotArchivable as error:
+        flash(str(error), 'error')
+        return redirect(url_for('work_orders.detail', id=id))
+
+    flash(f'{wo.wo_number} archived. Its details are now frozen and it can no '
+          'longer be edited.', 'success')
+    return redirect(url_for('work_orders.detail', id=id))
+
+
 @bp.route('/<int:id>/attachments', methods=['POST'])
 @login_required
 def upload_attachment(id):
     validate_csrf()
-    db.get_or_404(WorkOrder, id)
+    wo = db.get_or_404(WorkOrder, id)
+    refusal = _refuse_if_archived(wo)
+    if refusal:
+        return refusal
     rows = named_uploads(request.files.getlist('file'),
                          request.form.get('display_name', '').strip() or None)
     if not rows:

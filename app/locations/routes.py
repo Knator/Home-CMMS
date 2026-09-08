@@ -120,6 +120,7 @@ def detail(id):
     )
     work_orders = (
         location.work_orders
+        .filter(WorkOrder.status != 'archived')
         .order_by(WorkOrder.created_at.desc())
         .limit(10)
         .all()

@@ -126,6 +126,36 @@ would shift a due date by a day. Only DateTime columns go through `format_dateti
   `would_create_cycle()`. Both walks are depth-capped and loop-guarded so corrupt data
   can't hang a request.
 
+### Archiving work orders
+`archived` is a sixth WO status, reached only through `archive_work_order()` and never
+undone. `WO_EDITABLE_STATUSES` is what the edit form offers — it excludes `archived`
+deliberately, because a one-way transition should not be a value on a dropdown that a
+mis-click can select. Only a **completed** work order can be archived (`can_be_archived`).
+
+`archive_snapshot(wo)` freezes everything the record displays about other records — asset
+and location name/number/path, job plan and PM name, assignee and creator labels — into the
+`archived_snapshot` JSON column. One blob rather than a column per field: it is only read
+back for display, never queried or joined, so a dozen mostly-NULL columns on every live work
+order would be cost without benefit. Same reasoning as `WorkOrderItem` being a copy of the
+job plan rather than a view of it.
+
+**The foreign keys are kept.** Freezing what is *displayed* is what stops a later rename
+rewriting history; severing the links as well would additionally make an asset deletable
+once its only work was archived, and would lose the click-through. So an archived work order
+shows `snapshot_value('asset_name')` but still links to the asset, and still counts in
+`asset_delete_blockers`.
+
+Immutability is enforced on the routes, not by hiding buttons: `_refuse_if_archived()` guards
+edit, delete and attachment upload, and `_owner_is_archived()` guards the **polymorphic**
+attachment rename/delete routes, which would otherwise let a file on a frozen record be
+changed by id.
+
+Archived work is hidden by default in the list, the dashboard, the location page and the
+API. `?status=archived` or `show_archived=true` reveals it; naming the status is treated as
+unambiguous intent. The API's single-record endpoint answers 404 for an archived work order
+unless `show_archived` is set, so a client that knows nothing about archiving never sees
+frozen records.
+
 ### Materials and tools
 `JobPlanItem` and `WorkOrderItem` share `ItemFieldsMixin` (kind, sequence, description,
 quantity, part_number) but are **separate tables on purpose**: a work order's list is a

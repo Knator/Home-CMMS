@@ -31,7 +31,13 @@ def dashboard():
     ).count()
     asset_count = Asset.query.count()
 
-    recent_wos = WorkOrder.query.order_by(WorkOrder.created_at.desc()).limit(10).all()
+    recent_wos = (
+        WorkOrder.query
+        .filter(WorkOrder.status != 'archived')
+        .order_by(WorkOrder.created_at.desc())
+        .limit(10)
+        .all()
+    )
     pms_due_soon = (
         PM.query
         .filter(PM.is_active.is_(True), PM.next_due_date <= soon)

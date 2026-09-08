@@ -115,12 +115,30 @@ def thumbnail(id):
     return response
 
 
+def _owner_is_archived(att):
+    """Whether this file belongs to an archived work order.
+
+    The attachment routes are polymorphic, so the immutability rule has to be
+    enforced here as well as on the work order's own routes — otherwise a file
+    on a frozen record could still be renamed or deleted by id.
+    """
+    if att.entity_type != 'work_order':
+        return False
+    from app.models.work_order import WorkOrder
+    wo = db.session.get(WorkOrder, att.entity_id)
+    return bool(wo and wo.is_archived)
+
+
 @bp.route('/<int:id>/rename', methods=['POST'])
 @login_required
 def rename(id):
     """Set or clear an attachment's friendly name. The stored file is untouched."""
     validate_csrf()
     att = db.get_or_404(Attachment, id)
+    if _owner_is_archived(att):
+        flash('That work order is archived; its files can no longer be changed.',
+              'error')
+        return _back_to_entity(att.entity_type, att.entity_id)
     display_name = request.form.get('display_name', '').strip()
 
     if len(display_name) > 255:
@@ -138,6 +156,10 @@ def rename(id):
 def delete(id):
     validate_csrf()
     att = db.get_or_404(Attachment, id)
+    if _owner_is_archived(att):
+        flash('That work order is archived; its files can no longer be removed.',
+              'error')
+        return _back_to_entity(att.entity_type, att.entity_id)
     entity_type, entity_id = att.entity_type, att.entity_id
 
     file_path = _attachment_path(att)

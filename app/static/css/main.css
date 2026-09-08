@@ -1713,3 +1713,21 @@ body.embedded { background: var(--card-bg); }
     border-radius: 0;
   }
 }
+
+
+/* A standing statement about a record — archived, read-only and the like.
+   Deliberately not .alert: those are transient flash messages that fade
+   themselves, and this must not. Squarer and quieter than a flash, so the two
+   are not mistaken for each other when both are on screen. */
+.record-notice {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--card-border);
+  border-left: 3px solid var(--text-muted);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.record-notice strong { color: var(--text-primary); }

@@ -342,3 +342,35 @@ def test_a_live_work_order_keeps_all_its_attachment_controls(signed_in, db,
     assert f'/attachments/{att.id}/rename' in html
     assert f'/attachments/{att.id}/delete' in html
     assert f'/work-orders/{completed.id}/attachments' in html
+
+
+# ── the archived banner is a standing statement, not a flash ───────────────
+
+def test_the_archived_banner_is_not_a_dismissible_flash(signed_in, db, completed):
+    """It kept fading out after four seconds because it was styled as an
+    .alert, which initAlerts() removes. It states a permanent property of the
+    record, so it must not be one."""
+    archive_work_order(completed)
+    html = signed_in.get(f'/work-orders/{completed.id}').get_data(as_text=True)
+
+    assert 'record-notice' in html
+    banner_at = html.index('record-notice')
+    banner = html[banner_at:banner_at + 400]
+    assert 'Archived' in banner
+    assert 'class="alert' not in banner
+
+
+def test_a_live_work_order_has_no_such_banner(signed_in, db, completed):
+    html = signed_in.get(f'/work-orders/{completed.id}').get_data(as_text=True)
+    assert 'record-notice' not in html
+
+
+def test_the_banner_survives_alongside_the_flash_that_follows_archiving(
+        signed_in, db, completed):
+    """Archiving redirects with a flash saying much the same thing. Both are on
+    screen at once, so they must be distinguishable — one fades, one does not."""
+    response = signed_in.post(f'/work-orders/{completed.id}/archive',
+                              data={'csrf_token': CSRF}, follow_redirects=True)
+    html = response.get_data(as_text=True)
+    assert 'record-notice' in html          # the standing banner
+    assert 'class="alert' in html           # and the transient flash

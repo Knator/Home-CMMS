@@ -35,10 +35,15 @@
   <div class="card-header"><span class="card-title">Details</span></div>
   <div class="card-body">
     {% if wo.is_archived %}
-<div class="alert alert-info" style="margin-bottom:16px;">
+{# Not an .alert: those are flash messages and initAlerts() fades them after
+   four seconds. This is a standing property of the record, not something that
+   just happened, so it gets its own class and stays put. It also has to look
+   different from the flash shown immediately after archiving, or the two read
+   as the same message and one of them mysteriously disappears. #}
+<div class="record-notice">
   <strong>Archived {{ format_datetime(wo.archived_at) }}.</strong>
   This record is frozen: the names below are as they were when it was archived,
-  and nothing here can be changed or deleted.
+  and its details, files and status can no longer be changed.
 </div>
 {% endif %}
 
@@ -152,8 +157,6 @@
     {{ att_ui.attachment_list(attachments, readonly=wo.is_archived) }}
     {% if wo.is_archived %}
       <p class="field-hint" style="margin-top:10px;">
-        These files are part of the archived record. They can be opened and
-        downloaded, but not renamed, added to or removed.
       </p>
     {% else %}
       {{ att_ui.upload_form(url_for('work_orders.upload_attachment', id=wo.id)) }}

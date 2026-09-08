@@ -166,6 +166,12 @@ drops rename and delete.
 is not a retention lock, and an archive with no way to remove anything is a filing cabinet
 with no bin beside it.
 
+The archived banner on the detail page uses `.record-notice`, **not** `.alert`. Alerts are
+flash messages and `initAlerts()` fades them after four seconds; this states a standing
+property of the record, so it must not be one. It is also styled differently on purpose —
+archiving redirects with a flash saying much the same thing, and two identical boxes where
+only one disappears reads as a bug.
+
 Archived work is hidden by default in the list, the dashboard, the location page and the
 API. The work order list has its **own filter box** (`ARCHIVE_FILTERS`: `hide` / `show` /
 `only`) beside Status, Type and Priority, independent of all three; the API uses

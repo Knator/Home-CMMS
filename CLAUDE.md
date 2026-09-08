@@ -249,6 +249,21 @@ dashboard's overdue count is settled in Python from the same `is_overdue` the pa
 `due_date < today` remains a cheap SQL prefilter, since grace can only ever make fewer
 records overdue.
 
+**Cancelling a generated work order does not touch the PM.** The schedule advances at
+generation, not completion, so cancelling skips that occurrence and the next arrives
+normally — nothing is re-raised. `sync_pm_schedule()` still runs on the edit path but is a
+no-op both ways: fixed mode returns immediately, and floating mode re-anchors from
+`last_completion_date()`, which filters `completed_date IS NOT NULL` and so cannot see a
+cancelled work order.
+
+Two consequences fall out of that. A **floating PM whose work orders are always cancelled
+behaves like a fixed one**, since nothing ever records a completion to anchor to. And
+**completing then cancelling leaves the completion counted**: `_resolve_completed_date()`
+preserves `completed_date` across a status change — deliberately, so a POST that omits the
+field cannot wipe history — so a floating PM stays anchored to work that was later retracted.
+Documented in `GettingStarted.txt` §9 as behaviour, not fixed as a bug, because which way it
+should go is a product decision.
+
 Generation still advances the due date in both modes — otherwise a floating PM would
 regenerate every day until someone completed the work.
 

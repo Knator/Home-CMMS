@@ -109,6 +109,15 @@
         <div class="detail-label">Completed</div>
         <div class="detail-value {{ 'empty' if not wo.completed_date }}">{{ wo.completed_date.strftime('%Y-%m-%d') if wo.completed_date else '—' }}</div>
       </div>
+      <div class="detail-field">
+        <div class="detail-label">Status Changed</div>
+        {# Read-only: the app stamps this whenever the status moves, and it is
+           what auto-archiving counts from for work that has no completion
+           date. Editing it would let someone move an archive deadline. #}
+        <div class="detail-value {{ 'empty' if not wo.status_changed_at }}">
+          {{ format_datetime(wo.status_changed_at) if wo.status_changed_at else '—' }}
+        </div>
+      </div>
       {% if wo.source_pm %}
       <div class="detail-field">
         <div class="detail-label">PM Source</div>
@@ -221,6 +230,7 @@
 </div>
 {% endif %}
 
+{% if not wo.is_archived or archived_deletion_allowed() %}
 <div class="danger-zone">
   <h3>Delete Work Order</h3>
   <form method="post" action="{{ url_for('work_orders.delete', id=wo.id) }}">
@@ -228,4 +238,5 @@
     <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this work order?')">Delete Work Order</button>
   </form>
 </div>
+{% endif %}
 {% endblock %}

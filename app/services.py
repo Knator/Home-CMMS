@@ -1,6 +1,6 @@
 """Write paths shared by the web routes and the background scheduler."""
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy.exc import IntegrityError
 
@@ -507,3 +507,48 @@ def archive_work_order(wo):
     wo.archived_at = utcnow()
     db.session.commit()
     return wo
+
+
+def auto_archive_closed_work_orders(today=None):
+    """Archive work orders that have been closed longer than the setting allows.
+
+    Returns the number archived. Does nothing at all when the feature is off —
+    the setting is checked before any query, so a disabled instance pays for
+    this only the cost of reading one cached preference.
+
+    Each work order commits on its own, following the PM generator: one bad
+    record must not discard the archiving already done in this pass.
+    """
+    from app import settings as app_settings
+
+    days = app_settings.auto_archive_after_days()
+    if days is None:
+        return 0
+
+    cutoff = (today or date.today()) - timedelta(days=days)
+
+    # Narrow in SQL to work that is closed and not yet archived, then apply the
+    # date in Python: the reference date is completed_date for completed work
+    # and the status stamp for cancelled, which is awkward to express as one
+    # portable SQL comparison across a Date and a DateTime column.
+    candidates = WorkOrder.query.filter(
+        WorkOrder.archived_at.is_(None),
+        WorkOrder.status.in_(WorkOrder.ARCHIVABLE_FROM),
+    ).all()
+
+    archived = 0
+    for wo in candidates:
+        closed = wo.closed_on
+        if closed is None or closed > cutoff:
+            continue
+        try:
+            archive_work_order(wo)
+            archived += 1
+        except Exception:
+            db.session.rollback()
+            log.exception('Auto-archive failed for work order %s', wo.wo_number)
+
+    if archived:
+        log.info('Auto-archived %d work order(s) closed on or before %s',
+                 archived, cutoff)
+    return archived

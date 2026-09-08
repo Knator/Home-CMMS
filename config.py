@@ -136,6 +136,17 @@ class Config:
     MAX_UPLOAD_MB = int(os.environ.get('MAX_UPLOAD_MB', '100') or 100)
     MAX_CONTENT_LENGTH = MAX_UPLOAD_MB * 1024 * 1024
 
+    # Preferences an administrator can also set in the Settings page. A variable
+    # that is actually set here wins and locks the field in the UI: setting one
+    # is a deliberate act by whoever runs the server, and a web form should not
+    # quietly override it. Empty or absent means "not set", so the stored
+    # preference governs.
+    ENV_SETTING_OVERRIDES = {
+        var: os.environ[var]
+        for var in ('MAX_UPLOAD_MB',)
+        if os.environ.get(var, '').strip()
+    }
+
     # Everything here is only ever handed back by the download route, which
     # always sends as_attachment=True — the browser saves it rather than
     # rendering it. The inline route serves IMAGE_EXTENSIONS and nothing else.

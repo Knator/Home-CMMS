@@ -275,9 +275,9 @@ def edit(id):
 def delete(id):
     validate_csrf()
     wo = db.get_or_404(WorkOrder, id)
-    refusal = _refuse_if_archived(wo)
-    if refusal:
-        return refusal
+    # Deleting an archived work order is allowed. Archiving freezes what the
+    # record *says* — it is not a retention lock, and an archive you cannot
+    # remove is a filing cabinet with no bin beside it.
     purge_entity_attachments(ENTITY, id)
     db.session.delete(wo)
     db.session.commit()

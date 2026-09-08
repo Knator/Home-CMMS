@@ -497,7 +497,8 @@ def archive_work_order(wo):
         raise NotArchivable('That work order is already archived.')
     if not wo.can_be_archived:
         raise NotArchivable(
-            'Only a completed work order can be archived. Complete it first.')
+            'Only a completed or cancelled work order can be archived. '
+            'Finish or cancel it first.')
 
     wo.archived_snapshot = archive_snapshot(wo)
     wo.archived_at = utcnow()

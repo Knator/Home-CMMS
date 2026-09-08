@@ -38,12 +38,24 @@ def completed(db):
 
 # ── only completed work may be archived ────────────────────────────────────
 
-@pytest.mark.parametrize('status', ['open', 'in_progress', 'on_hold', 'cancelled'])
-def test_unfinished_work_cannot_be_archived(db, status):
+@pytest.mark.parametrize('status', ['open', 'in_progress', 'on_hold'])
+def test_work_still_in_flight_cannot_be_archived(db, status):
+    """An open or on-hold work order still has changes coming; freezing it
+    would capture a record mid-job."""
     wo = create_work_order(title='Live one', wo_type='unplanned', status=status)
-    with pytest.raises(NotArchivable, match='completed'):
+    with pytest.raises(NotArchivable, match='completed or cancelled'):
         archive_work_order(wo)
     assert wo.status == status
+
+
+@pytest.mark.parametrize('status', ['completed', 'cancelled'])
+def test_work_that_is_finished_with_can_be_archived(db, status):
+    """Cancelled work is as finished as completed work — it is just finished
+    without being done."""
+    wo = create_work_order(title='Done with', wo_type='unplanned', status=status)
+    archive_work_order(wo)
+    assert wo.status == 'archived'
+    assert wo.snapshot_value('asset_name') is None
 
 
 def test_a_completed_work_order_can_be_archived(db, completed):
@@ -134,10 +146,18 @@ def test_archived_is_not_offered_on_the_edit_form(db):
     assert 'archived' not in WO_EDITABLE_STATUSES
 
 
-def test_deleting_is_refused(signed_in, db, completed):
+def test_an_archived_work_order_can_still_be_deleted(signed_in, db, completed):
+    """Archiving freezes what the record says; it is not a retention lock."""
+    wo_id = completed.id
     archive_work_order(completed)
-    signed_in.post(f'/work-orders/{completed.id}/delete', data={'csrf_token': CSRF})
-    assert _db.session.get(WorkOrder, completed.id) is not None
+    signed_in.post(f'/work-orders/{wo_id}/delete', data={'csrf_token': CSRF})
+    assert _db.session.get(WorkOrder, wo_id) is None
+
+
+def test_the_delete_panel_is_still_offered_when_archived(signed_in, db, completed):
+    archive_work_order(completed)
+    html = signed_in.get(f'/work-orders/{completed.id}').get_data(as_text=True)
+    assert 'Delete Work Order' in html
 
 
 def test_attachments_cannot_be_added(signed_in, db, completed):
@@ -236,3 +256,44 @@ def test_the_payload_says_whether_it_is_archived(client, db, api, completed):
     frozen = client.get(f'/api/v1/work-orders/{completed.wo_number}?show_archived=1',
                         headers=api).get_json()
     assert frozen['archived'] is True
+
+
+# ── archived attachments: readable, not editable ───────────────────────────
+
+def attach_to(client, wo, filename='report.pdf'):
+    client.post(f'/work-orders/{wo.id}/attachments', data={
+        'csrf_token': CSRF, 'file': (io.BytesIO(b'x'), filename),
+    }, content_type='multipart/form-data', follow_redirects=True)
+    return Attachment.query.filter_by(original_filename=filename).one()
+
+
+def test_archived_attachments_stay_viewable(signed_in, db, completed):
+    att = attach_to(signed_in, completed)
+    archive_work_order(completed)
+
+    html = signed_in.get(f'/work-orders/{completed.id}').get_data(as_text=True)
+    assert 'report.pdf' in html
+    assert f'/attachments/{att.id}/inline' in html      # can still be opened
+    assert f'/attachments/{att.id}/download' in html    # and downloaded
+    assert signed_in.get(f'/attachments/{att.id}/download').status_code == 200
+
+
+def test_the_page_stops_offering_what_it_will_not_accept(signed_in, db, completed):
+    """The routes already refused these; the page was still showing the
+    controls, which is what made it look as though they worked."""
+    att = attach_to(signed_in, completed)
+    archive_work_order(completed)
+    html = signed_in.get(f'/work-orders/{completed.id}').get_data(as_text=True)
+
+    assert f'/attachments/{att.id}/rename' not in html
+    assert f'/attachments/{att.id}/delete' not in html
+    assert f'/work-orders/{completed.id}/attachments' not in html   # no upload form
+
+
+def test_a_live_work_order_keeps_all_its_attachment_controls(signed_in, db,
+                                                             completed):
+    att = attach_to(signed_in, completed)
+    html = signed_in.get(f'/work-orders/{completed.id}').get_data(as_text=True)
+    assert f'/attachments/{att.id}/rename' in html
+    assert f'/attachments/{att.id}/delete' in html
+    assert f'/work-orders/{completed.id}/attachments' in html

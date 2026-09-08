@@ -148,8 +148,15 @@
 <div class="card">
   <div class="card-header"><span class="card-title">Attachments</span></div>
   <div class="card-body">
-    {{ att_ui.attachment_list(attachments) }}
-    {{ att_ui.upload_form(url_for('work_orders.upload_attachment', id=wo.id)) }}
+    {{ att_ui.attachment_list(attachments, readonly=wo.is_archived) }}
+    {% if wo.is_archived %}
+      <p class="field-hint" style="margin-top:10px;">
+        These files are part of the archived record. They can be opened and
+        downloaded, but not renamed, added to or removed.
+      </p>
+    {% else %}
+      {{ att_ui.upload_form(url_for('work_orders.upload_attachment', id=wo.id)) }}
+    {% endif %}
   </div>
 </div>
 
@@ -210,7 +217,6 @@
 </div>
 {% endif %}
 
-{% if not wo.is_archived %}
 <div class="danger-zone">
   <h3>Delete Work Order</h3>
   <form method="post" action="{{ url_for('work_orders.delete', id=wo.id) }}">
@@ -218,5 +224,4 @@
     <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this work order?')">Delete Work Order</button>
   </form>
 </div>
-{% endif %}
 {% endblock %}

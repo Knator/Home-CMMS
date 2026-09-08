@@ -121,11 +121,14 @@ class WorkOrder(db.Model):
     def is_archived(self):
         return self.status == 'archived'
 
+    # Work that is finished with, one way or the other. An open or on-hold work
+    # order still has changes coming, so archiving it would freeze a record
+    # mid-flight.
+    ARCHIVABLE_FROM = ('completed', 'cancelled')
+
     @property
     def can_be_archived(self):
-        """Only finished work can be archived: archiving is finalising, and an
-        open work order still has changes coming."""
-        return self.status == 'completed'
+        return self.status in self.ARCHIVABLE_FROM
 
     def snapshot_value(self, key, default=None):
         """A frozen display value, or None when this is not archived."""

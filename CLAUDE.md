@@ -130,7 +130,9 @@ would shift a due date by a day. Only DateTime columns go through `format_dateti
 `archived` is a sixth WO status, reached only through `archive_work_order()` and never
 undone. `WO_EDITABLE_STATUSES` is what the edit form offers — it excludes `archived`
 deliberately, because a one-way transition should not be a value on a dropdown that a
-mis-click can select. Only a **completed** work order can be archived (`can_be_archived`).
+mis-click can select. `ARCHIVABLE_FROM` is `('completed', 'cancelled')`: work that is
+finished with, one way or the other. Open or on-hold work still has changes coming, so
+freezing it would capture a record mid-job.
 
 `archive_snapshot(wo)` freezes everything the record displays about other records — asset
 and location name/number/path, job plan and PM name, assignee and creator labels — into the
@@ -146,9 +148,16 @@ shows `snapshot_value('asset_name')` but still links to the asset, and still cou
 `asset_delete_blockers`.
 
 Immutability is enforced on the routes, not by hiding buttons: `_refuse_if_archived()` guards
-edit, delete and attachment upload, and `_owner_is_archived()` guards the **polymorphic**
-attachment rename/delete routes, which would otherwise let a file on a frozen record be
-changed by id.
+edit and attachment upload, and `_owner_is_archived()` guards the **polymorphic** attachment
+rename/delete routes, which would otherwise let a file on a frozen record be changed by id.
+The UI must hide those controls too — the routes refusing them is not enough on its own,
+because a page that still offers a button it will not honour reads as broken. Hence
+`attachment_list(attachments, readonly=...)`, which keeps the view and download links and
+drops rename and delete.
+
+**Deleting an archived work order is allowed.** Archiving freezes what a record *says*; it
+is not a retention lock, and an archive with no way to remove anything is a filing cabinet
+with no bin beside it.
 
 Archived work is hidden by default in the list, the dashboard, the location page and the
 API. `?status=archived` or `show_archived=true` reveals it; naming the status is treated as

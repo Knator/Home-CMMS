@@ -219,3 +219,15 @@ def test_enabling_without_a_day_count_is_refused(admin_client, app):
     assert b'how many days' in response.data
     with app.test_request_context():
         assert app_settings.get('auto_archive_enabled') is False
+
+
+def test_the_detail_page_shows_when_the_status_last_changed(admin_client, db):
+    """Read-only: it is stamped by the app, and auto-archiving counts from it
+    for work with no completion date."""
+    wo = create_work_order(title='Job', wo_type='unplanned', status='open')
+    html = admin_client.get(f'/work-orders/{wo.id}').get_data(as_text=True)
+    assert 'Status Changed' in html
+
+    # It is shown, not editable.
+    form = admin_client.get(f'/work-orders/{wo.id}/edit').get_data(as_text=True)
+    assert 'status_changed_at' not in form

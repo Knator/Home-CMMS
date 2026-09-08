@@ -109,6 +109,15 @@
         <div class="detail-label">Completed</div>
         <div class="detail-value {{ 'empty' if not wo.completed_date }}">{{ wo.completed_date.strftime('%Y-%m-%d') if wo.completed_date else '—' }}</div>
       </div>
+      <div class="detail-field">
+        <div class="detail-label">Status Changed</div>
+        {# Read-only: the app stamps this whenever the status moves, and it is
+           what auto-archiving counts from for work that has no completion
+           date. Editing it would let someone move an archive deadline. #}
+        <div class="detail-value {{ 'empty' if not wo.status_changed_at }}">
+          {{ format_datetime(wo.status_changed_at) if wo.status_changed_at else '—' }}
+        </div>
+      </div>
       {% if wo.source_pm %}
       <div class="detail-field">
         <div class="detail-label">PM Source</div>

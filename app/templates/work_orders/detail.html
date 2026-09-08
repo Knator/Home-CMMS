@@ -9,13 +9,24 @@
     <h1>{{ wo.title }}</h1>
     <div class="header-meta">
       <span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span>
+      {% if wo.is_archived %}<span class="badge status-archived">Archived</span>{% endif %}
       <span class="badge {{ wo.priority_class }}">{{ wo.priority }}</span>
       <span class="badge badge-type-{{ wo.wo_type }}">{{ wo.wo_type }}</span>
       {% if wo.is_overdue %}<span class="badge badge-overdue">Overdue</span>{% endif %}
     </div>
   </div>
   <div class="page-actions">
-    <a href="{{ url_for('work_orders.edit', id=wo.id) }}" class="btn btn-secondary">Edit</a>
+    {% if not wo.is_archived %}
+      <a href="{{ url_for('work_orders.edit', id=wo.id) }}" class="btn btn-secondary">Edit</a>
+      {% if wo.can_be_archived %}
+      <form method="post" action="{{ url_for('work_orders.archive', id=wo.id) }}"
+            style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary"
+                onclick="return confirm('Archive {{ wo.wo_number }}? This freezes its details permanently and cannot be undone.')">Archive</button>
+      </form>
+      {% endif %}
+    {% endif %}
     <a href="{{ url_for('work_orders.index') }}" class="btn btn-ghost">← Back</a>
   </div>
 </div>
@@ -23,7 +34,20 @@
 <div class="card">
   <div class="card-header"><span class="card-title">Details</span></div>
   <div class="card-body">
-    <div class="detail-grid">
+    {% if wo.is_archived %}
+{# Not an .alert: those are flash messages and initAlerts() fades them after
+   four seconds. This is a standing property of the record, not something that
+   just happened, so it gets its own class and stays put. It also has to look
+   different from the flash shown immediately after archiving, or the two read
+   as the same message and one of them mysteriously disappears. #}
+<div class="record-notice">
+  <strong>Archived {{ format_datetime(wo.archived_at) }}.</strong>
+  This record is frozen: the names below are as they were when it was archived,
+  and its details, files and status can no longer be changed.
+</div>
+{% endif %}
+
+<div class="detail-grid">
       <div class="detail-field">
         <div class="detail-label">WO Number</div>
         <div class="detail-value">{{ wo.wo_number }}</div>
@@ -31,24 +55,39 @@
       <div class="detail-field">
         <div class="detail-label">Asset</div>
         <div class="detail-value {{ 'empty' if not wo.asset }}">
-          {% if wo.asset %}<a href="{{ url_for('assets.detail', id=wo.asset.id) }}">{{ wo.asset.name }}</a>{% else %}None{% endif %}
+          {# Archived: show the name as it was, but still link to the record. #}
+          {% if wo.is_archived %}
+            {% if wo.snapshot_value('asset_name') %}
+              <a href="{{ url_for('assets.detail', id=wo.asset.id) }}">{{ wo.snapshot_value('asset_name') }}</a>
+              <span class="text-muted">({{ wo.snapshot_value('asset_number') }})</span>
+            {% else %}None{% endif %}
+          {% elif wo.asset %}<a href="{{ url_for('assets.detail', id=wo.asset.id) }}">{{ wo.asset.name }}</a>{% else %}None{% endif %}
         </div>
       </div>
       <div class="detail-field">
         <div class="detail-label">Location</div>
         <div class="detail-value {{ 'empty' if not wo.location }}">
-          {% if wo.location %}<a href="{{ url_for('locations.detail', id=wo.location.id) }}">{{ wo.location.name }}</a>{% else %}None{% endif %}
+          {% if wo.is_archived %}
+            {% if wo.snapshot_value('location_name') %}
+              <a href="{{ url_for('locations.detail', id=wo.location.id) }}">{{ wo.snapshot_value('location_name') }}</a>
+              <span class="text-muted">({{ wo.snapshot_value('location_number') }})</span>
+            {% else %}None{% endif %}
+          {% elif wo.location %}<a href="{{ url_for('locations.detail', id=wo.location.id) }}">{{ wo.location.name }}</a>{% else %}None{% endif %}
         </div>
       </div>
       <div class="detail-field">
         <div class="detail-label">Job Plan</div>
         <div class="detail-value {{ 'empty' if not wo.job_plan }}">
-          {% if wo.job_plan %}<a href="{{ url_for('job_plans.detail', id=wo.job_plan.id) }}">{{ wo.job_plan.name }}</a>{% else %}None{% endif %}
+          {% if wo.is_archived %}
+            {% if wo.snapshot_value('job_plan_name') %}
+              <a href="{{ url_for('job_plans.detail', id=wo.job_plan.id) }}">{{ wo.snapshot_value('job_plan_name') }}</a>
+            {% else %}None{% endif %}
+          {% elif wo.job_plan %}<a href="{{ url_for('job_plans.detail', id=wo.job_plan.id) }}">{{ wo.job_plan.name }}</a>{% else %}None{% endif %}
         </div>
       </div>
       <div class="detail-field">
         <div class="detail-label">Assigned To</div>
-        <div class="detail-value {{ 'empty' if not wo.assignee }}">{{ wo.assignee.label if wo.assignee else 'Unassigned' }}</div>
+        <div class="detail-value {{ 'empty' if not wo.assignee }}">{% if wo.is_archived %}{{ wo.snapshot_value('assignee') or 'Unassigned' }}{% else %}{{ wo.assignee.label if wo.assignee else 'Unassigned' }}{% endif %}</div>
       </div>
       <div class="detail-field">
         <div class="detail-label">Due Date</div>
@@ -115,8 +154,13 @@
 <div class="card">
   <div class="card-header"><span class="card-title">Attachments</span></div>
   <div class="card-body">
-    {{ att_ui.attachment_list(attachments) }}
-    {{ att_ui.upload_form(url_for('work_orders.upload_attachment', id=wo.id)) }}
+    {{ att_ui.attachment_list(attachments, readonly=wo.is_archived) }}
+    {% if wo.is_archived %}
+      <p class="field-hint" style="margin-top:10px;">
+      </p>
+    {% else %}
+      {{ att_ui.upload_form(url_for('work_orders.upload_attachment', id=wo.id)) }}
+    {% endif %}
   </div>
 </div>
 
@@ -124,7 +168,7 @@
 <div class="card">
   <div class="card-header">
     <span class="card-title">Materials &amp; Tools</span>
-    <a href="{{ url_for('work_orders.edit', id=wo.id) }}" class="btn btn-ghost btn-sm">Edit</a>
+    {% if not wo.is_archived %}<a href="{{ url_for('work_orders.edit', id=wo.id) }}" class="btn btn-ghost btn-sm">Edit</a>{% endif %}
   </div>
   <div class="card-body">
     {% if materials %}

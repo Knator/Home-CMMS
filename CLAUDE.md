@@ -126,6 +126,59 @@ would shift a due date by a day. Only DateTime columns go through `format_dateti
   `would_create_cycle()`. Both walks are depth-capped and loop-guarded so corrupt data
   can't hang a request.
 
+### Archiving work orders
+Archiving is a **flag, not a status** — Maximo's history flag, not a sixth value in the
+status list. `archived_at` is the flag and the timestamp at once, so there is one source of
+truth rather than a boolean that can drift from a date, and `is_archived` reads it.
+
+Keeping it separate is what preserves the outcome: an archived work order still says whether
+it was **completed or cancelled**, which a status of `archived` overwrote. It also makes
+filtering orthogonal — asking for completed work no longer forces a decision about archived
+work at the same time. Migration `10046c5492a5` recovers the outcome for rows archived under
+the old scheme, using `completed_date`, which is set on completion and never on cancellation.
+
+`ARCHIVABLE_FROM` is `('completed', 'cancelled')`: work that is finished with, one way or the
+other. Open or on-hold work still has changes coming, so freezing it would capture a record
+mid-job. It is reached only through `archive_work_order()` and never undone.
+
+`archive_snapshot(wo)` freezes everything the record displays about other records — asset
+and location name/number/path, job plan and PM name, assignee and creator labels — into the
+`archived_snapshot` JSON column. One blob rather than a column per field: it is only read
+back for display, never queried or joined, so a dozen mostly-NULL columns on every live work
+order would be cost without benefit. Same reasoning as `WorkOrderItem` being a copy of the
+job plan rather than a view of it.
+
+**The foreign keys are kept.** Freezing what is *displayed* is what stops a later rename
+rewriting history; severing the links as well would additionally make an asset deletable
+once its only work was archived, and would lose the click-through. So an archived work order
+shows `snapshot_value('asset_name')` but still links to the asset, and still counts in
+`asset_delete_blockers`.
+
+Immutability is enforced on the routes, not by hiding buttons: `_refuse_if_archived()` guards
+edit and attachment upload, and `_owner_is_archived()` guards the **polymorphic** attachment
+rename/delete routes, which would otherwise let a file on a frozen record be changed by id.
+The UI must hide those controls too — the routes refusing them is not enough on its own,
+because a page that still offers a button it will not honour reads as broken. Hence
+`attachment_list(attachments, readonly=...)`, which keeps the view and download links and
+drops rename and delete.
+
+**Deleting an archived work order is allowed.** Archiving freezes what a record *says*; it
+is not a retention lock, and an archive with no way to remove anything is a filing cabinet
+with no bin beside it.
+
+The archived banner on the detail page uses `.record-notice`, **not** `.alert`. Alerts are
+flash messages and `initAlerts()` fades them after four seconds; this states a standing
+property of the record, so it must not be one. It is also styled differently on purpose —
+archiving redirects with a flash saying much the same thing, and two identical boxes where
+only one disappears reads as a bug.
+
+Archived work is hidden by default in the list, the dashboard, the location page and the
+API. The work order list has its **own filter box** (`ARCHIVE_FILTERS`: `hide` / `show` /
+`only`) beside Status, Type and Priority, independent of all three; the API uses
+`show_archived`. `status=archived` is no longer valid anywhere, because it is not a status. The API's single-record endpoint answers 404 for an archived work order
+unless `show_archived` is set, so a client that knows nothing about archiving never sees
+frozen records.
+
 ### Materials and tools
 `JobPlanItem` and `WorkOrderItem` share `ItemFieldsMixin` (kind, sequence, description,
 quantity, part_number) but are **separate tables on purpose**: a work order's list is a

@@ -52,6 +52,7 @@ WORK_ORDER_EXAMPLE = {
     'wo_number': 'WO-2026-00007',
     'title': 'Air handler making a noise',
     'status': 'open',
+    'archived': False,
     'priority': 'high',
     'type': 'unplanned',
     'asset_number': 'AST-00001',
@@ -105,9 +106,15 @@ ENDPOINTS = [
         'path': '/api/v1/work-orders',
         'endpoint': 'api.list_work_orders',
         'summary': 'List recent work orders',
-        'description': 'Newest first.',
+        'description': ('Newest first. Archived work orders are left out unless '
+                        'you ask for them.'),
         'query': [
             ('status', 'string', f"Filter by status. One of: {', '.join(WO_STATUSES)}."),
+            ('show_archived', 'boolean',
+             'Include archived work orders. Off by default. Archiving is a flag '
+             'rather than a status, so an archived work order keeps whichever '
+             'status it had — filtering by `completed` still returns only live '
+             'ones unless this is set.'),
             ('limit', 'integer', 'How many to return, 1–200. Defaults to 50.'),
         ],
         'responses': [
@@ -121,8 +128,15 @@ ENDPOINTS = [
         'path': '/api/v1/work-orders/{wo_number}',
         'endpoint': 'api.get_work_order',
         'summary': 'Fetch one work order',
-        'description': 'Includes documents inherited from the PM, job plan, asset and location.',
+        'description': ('Includes documents inherited from the PM, job plan, asset '
+                        'and location. An archived work order answers 404 unless '
+                        '`show_archived` is set, so a client that knows nothing '
+                        'about archiving never sees frozen records.'),
         'path_params': [('wo_number', 'string', 'For example `WO-2026-00007`.')],
+        'query': [
+            ('show_archived', 'boolean',
+             'Return the work order even if it has been archived.'),
+        ],
         'responses': [
             (200, 'The work order.',
              dict(WORK_ORDER_EXAMPLE, related_documents=[

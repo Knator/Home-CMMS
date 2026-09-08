@@ -38,6 +38,7 @@ def work_order_json(wo):
         'location_name': wo.location.name if wo.location else None,
         'job_plan': wo.job_plan.name if wo.job_plan else None,
         'assigned_to': wo.assignee.username if wo.assignee else None,
+        'archived': wo.is_archived,
         'due_date': wo.due_date.isoformat() if wo.due_date else None,
         'completed_date': wo.completed_date.isoformat() if wo.completed_date else None,
         'overdue_grace_days': wo.overdue_grace_days,
@@ -175,6 +176,8 @@ def create_work_order_api():
 @api_token_required
 def get_work_order(wo_number):
     wo = WorkOrder.query.filter_by(wo_number=wo_number).first()
+    if wo is not None and wo.is_archived and not _show_archived():
+        wo = None
     if wo is None:
         return not_found(f"No work order with number '{wo_number}'.")
     payload = work_order_json(wo)
@@ -184,6 +187,12 @@ def get_work_order(wo_number):
         for item in related_attachments(wo)
     ]
     return jsonify(payload)
+
+
+def _show_archived():
+    """Whether this request opted in to seeing archived work orders."""
+    return str(request.args.get('show_archived', '')).strip().lower() in (
+        '1', 'true', 'yes', 'on')
 
 
 @bp.route('/work-orders')
@@ -197,6 +206,11 @@ def list_work_orders():
             return bad_request('Unknown status.',
                                {'status': f"Must be one of: {', '.join(WO_STATUSES)}."})
         query = query.filter_by(status=status)
+    if not _show_archived():
+        # Archived is a flag, not a status, so this is independent of any status
+        # filter: asking for completed work still means the live ones unless
+        # show_archived says otherwise.
+        query = query.filter(WorkOrder.archived_at.is_(None))
 
     limit = request.args.get('limit', type=int) or 50
     limit = max(1, min(limit, 200))

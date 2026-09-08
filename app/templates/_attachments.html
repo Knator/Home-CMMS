@@ -64,7 +64,12 @@
 {% endmacro %}
 
 
-{% macro attachment_list(attachments) %}
+{# `readonly` drops the controls that change a file, keeping the ones that only
+   look at it. Used for an archived work order, whose attachments stay readable
+   forever but can no longer be renamed, replaced or removed. The routes refuse
+   these regardless — hiding them is so the page stops offering what it will not
+   accept. #}
+{% macro attachment_list(attachments, readonly=False) %}
   {% if attachments %}
   <ul class="attachment-list">
     {% for att in attachments %}
@@ -78,6 +83,7 @@
       </div>
       <span class="attachment-meta">{{ format_file_size(att.file_size) }} · {{ format_datetime(att.uploaded_at, '%Y-%m-%d') }}</span>
       {{ download_button(att) }}
+      {% if not readonly %}
       <details class="attachment-rename">
         <summary class="btn btn-ghost btn-sm">Rename</summary>
         <form method="post" action="{{ url_for('attachments.rename', id=att.id) }}" class="rename-form">
@@ -93,6 +99,7 @@
         <button type="submit" class="btn btn-ghost btn-sm text-danger"
                 onclick="return confirm('Delete this file?')">Delete</button>
       </form>
+      {% endif %}
     </li>
     {% endfor %}
   </ul>

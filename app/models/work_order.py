@@ -47,6 +47,14 @@ class WorkOrder(db.Model):
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
 
+    # Set when the work order is archived. The foreign keys above are kept, so
+    # the asset is still reachable and still protected from deletion — but
+    # everything this record *displays* comes from the snapshot, so renaming an
+    # asset or a location later cannot rewrite history. Same reasoning as
+    # WorkOrderItem being a copy rather than a live view of the job plan.
+    archived_at = db.Column(db.DateTime)
+    archived_snapshot = db.Column(db.JSON)
+
     items = db.relationship(
         'WorkOrderItem', backref='work_order', lazy='dynamic',
         cascade='all, delete-orphan', order_by='WorkOrderItem.sequence',
@@ -102,6 +110,32 @@ class WorkOrder(db.Model):
             self.status not in ('completed', 'cancelled') and
             date.today() >= self.overdue_from
         )
+
+    @property
+    def is_archived(self):
+        """Archiving is a flag, not a status — the Maximo history flag, not a
+        sixth value in the status list.
+
+        Keeping them separate is what preserves the outcome: an archived work
+        order still says whether it was completed or cancelled, which a status
+        of 'archived' would have overwritten. archived_at is the flag and the
+        timestamp at once, so there is one source of truth rather than a boolean
+        that can disagree with a date.
+        """
+        return self.archived_at is not None
+
+    # Work that is finished with, one way or the other. An open or on-hold work
+    # order still has changes coming, so archiving it would freeze a record
+    # mid-flight.
+    ARCHIVABLE_FROM = ('completed', 'cancelled')
+
+    @property
+    def can_be_archived(self):
+        return self.status in self.ARCHIVABLE_FROM
+
+    def snapshot_value(self, key, default=None):
+        """A frozen display value, or None when this is not archived."""
+        return (self.archived_snapshot or {}).get(key, default)
 
     @property
     def status_class(self):

@@ -6,8 +6,14 @@ from flask_login import login_required, current_user
 from app.work_orders import bp
 from app.extensions import db
 from app.models.work_order import (
-    WorkOrder, WO_STATUSES, WO_EDITABLE_STATUSES, WO_PRIORITIES, WO_TYPES,
+    WorkOrder, WO_STATUSES, WO_PRIORITIES, WO_TYPES,
 )
+
+# How the list treats archived work. Its own filter box rather than a value in
+# the status list, because archiving is orthogonal to outcome: a work order is
+# completed or cancelled *and* archived or not, the way Maximo pairs a status
+# with its history flag.
+ARCHIVE_FILTERS = ('hide', 'show', 'only')
 from app.models.job_plan import JobPlan
 from app.models.user import User
 from app.models.attachment import Attachment
@@ -113,7 +119,7 @@ def _form_options(wo=None):
         # look arbitrary once display names differ from it.
         users=sorted(User.query.filter_by(is_active=True).all(),
                      key=lambda u: u.label.lower()),
-        statuses=WO_EDITABLE_STATUSES, priorities=WO_PRIORITIES, wo_types=WO_TYPES,
+        statuses=WO_STATUSES, priorities=WO_PRIORITIES, wo_types=WO_TYPES,
     )
 
 
@@ -124,14 +130,23 @@ def index():
     wo_type = request.args.get('type', '')
     priority = request.args.get('priority', '')
 
+    archived = request.args.get('archived', '')
+    if archived not in ARCHIVE_FILTERS:
+        archived = 'hide'
+
     q = WorkOrder.query
     if status in WO_STATUSES:
         q = q.filter_by(status=status)
     else:
         status = ''
-        # Archived work is history, not a working list. It stays out of the
-        # default view and is reachable by filtering for it explicitly.
-        q = q.filter(WorkOrder.status != 'archived')
+
+    # Independent of status: archived work is history, not a working list, so it
+    # is out of the way by default and stays that way even when you filter for
+    # completed work.
+    if archived == 'hide':
+        q = q.filter(WorkOrder.archived_at.is_(None))
+    elif archived == 'only':
+        q = q.filter(WorkOrder.archived_at.isnot(None))
     if wo_type in WO_TYPES:
         q = q.filter_by(wo_type=wo_type)
     else:
@@ -145,10 +160,9 @@ def index():
     return render_template(
         'work_orders/list.html',
         work_orders=work_orders,
-        # The full list here, including 'archived': filtering for it is the only
-        # way to see archived work, since the default view hides it.
         statuses=WO_STATUSES, priorities=WO_PRIORITIES, wo_types=WO_TYPES,
         selected_status=status, selected_type=wo_type, selected_priority=priority,
+        archive_filters=ARCHIVE_FILTERS, selected_archived=archived,
         today=date.today(),
     )
 

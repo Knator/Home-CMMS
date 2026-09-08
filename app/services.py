@@ -501,7 +501,9 @@ def archive_work_order(wo):
             'Finish or cancel it first.')
 
     wo.archived_snapshot = archive_snapshot(wo)
+    # The status is deliberately left alone: 'completed' and 'cancelled' are
+    # different outcomes and an archive that forgets which is which is worth
+    # less than one that remembers.
     wo.archived_at = utcnow()
-    wo.status = 'archived'
     db.session.commit()
     return wo

@@ -9,6 +9,7 @@
     <h1>{{ wo.title }}</h1>
     <div class="header-meta">
       <span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span>
+      {% if wo.is_archived %}<span class="badge status-archived">Archived</span>{% endif %}
       <span class="badge {{ wo.priority_class }}">{{ wo.priority }}</span>
       <span class="badge badge-type-{{ wo.wo_type }}">{{ wo.wo_type }}</span>
       {% if wo.is_overdue %}<span class="badge badge-overdue">Overdue</span>{% endif %}

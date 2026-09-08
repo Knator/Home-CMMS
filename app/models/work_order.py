@@ -2,12 +2,7 @@ from datetime import date, timedelta
 from app.utils import utcnow
 from app.extensions import db
 
-WO_STATUSES = ['open', 'in_progress', 'on_hold', 'completed', 'cancelled',
-                'archived']
-# Statuses a person may pick on the edit form. Archiving is deliberately not one
-# of them: it is irreversible, so it is a separate deliberate action rather than
-# something a mis-click on a dropdown can do.
-WO_EDITABLE_STATUSES = [s for s in WO_STATUSES if s != 'archived']
+WO_STATUSES = ['open', 'in_progress', 'on_hold', 'completed', 'cancelled']
 WO_PRIORITIES = ['low', 'medium', 'high', 'critical']
 WO_TYPES = ['planned', 'unplanned']
 
@@ -17,7 +12,6 @@ STATUS_COLORS = {
     'on_hold': 'status-on-hold',
     'completed': 'status-completed',
     'cancelled': 'status-cancelled',
-    'archived': 'status-archived',
 }
 
 PRIORITY_COLORS = {
@@ -119,7 +113,16 @@ class WorkOrder(db.Model):
 
     @property
     def is_archived(self):
-        return self.status == 'archived'
+        """Archiving is a flag, not a status — the Maximo history flag, not a
+        sixth value in the status list.
+
+        Keeping them separate is what preserves the outcome: an archived work
+        order still says whether it was completed or cancelled, which a status
+        of 'archived' would have overwritten. archived_at is the flag and the
+        timestamp at once, so there is one source of truth rather than a boolean
+        that can disagree with a date.
+        """
+        return self.archived_at is not None
 
     # Work that is finished with, one way or the other. An open or on-hold work
     # order still has changes coming, so archiving it would freeze a record

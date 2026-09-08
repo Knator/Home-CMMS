@@ -206,11 +206,11 @@ def list_work_orders():
             return bad_request('Unknown status.',
                                {'status': f"Must be one of: {', '.join(WO_STATUSES)}."})
         query = query.filter_by(status=status)
-    elif not _show_archived():
-        # Archived work is history. A client asking for status=archived plainly
-        # wants it; otherwise it stays out of the way unless show_archived says
-        # so, matching what the work order list does in the UI.
-        query = query.filter(WorkOrder.status != 'archived')
+    if not _show_archived():
+        # Archived is a flag, not a status, so this is independent of any status
+        # filter: asking for completed work still means the live ones unless
+        # show_archived says otherwise.
+        query = query.filter(WorkOrder.archived_at.is_(None))
 
     limit = request.args.get('limit', type=int) or 50
     limit = max(1, min(limit, 200))

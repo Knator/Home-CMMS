@@ -111,8 +111,10 @@ ENDPOINTS = [
         'query': [
             ('status', 'string', f"Filter by status. One of: {', '.join(WO_STATUSES)}."),
             ('show_archived', 'boolean',
-             'Include archived work orders. Off by default; `status=archived` '
-             'returns them regardless, since asking for them is unambiguous.'),
+             'Include archived work orders. Off by default. Archiving is a flag '
+             'rather than a status, so an archived work order keeps whichever '
+             'status it had — filtering by `completed` still returns only live '
+             'ones unless this is set.'),
             ('limit', 'integer', 'How many to return, 1–200. Defaults to 50.'),
         ],
         'responses': [

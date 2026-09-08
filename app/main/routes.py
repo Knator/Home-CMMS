@@ -33,7 +33,7 @@ def dashboard():
 
     recent_wos = (
         WorkOrder.query
-        .filter(WorkOrder.status != 'archived')
+        .filter(WorkOrder.archived_at.is_(None))
         .order_by(WorkOrder.created_at.desc())
         .limit(10)
         .all()

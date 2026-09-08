@@ -127,12 +127,19 @@ would shift a due date by a day. Only DateTime columns go through `format_dateti
   can't hang a request.
 
 ### Archiving work orders
-`archived` is a sixth WO status, reached only through `archive_work_order()` and never
-undone. `WO_EDITABLE_STATUSES` is what the edit form offers — it excludes `archived`
-deliberately, because a one-way transition should not be a value on a dropdown that a
-mis-click can select. `ARCHIVABLE_FROM` is `('completed', 'cancelled')`: work that is
-finished with, one way or the other. Open or on-hold work still has changes coming, so
-freezing it would capture a record mid-job.
+Archiving is a **flag, not a status** — Maximo's history flag, not a sixth value in the
+status list. `archived_at` is the flag and the timestamp at once, so there is one source of
+truth rather than a boolean that can drift from a date, and `is_archived` reads it.
+
+Keeping it separate is what preserves the outcome: an archived work order still says whether
+it was **completed or cancelled**, which a status of `archived` overwrote. It also makes
+filtering orthogonal — asking for completed work no longer forces a decision about archived
+work at the same time. Migration `10046c5492a5` recovers the outcome for rows archived under
+the old scheme, using `completed_date`, which is set on completion and never on cancellation.
+
+`ARCHIVABLE_FROM` is `('completed', 'cancelled')`: work that is finished with, one way or the
+other. Open or on-hold work still has changes coming, so freezing it would capture a record
+mid-job. It is reached only through `archive_work_order()` and never undone.
 
 `archive_snapshot(wo)` freezes everything the record displays about other records — asset
 and location name/number/path, job plan and PM name, assignee and creator labels — into the
@@ -160,8 +167,9 @@ is not a retention lock, and an archive with no way to remove anything is a fili
 with no bin beside it.
 
 Archived work is hidden by default in the list, the dashboard, the location page and the
-API. `?status=archived` or `show_archived=true` reveals it; naming the status is treated as
-unambiguous intent. The API's single-record endpoint answers 404 for an archived work order
+API. The work order list has its **own filter box** (`ARCHIVE_FILTERS`: `hide` / `show` /
+`only`) beside Status, Type and Priority, independent of all three; the API uses
+`show_archived`. `status=archived` is no longer valid anywhere, because it is not a status. The API's single-record endpoint answers 404 for an archived work order
 unless `show_archived` is set, so a client that knows nothing about archiving never sees
 frozen records.
 

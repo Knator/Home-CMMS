@@ -11,7 +11,7 @@ import pytest
 
 from app.extensions import db as _db
 from app.models.attachment import Attachment
-from app.models.work_order import WorkOrder, WO_STATUSES, WO_EDITABLE_STATUSES
+from app.models.work_order import WorkOrder, WO_STATUSES
 from app.services import (
     NotArchivable, archive_work_order, create_asset, create_location,
     create_work_order,
@@ -54,15 +54,17 @@ def test_work_that_is_finished_with_can_be_archived(db, status):
     without being done."""
     wo = create_work_order(title='Done with', wo_type='unplanned', status=status)
     archive_work_order(wo)
-    assert wo.status == 'archived'
+    assert wo.is_archived
+    assert wo.status == status          # completed stays completed, cancelled cancelled
     assert wo.snapshot_value('asset_name') is None
 
 
 def test_a_completed_work_order_can_be_archived(db, completed):
     archive_work_order(completed)
-    assert completed.status == 'archived'
     assert completed.is_archived
     assert completed.archived_at is not None
+    # The outcome survives: archiving is a flag, not a replacement status.
+    assert completed.status == 'completed'
 
 
 def test_archiving_twice_is_refused(db, completed):
@@ -137,13 +139,16 @@ def test_it_cannot_be_taken_back_out_of_archived(signed_in, db, completed):
     signed_in.post(f'/work-orders/{completed.id}/edit', data={
         'csrf_token': CSRF, 'title': 'Annual service', 'status': 'open',
     })
-    assert _db.session.get(WorkOrder, completed.id).status == 'archived'
+    refreshed = _db.session.get(WorkOrder, completed.id)
+    assert refreshed.is_archived            # the flag cannot be cleared
+    assert refreshed.status == 'completed'  # nor the outcome rewritten
 
 
-def test_archived_is_not_offered_on_the_edit_form(db):
-    """It is reached by a deliberate action, not by a mis-click on a dropdown."""
-    assert 'archived' in WO_STATUSES
-    assert 'archived' not in WO_EDITABLE_STATUSES
+def test_archived_is_not_a_status_at_all(db):
+    """It is a flag alongside the status, the way Maximo pairs a status with
+    its history flag — so it cannot be reached from the status dropdown and
+    cannot overwrite the outcome."""
+    assert 'archived' not in WO_STATUSES
 
 
 def test_an_archived_work_order_can_still_be_deleted(signed_in, db, completed):
@@ -193,10 +198,40 @@ def test_the_list_hides_archived_by_default(signed_in, db, completed):
     assert completed.wo_number not in html
 
 
-def test_filtering_for_archived_shows_them(signed_in, db, completed):
+def test_the_archive_filter_can_include_them(signed_in, db, completed):
     archive_work_order(completed)
-    html = signed_in.get('/work-orders/?status=archived').get_data(as_text=True)
+    html = signed_in.get('/work-orders/?archived=show').get_data(as_text=True)
     assert completed.wo_number in html
+
+
+def test_the_archive_filter_can_show_only_them(signed_in, db, completed):
+    live = create_work_order(title='Still going', wo_type='unplanned')
+    archive_work_order(completed)
+    html = signed_in.get('/work-orders/?archived=only').get_data(as_text=True)
+    assert completed.wo_number in html
+    assert live.wo_number not in html
+
+
+def test_the_archive_filter_is_independent_of_status(signed_in, db, completed):
+    """The point of a separate box: filtering for completed work should not
+    have to decide about archived work at the same time."""
+    live = create_work_order(title='Also done', wo_type='unplanned',
+                             status='completed')
+    archive_work_order(completed)
+
+    default = signed_in.get('/work-orders/?status=completed').get_data(as_text=True)
+    assert live.wo_number in default
+    assert completed.wo_number not in default
+
+    both = signed_in.get(
+        '/work-orders/?status=completed&archived=show').get_data(as_text=True)
+    assert live.wo_number in both and completed.wo_number in both
+
+
+def test_an_unknown_archive_filter_falls_back_to_hiding(signed_in, db, completed):
+    archive_work_order(completed)
+    html = signed_in.get('/work-orders/?archived=nonsense').get_data(as_text=True)
+    assert completed.wo_number not in html
 
 
 def test_the_dashboard_does_not_list_archived_work(signed_in, db, completed):
@@ -232,11 +267,21 @@ def test_show_archived_reveals_them(client, db, api, completed):
     assert completed.wo_number in [w['wo_number'] for w in data['work_orders']]
 
 
-def test_asking_for_the_archived_status_returns_them(client, db, api, completed):
-    """Unambiguous: a client naming the status plainly wants it."""
+def test_archived_is_not_a_valid_api_status_filter(client, db, api, completed):
+    """It is a flag, so it is show_archived that reveals them, not a status."""
+    response = client.get('/api/v1/work-orders?status=archived', headers=api)
+    assert response.status_code == 400
+
+
+def test_the_api_status_filter_is_independent_of_archiving(client, db, api,
+                                                           completed):
     archive_work_order(completed)
-    data = client.get('/api/v1/work-orders?status=archived', headers=api).get_json()
-    assert len(data['work_orders']) == 1
+    hidden = client.get('/api/v1/work-orders?status=completed',
+                        headers=api).get_json()
+    assert hidden['count'] == 0
+    shown = client.get('/api/v1/work-orders?status=completed&show_archived=1',
+                       headers=api).get_json()
+    assert shown['count'] == 1
 
 
 def test_fetching_an_archived_work_order_directly_is_hidden_too(client, db, api,

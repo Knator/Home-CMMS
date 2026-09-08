@@ -126,6 +126,59 @@ would shift a due date by a day. Only DateTime columns go through `format_dateti
   `would_create_cycle()`. Both walks are depth-capped and loop-guarded so corrupt data
   can't hang a request.
 
+### Archiving work orders
+Archiving is a **flag, not a status** — Maximo's history flag, not a sixth value in the
+status list. `archived_at` is the flag and the timestamp at once, so there is one source of
+truth rather than a boolean that can drift from a date, and `is_archived` reads it.
+
+Keeping it separate is what preserves the outcome: an archived work order still says whether
+it was **completed or cancelled**, which a status of `archived` overwrote. It also makes
+filtering orthogonal — asking for completed work no longer forces a decision about archived
+work at the same time. Migration `10046c5492a5` recovers the outcome for rows archived under
+the old scheme, using `completed_date`, which is set on completion and never on cancellation.
+
+`ARCHIVABLE_FROM` is `('completed', 'cancelled')`: work that is finished with, one way or the
+other. Open or on-hold work still has changes coming, so freezing it would capture a record
+mid-job. It is reached only through `archive_work_order()` and never undone.
+
+`archive_snapshot(wo)` freezes everything the record displays about other records — asset
+and location name/number/path, job plan and PM name, assignee and creator labels — into the
+`archived_snapshot` JSON column. One blob rather than a column per field: it is only read
+back for display, never queried or joined, so a dozen mostly-NULL columns on every live work
+order would be cost without benefit. Same reasoning as `WorkOrderItem` being a copy of the
+job plan rather than a view of it.
+
+**The foreign keys are kept.** Freezing what is *displayed* is what stops a later rename
+rewriting history; severing the links as well would additionally make an asset deletable
+once its only work was archived, and would lose the click-through. So an archived work order
+shows `snapshot_value('asset_name')` but still links to the asset, and still counts in
+`asset_delete_blockers`.
+
+Immutability is enforced on the routes, not by hiding buttons: `_refuse_if_archived()` guards
+edit and attachment upload, and `_owner_is_archived()` guards the **polymorphic** attachment
+rename/delete routes, which would otherwise let a file on a frozen record be changed by id.
+The UI must hide those controls too — the routes refusing them is not enough on its own,
+because a page that still offers a button it will not honour reads as broken. Hence
+`attachment_list(attachments, readonly=...)`, which keeps the view and download links and
+drops rename and delete.
+
+**Deleting an archived work order is allowed.** Archiving freezes what a record *says*; it
+is not a retention lock, and an archive with no way to remove anything is a filing cabinet
+with no bin beside it.
+
+The archived banner on the detail page uses `.record-notice`, **not** `.alert`. Alerts are
+flash messages and `initAlerts()` fades them after four seconds; this states a standing
+property of the record, so it must not be one. It is also styled differently on purpose —
+archiving redirects with a flash saying much the same thing, and two identical boxes where
+only one disappears reads as a bug.
+
+Archived work is hidden by default in the list, the dashboard, the location page and the
+API. The work order list has its **own filter box** (`ARCHIVE_FILTERS`: `hide` / `show` /
+`only`) beside Status, Type and Priority, independent of all three; the API uses
+`show_archived`. `status=archived` is no longer valid anywhere, because it is not a status. The API's single-record endpoint answers 404 for an archived work order
+unless `show_archived` is set, so a client that knows nothing about archiving never sees
+frozen records.
+
 ### Materials and tools
 `JobPlanItem` and `WorkOrderItem` share `ItemFieldsMixin` (kind, sequence, description,
 quantity, part_number) but are **separate tables on purpose**: a work order's list is a
@@ -195,6 +248,21 @@ each PM's exact lead in Python, since the lead is a column.
 dashboard's overdue count is settled in Python from the same `is_overdue` the pages use —
 `due_date < today` remains a cheap SQL prefilter, since grace can only ever make fewer
 records overdue.
+
+**Cancelling a generated work order does not touch the PM.** The schedule advances at
+generation, not completion, so cancelling skips that occurrence and the next arrives
+normally — nothing is re-raised. `sync_pm_schedule()` still runs on the edit path but is a
+no-op both ways: fixed mode returns immediately, and floating mode re-anchors from
+`last_completion_date()`, which filters `completed_date IS NOT NULL` and so cannot see a
+cancelled work order.
+
+Two consequences fall out of that. A **floating PM whose work orders are always cancelled
+behaves like a fixed one**, since nothing ever records a completion to anchor to. And
+**completing then cancelling leaves the completion counted**: `_resolve_completed_date()`
+preserves `completed_date` across a status change — deliberately, so a POST that omits the
+field cannot wipe history — so a floating PM stays anchored to work that was later retracted.
+Documented in `GettingStarted.txt` §9 as behaviour, not fixed as a bug, because which way it
+should go is a product decision.
 
 Generation still advances the due date in both modes — otherwise a floating PM would
 regenerate every day until someone completed the work.
@@ -503,6 +571,60 @@ The page is deliberately **not** a CDN-hosted Swagger UI — this app often runs
 LAN box, where that renders blank. **When adding an endpoint, add an entry to `ENDPOINTS`**:
 `test_api_docs.py` fails if a route is undocumented *or* documented but missing, which is
 what stops the reference drifting from the code.
+
+### Settings (`app/settings.py`, `app/models/setting.py`, `/admin/settings`)
+Admin-only **in-app preferences**, deliberately separate from Maintenance: Maintenance is
+about keeping the instance running (backups, storage, database, scheduler), Settings is about
+how the application behaves for the people using it.
+
+Preferences live in a key/value `settings` table, **not in `.env`**. The environment
+describes the deployment — where the database is, what port to listen on — and is needed
+before the app starts; a preference is chosen by an admin while it runs and should not need
+a file edit and a restart. Rewriting `.env` from the app was considered and rejected: it is
+an artifact the operator owns, is often mounted read-only in a container, and writing to it
+races with their edits and loses their comments. Immich, Nextcloud and Home Assistant all
+bootstrap from the environment and keep runtime preferences in their own storage.
+
+Precedence is **env → stored → config default**. A variable that is actually set wins and
+the field renders disabled with "Set by the environment", because setting one is a deliberate
+act by whoever runs the server. `ENV_SETTING_OVERRIDES` in `config.py` records which were
+genuinely set (empty means unset). Adding a preference means one entry in `DEFAULTS` and no
+migration.
+
+`upload_limit_bytes()` is the subtle one: a *chosen* value is whole MB, but with nothing
+chosen it returns `MAX_CONTENT_LENGTH` **in bytes** rather than converting to MB and back —
+the setting's granularity must not coarsen a limit that was configured precisely. It is
+applied in a `before_request` because `MAX_CONTENT_LENGTH` is fixed at start-up and this can
+change while running; the restore routes raise it again for themselves afterwards, which
+still wins because a view runs after `before_request`.
+
+`begin_request()` clears the per-request cache explicitly. The cache lives on `g`, which is
+per *app context* — normally one per request, but not when an outer context is held, which is
+how the test suite runs. The same trap `IsolatedClient` documents for Flask-Login.
+
+**Auto-archiving** (`auto_archive_enabled`, default **off**; `auto_archive_days`, default 90)
+archives work that has been closed longer than the window. Off by default because archiving
+cannot be undone, and doing it unasked should be a decision. While it is off
+`auto_archive_closed_work_orders()` returns before touching the work order table at all.
+
+The reference date is `WorkOrder.closed_on`: `completed_date` when there is one — the date
+the work was actually done, and user-editable — otherwise the local date from
+`status_changed_at`. **Not `updated_at`**, which moves whenever anything is edited, so adding
+a note would restart the clock.
+
+`status_changed_at` exists because a cancelled work order otherwise carries no date at all.
+It is maintained by a `@validates('status')` hook rather than a line in each route, since
+status is set from the create and edit forms, the API, the PM generator and the tests, and
+one of those would eventually be missed. Migration `84b7eef551cb` backfills it from
+`completed_date`, then `updated_at` — without that, every existing closed record would look
+freshly closed and wait the full window.
+
+The hourly job is registered whether or not the feature is on, because the setting can change
+while the app runs and switching it on should not need a restart. `/admin/settings/auto-archive/run`
+applies the rule immediately, so the effect can be seen rather than waited for.
+
+`allow_archived_deletion` (default on) gates both the Delete button and the route, since a
+hidden button is a convenience and not a rule.
 
 ### Maintenance (`app/maintenance.py`, `/admin/maintenance`)
 Admin-only housekeeping, modelled on what self-hosted apps generally need (Home Assistant's

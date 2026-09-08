@@ -14,8 +14,9 @@ services:
   cmms:
     build: .
     # Or, once published:
-    # image: ghcr.io/YOUR-USERNAME/home-cmms:latest
-    container_name: home-cmms
+    # image: ghcr.io/Knator/home-cmms:latest
+
+    container_name: "${CONTAINER_NAME:-home-cmms}"
     restart: unless-stopped
 
     ports:

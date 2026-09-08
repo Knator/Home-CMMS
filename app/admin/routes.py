@@ -16,6 +16,8 @@ from app.utils import (
 )
 from app import maintenance
 from app import security
+from app import settings as app_settings
+from app.services import auto_archive_closed_work_orders
 
 
 def _other_active_admins(user_id):
@@ -209,6 +211,81 @@ def _maintenance_result(scan=False):
     if _wants_async():
         return _render_maintenance(scan=scan)
     return redirect(url_for('admin.maintenance_page', **({'scan': 1} if scan else {})))
+
+
+@bp.route('/settings', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def settings_page():
+    """In-app preferences.
+
+    Deliberately separate from Maintenance, which is about keeping the instance
+    running — backups, storage, the database, the scheduler. This is about how
+    the application behaves for the people using it.
+    """
+    if request.method == 'POST':
+        validate_csrf()
+
+        limit_on = bool(request.form.get('upload_limit_enabled'))
+        archive_on = bool(request.form.get('auto_archive_enabled'))
+        limit = parse_int(request.form.get('max_upload_mb'), minimum=1)
+        days = parse_int(request.form.get('auto_archive_days'), minimum=0)
+
+        # Everything is checked before anything is written. Staging a value and
+        # then bailing out leaves it pending in the session, where it reads back
+        # as though it had been saved — and might be committed by whatever runs
+        # next.
+        errors = []
+        if limit_on and limit is None:
+            errors.append('Enter a maximum attachment size of at least 1 MB, '
+                          'or switch the limit off.')
+        if archive_on and days is None:
+            errors.append('Enter how many days a closed work order should wait '
+                          'before archiving, or switch auto-archiving off.')
+        if errors:
+            for message in errors:
+                flash(message, 'error')
+            return render_template('admin/settings.html',
+                                   settings=app_settings.all_settings())
+
+        app_settings.set_value('allow_archived_deletion',
+                               bool(request.form.get('allow_archived_deletion')),
+                               current_user.id)
+        app_settings.set_value('upload_limit_enabled', limit_on, current_user.id)
+        app_settings.set_value('auto_archive_enabled', archive_on, current_user.id)
+        if limit is not None:
+            app_settings.set_value('max_upload_mb', limit, current_user.id)
+        if days is not None:
+            app_settings.set_value('auto_archive_days', days, current_user.id)
+
+        db.session.commit()
+        flash('Settings saved.', 'success')
+        return redirect(url_for('admin.settings_page'))
+
+    return render_template('admin/settings.html',
+                           settings=app_settings.all_settings())
+
+
+@bp.route('/settings/auto-archive/run', methods=['POST'])
+@login_required
+@admin_required
+def run_auto_archive_now():
+    """Run the auto-archive pass immediately, rather than waiting for the hour.
+
+    Mostly so the setting can be tried out and seen to work — a rule whose
+    effect you cannot observe until some time tonight is hard to trust.
+    """
+    validate_csrf()
+    if app_settings.auto_archive_after_days() is None:
+        flash('Auto-archiving is switched off.', 'error')
+        return redirect(url_for('admin.settings_page'))
+
+    count = auto_archive_closed_work_orders()
+    if count:
+        flash(f'Archived {count} work order(s).', 'success')
+    else:
+        flash('Nothing was old enough to archive.', 'info')
+    return redirect(url_for('admin.settings_page'))
 
 
 @bp.route('/maintenance')

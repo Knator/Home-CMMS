@@ -15,7 +15,7 @@
 <div class="page-header">
   <div>
     <h1>Maintenance</h1>
-    <div class="header-meta"><span class="breadcrumb-path">Backups, storage and database housekeeping</span></div>
+    <!--<div class="header-meta"><span class="breadcrumb-path">Backups, storage and database housekeeping</span></div>-->
   </div>
   <div class="page-actions">
     <a href="{{ url_for('admin.users') }}" class="btn btn-ghost">Users</a>
@@ -140,9 +140,9 @@
       </table>
     </div>
     {% if failure_count > failures | length %}
-      <p class="field-hint" style="margin-top:8px;">
+     <!-- <p class="field-hint" style="margin-top:8px;">
         Showing the {{ failures | length }} most recent of {{ failure_count }}.
-      </p>
+      </p>-->
     {% endif %}
     {% else %}
       <p class="text-muted">No failed sign-in attempts on record.</p>
@@ -215,36 +215,39 @@
           enctype="multipart/form-data" class="form-shell">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-      <div class="form-group">
-        <label for="restore_name">Restore from an existing backup</label>
-        <select id="restore_name" name="name" data-searchable>
-          <option value="">— upload a file instead —</option>
-          {% for b in backups %}
-          <option value="{{ b.name }}">{{ b.name }} ({{ format_file_size(b.size) }})</option>
-          {% endfor %}
-        </select>
-        <div class="field-hint">
-          Anything in <code>{{ status.backups_path }}</code>. Copy an archive
-          there to restore a file this instance did not create — there is no upload size
-          limit that way.
+      {# Two ways in, and they are alternatives rather than a sequence, so each
+         is its own block with a rule between them. #}
+      <div class="setting">
+        <div class="form-group">
+          <label for="restore_name">Restore from an existing backup</label>
+          <select id="restore_name" name="name" data-searchable>
+            <option value="">— upload a file instead —</option>
+            {% for b in backups %}
+            <option value="{{ b.name }}">{{ b.name }} ({{ format_file_size(b.size) }})</option>
+            {% endfor %}
+          </select>
+          <div class="field-hint">
+            Anything in <code>{{ status.backups_path }}</code>. Copy an archive
+            there to restore a file this instance did not create — there is no
+            upload size limit that way.
+          </div>
         </div>
       </div>
 
-      <div class="form-group">
-        <label for="restore_archive">…or upload a backup archive</label>
-        <input type="file" id="restore_archive" name="archive" accept=".gz,.tgz,application/gzip">
-        <div class="field-hint">
-          No size limit — <code>MAX_UPLOAD_MB</code> caps attachments, not backups.
-          A large archive still uploads faster if you copy it into the backups
-          folder instead.
+      <div class="setting">
+        <div class="form-group">
+          <label for="restore_archive">…or upload a backup archive</label>
+          <input type="file" id="restore_archive" name="archive" accept=".gz,.tgz,application/gzip">
         </div>
       </div>
 
-      <div class="form-group">
-        <label class="checkbox-label">
-          <input type="checkbox" name="confirm" value="1">
-          I understand this permanently replaces all current data.
-        </label>
+      <div class="setting">
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="confirm" value="1">
+            I understand this permanently replaces all current data.
+          </label>
+        </div>
       </div>
 
       <div class="form-actions">

@@ -63,6 +63,8 @@ def create_app(config_class=Config, config_overrides=None):
         from app.utils import is_embedded
         return {'layout': 'embedded.html' if is_embedded() else 'base.html'}
 
+    from app.settings import archived_deletion_allowed
+    app.jinja_env.globals['archived_deletion_allowed'] = archived_deletion_allowed
     app.jinja_env.globals['csrf_token'] = generate_csrf_token
     app.jinja_env.globals['format_file_size'] = format_file_size
     app.jinja_env.globals['format_duration'] = format_duration
@@ -127,6 +129,23 @@ def create_app(config_class=Config, config_overrides=None):
         return error, 500
 
     @app.before_request
+    def apply_upload_limit():
+        """Let the stored preference govern the size of an upload.
+
+        MAX_CONTENT_LENGTH is fixed at start-up, but this is a preference an
+        administrator can change while the app runs, so it is applied per
+        request instead. Set before anything parses a body — the restore routes
+        raise it again for themselves afterwards, which still wins because a
+        view runs after this.
+        """
+        from app.settings import begin_request, upload_limit_bytes
+        begin_request()
+        try:
+            request.max_content_length = upload_limit_bytes()
+        except Exception:
+            pass    # before the settings table exists, the configured cap stands
+
+    @app.before_request
     def require_first_run_setup():
         """Send an unconfigured instance to setup rather than a login it cannot pass."""
         from app.setup.routes import database_ready, needs_setup
@@ -152,7 +171,8 @@ def create_app(config_class=Config, config_overrides=None):
 
     @app.errorhandler(413)
     def file_too_large(error):
-        limit_mb = app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)
+        from app.settings import upload_limit_bytes
+        limit_mb = upload_limit_bytes() // (1024 * 1024)
         flash(f'That file is too large. The limit is {limit_mb} MB — raise '
               'MAX_UPLOAD_MB to accept bigger ones. A backup archive can also be '
               'restored by copying it into instance/backups instead of uploading.',

@@ -32,7 +32,17 @@
       <option value="{{ p }}" {{ 'selected' if selected_priority == p }}>{{ p | title }}</option>
     {% endfor %}
   </select>
-  {% if selected_status or selected_type or selected_priority %}
+  {# Its own box rather than a value in the Status list: archiving is
+     orthogonal to outcome, so filtering for completed work should not have to
+     decide about archived work at the same time. #}
+  <label for="archived">Archived</label>
+  <select name="archived" id="archived" onchange="this.form.submit()">
+    <option value="hide" {{ 'selected' if selected_archived == 'hide' }}>Hidden</option>
+    <option value="show" {{ 'selected' if selected_archived == 'show' }}>Included</option>
+    <option value="only" {{ 'selected' if selected_archived == 'only' }}>Only</option>
+  </select>
+  {% if selected_status or selected_type or selected_priority
+        or selected_archived != 'hide' %}
     <a href="{{ url_for('work_orders.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}
 </form>
@@ -53,7 +63,10 @@
           <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id) }}">{{ wo.wo_number }}</a></td>
           <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id) }}">{{ wo.title }}</a></td>
           <td class="col-hide-sm"><span class="badge badge-type-{{ wo.wo_type }}">{{ wo.wo_type }}</span></td>
-          <td><span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span></td>
+          <td>
+            <span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span>
+            {% if wo.is_archived %}<span class="badge status-archived">archived</span>{% endif %}
+          </td>
           <td class="col-hide-sm"><span class="badge {{ wo.priority_class }}">{{ wo.priority }}</span></td>
           <td class="col-hide-sm">{% if wo.asset %}<a class="row-link" href="{{ url_for('assets.detail', id=wo.asset.id) }}">{{ wo.asset.name }}</a> <span class="muted-number">{{ wo.asset.asset_number }}</span>{% else %}—{% endif %}</td>
           <td class="col-hide-sm">{% if wo.location %}<a class="row-link" href="{{ url_for('locations.detail', id=wo.location.id) }}">{{ wo.location.name }}</a>{% else %}—{% endif %}</td>

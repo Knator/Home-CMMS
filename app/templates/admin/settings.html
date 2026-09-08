@@ -6,20 +6,13 @@
 <div class="page-header">
   <div>
     <h1>Settings</h1>
-    <div class="header-meta">
-      <span class="breadcrumb-path">How the application behaves</span>
-    </div>
+
   </div>
   <div class="page-actions">
     <a href="{{ url_for('admin.maintenance_page') }}" class="btn btn-ghost">Maintenance</a>
   </div>
 </div>
 
-<p class="field-hint" style="margin-bottom:16px;">
-  Preferences for the application itself. Anything to do with keeping the
-  instance running — backups, storage, the database, the scheduler — lives on
-  the <a href="{{ url_for('admin.maintenance_page') }}">Maintenance</a> page.
-</p>
 
 <form method="post" class="form-shell">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -27,45 +20,42 @@
   <div class="card">
     <div class="card-header"><span class="card-title">Work Orders</span></div>
     <div class="card-body">
-      <div class="form-group">
-        <label class="checkbox-label">
-          <input type="checkbox" name="allow_archived_deletion" value="1"
-                 {{ 'checked' if settings.allow_archived_deletion.value }}>
-          Allow archived work orders to be deleted
-        </label>
-        <div class="field-hint">
-          On by default — archiving freezes what a record says, it is not a
-          retention lock. Switch it off to make the archive permanent: the
-          Delete button disappears from archived work orders and the server
-          refuses the request even if it is sent directly. Live work orders are
-          unaffected either way.
+      <div class="setting">
+        <div class="form-group">
+          {# The hint sits outside the label on purpose: inside it, clicking the
+             explanation toggles the checkbox. #}
+          <label class="checkbox-label">
+            <input type="checkbox" name="allow_archived_deletion" value="1"
+                   {{ 'checked' if settings.allow_archived_deletion.value }}>
+            Allow archived work orders to be deleted
+          </label>
+          <div class="field-hint">
+            Archiving freezes the record for historical record keeping.
+          </div>
         </div>
       </div>
 
-      <div class="form-group">
-        <label class="checkbox-label">
-          <input type="checkbox" name="auto_archive_enabled" value="1"
-                 {{ 'checked' if settings.auto_archive_enabled.value }}>
-          Automatically archive closed work orders
-        </label>
-        <div class="field-hint">
-          Off by default. Archiving cannot be undone, so letting it happen
-          without anyone asking should be a decision rather than a default.
-          While this is off no check runs at all.
+      {# One setting, two fields: the switch and the number it governs belong
+         together, so they sit inside a single block rather than being separated
+         from each other. #}
+      <div class="setting">
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="auto_archive_enabled" value="1"
+                   {{ 'checked' if settings.auto_archive_enabled.value }}>
+            Automatically archive closed work orders
+          </label>
+          <div class="field-hint">
+            Any work orders completed or cancelled longer than the specified time frame will be automatically archived.
+            While this tool can be used effectively to keep old work orders cleaned up - Archiving cannot be undone. Use with caution.
+          </div>
         </div>
-      </div>
 
-      <div class="form-group">
+        <div class="form-group">
         <label for="auto_archive_days">Days before archiving</label>
         <input type="number" id="auto_archive_days" name="auto_archive_days"
                min="0" max="3650" class="tiny-number"
                value="{{ settings.auto_archive_days.value }}">
-        <div class="field-hint">
-          Counted from the completion date for completed work, and from the day
-          it was cancelled for cancelled work — not from the last time anyone
-          edited it, so adding a note does not restart the clock. The check runs
-          hourly.
-        </div>
         {% if settings.auto_archive_enabled.value %}
           {# `form=` rather than nesting: a form cannot contain another form, and
              this button belongs beside the setting it acts on rather than
@@ -77,6 +67,7 @@
             Applies the rule immediately instead of waiting for the next hourly check.
           </span>
         {% endif %}
+        </div>
       </div>
     </div>
   </div>
@@ -84,21 +75,22 @@
   <div class="card">
     <div class="card-header"><span class="card-title">Attachments</span></div>
     <div class="card-body">
-      <div class="form-group">
-        <label class="checkbox-label">
-          <input type="checkbox" name="upload_limit_enabled" value="1"
-                 {{ 'checked' if settings.upload_limit_enabled.value }}>
-          Enforce a maximum attachment size
-        </label>
-        <div class="field-hint">
-          Off means any size is accepted. The only real ceiling then is disk
-          space, and a single very large upload is held in memory or a temporary
-          file while it arrives — worth leaving on unless you have a reason.
+      <div class="setting">
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="upload_limit_enabled" value="1"
+                   {{ 'checked' if settings.upload_limit_enabled.value }}>
+            Enforce a maximum attachment size
+          </label>
+          <div class="field-hint">
+            Off means any size is accepted. The only real ceiling then is disk
+            space, and a single very large upload is held in memory or a temporary
+            file while it arrives — worth leaving on unless you have a reason.
+          </div>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label for="max_upload_mb">Maximum attachment size (MB)</label>
+        <div class="form-group">
+          <label for="max_upload_mb">Maximum attachment size (MB)</label>
         <input type="number" id="max_upload_mb" name="max_upload_mb" min="1" max="102400"
                value="{{ settings.max_upload_mb.value }}"
                {{ 'disabled' if settings.max_upload_mb.locked }}>
@@ -111,10 +103,10 @@
           </div>
         {% else %}
           <div class="field-hint">
-            Applies to a single attachment. Restoring a backup is exempt however
-            large the archive.
+            Applies to the size of a single attachment.
           </div>
         {% endif %}
+        </div>
       </div>
     </div>
   </div>

@@ -49,7 +49,8 @@ Everything is optional. The defaults give a working LAN install.
 | Variable | Default | What it does |
 |---|---|---|
 | `TZ` | `UTC` | Your timezone, e.g. `America/New_York`. **Set this** — otherwise all times display as UTC. |
-| `WEB_PORT` | `8080` | Host port to publish on. |
+| `WEB_PORT` | `8080` | Host port to publish on. Two instances cannot share one. |
+| `CONTAINER_NAME` | `home-cmms` | Only needed to run a second instance beside an existing one. Container names are global to Docker, not per compose project. |
 | `SECRET_KEY` | *generated* | Signs session cookies. Left unset, one is generated on first run and stored in the instance volume. Set it only if you would rather manage it yourself, or if that volume is not persistent. |
 | `FLASK_ENV` | *unset* | Set to `production` **only when served over HTTPS**. See the warning below. |
 | `TRUST_PROXY_HEADERS` | *off* | Set to `1` **only** when a reverse proxy you control sits in front. See below. |
@@ -59,6 +60,25 @@ Everything is optional. The defaults give a working LAN install.
 | `GUNICORN_TIMEOUT` | `120` | Seconds before a request is killed. The default is generous because a 100 MB upload on a slow link must not be cut off. |
 | `DATABASE_URL` | `sqlite:///instance/home_cmms.db` | Rarely worth changing. |
 | `UPLOAD_FOLDER` | `/app/uploads` | Where attachments live inside the container. |
+
+### Running a second instance (dev or test) alongside your live one
+
+Clone into a different directory and give the second stack its own name and
+port in its `.env`:
+
+```bash
+CONTAINER_NAME=home-cmms-dev
+WEB_PORT=8081
+```
+
+Two things collide otherwise, and only one of them is obvious. **Container
+names are global to the Docker daemon**, not scoped to the compose project, so
+the second stack fails with `Conflict. The container name "/home-cmms" is
+already in use`. **Ports** collide next, once the name is fixed.
+
+Volumes need no attention: they are named per project, so a clone in
+`Home-CMMS-dev/` gets `home-cmms-dev_cmms-instance` and its own empty database.
+The two instances share nothing.
 
 ### Two variables that will lock you out if set wrongly
 

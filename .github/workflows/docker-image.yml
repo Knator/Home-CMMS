@@ -1,9 +1,5 @@
-# Build and publish the container image when a release is published.
-#
-# Images go to GHCR (ghcr.io) rather than Docker Hub because it needs no
-# secrets: GITHUB_TOKEN is issued to the workflow automatically, so there is
-# nothing to rotate and nothing to leak. The package lands under the same
-# account as the repository.
+# Build and publish the container image when a release is published to GHCR.
+
 
 name: Publish Docker image
 

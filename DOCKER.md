@@ -61,6 +61,40 @@ Everything is optional. The defaults give a working LAN install.
 | `DATABASE_URL` | `sqlite:///instance/home_cmms.db` | Rarely worth changing. |
 | `UPLOAD_FOLDER` | `/app/uploads` | Where attachments live inside the container. |
 
+### Running a published release instead of building
+
+Every published GitHub release builds a container image and pushes it to GHCR
+(`.github/workflows/docker-image.yml`), for `linux/amd64` and `linux/arm64` — so
+a Raspberry Pi works as well as an x86 box.
+
+In `docker-compose.yml`, comment out `build: .` and uncomment the image line:
+
+```yaml
+image: ghcr.io/knator/home-cmms:latest    # newest full release
+# image: ghcr.io/knator/home-cmms:0.1.0   # or pin a version
+```
+
+Note the **lowercase**: GHCR rejects capitals, so the image name is not spelled
+the same as the repository.
+
+Updating then needs no clone and no rebuild, which removes the `--build` trap
+entirely:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Tags published per release: the full version (`0.1.0`), the minor series
+(`0.1`), the major series (`0.1` → `0`), and `latest`. **`latest` follows full
+releases only** — marking a release as a pre-release on GitHub publishes its
+version tags but deliberately leaves `latest` where it was, so unfinished work
+never reaches anyone who did not ask for it.
+
+> **The first publish creates a private package.** GHCR defaults to private, so
+> `docker compose pull` will fail with `denied` until you change it: on GitHub,
+> your profile → Packages → `home-cmms` → Package settings → Change visibility →
+> Public. Only needed once.
+
 ### Running a second instance (dev or test) alongside your live one
 
 Clone into a different directory and give the second stack its own name and

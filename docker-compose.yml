@@ -13,8 +13,13 @@
 services:
   cmms:
     build: .
-    # Or, once published:
-    # image: ghcr.io/Knator/home-cmms:latest
+    # Or run a published release instead of building from source — comment out
+    # `build:` above and uncomment one of these. Note the lowercase: GHCR
+    # rejects capitals, so the repository name is not the image name.
+    #   image: ghcr.io/knator/home-cmms:latest    # newest full release
+    #   image: ghcr.io/knator/home-cmms:0.1.0     # pinned
+    # With an image rather than a build, updating is `docker compose pull &&
+    # docker compose up -d` and --build stops being needed at all.
 
     container_name: "${CONTAINER_NAME:-home-cmms}"
     restart: unless-stopped

@@ -530,6 +530,18 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
   inherited). `targetOrigin` is the instance's own origin, never `'*'`, and the listener
   checks both origin and a `source: 'home-cmms'` marker. Validation errors re-render inside
   the dialog because the query string rides along with the POST.
+- **Never interpolate user-supplied text into an inline handler.**
+  `onclick="return confirm('Revoke {{ name }}')"` puts two parsers in sequence: Jinja
+  escapes for HTML, the HTML parser decodes those entities and hands the result to the
+  JavaScript parser — so an apostrophe in the name arrives as a real quote, closes the
+  string early, and what follows executes. Autoescaping is on and does not help, because
+  HTML escaping is the wrong escaping for a JavaScript context.
+  The message goes in `data-confirm` instead, which `initConfirmForms()` reads and passes
+  to `confirm()`; nothing parses it as code, so Jinja's escaping is exactly right there.
+  `form[data-confirm]:not([data-async])` — async forms run their own confirm in
+  `initAsyncActions`, and would otherwise ask twice. A static message or a server-generated
+  identifier (`wo_number`) in an inline handler is fine; anything a user can type is not, and
+  `test_confirm_escaping.py` fails the build if one appears.
 - `initFieldTooltips()` mirrors each text field's value into its `title`, so hovering shows
   content too long for the box. It skips password fields and leaves an author-supplied
   `title` alone, and is re-run for dynamically added rows.

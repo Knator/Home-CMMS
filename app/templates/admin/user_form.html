@@ -80,10 +80,14 @@
                 {{ format_datetime(t.last_used_at, empty='Never') }}
               </td>
               <td>
-                <form method="post" action="{{ url_for('admin.revoke_api_token', id=user.id, token_id=t.id) }}" style="display:inline;">
+                {# The token name is user-supplied, so the confirmation text goes in a
+                   data attribute and never into an onclick: a name containing an
+                   apostrophe would otherwise close the JavaScript string and run
+                   whatever followed it. #}
+                <form method="post" action="{{ url_for('admin.revoke_api_token', id=user.id, token_id=t.id) }}" style="display:inline;"
+                      data-confirm="Revoke &quot;{{ t.name }}&quot;? Anything using it stops working immediately.">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button type="submit" class="btn btn-ghost btn-sm text-danger"
-                          onclick="return confirm('Revoke &quot;{{ t.name }}&quot;? Anything using it stops working immediately.')">Revoke</button>
+                  <button type="submit" class="btn btn-ghost btn-sm text-danger">Revoke</button>
                 </form>
               </td>
             </tr>

@@ -554,6 +554,33 @@ function initMobileNav() {
 
 document.addEventListener('DOMContentLoaded', initMobileNav);
 
+/* ── Confirming a destructive submit ──
+   The message lives in a data attribute rather than in an onclick, because
+   some of these messages quote user-supplied text.
+
+   Inside `onclick="...confirm('Revoke {{ name }}')"` there are two parsers in
+   sequence: Jinja escapes for HTML, the HTML parser then decodes those entities
+   and hands the result to the JavaScript parser — so an apostrophe in the name
+   arrives as a real quote and closes the string early. HTML escaping is simply
+   the wrong escaping for a JavaScript context.
+
+   In a data attribute the value is only ever read as a DOM string and passed to
+   confirm(); nothing parses it as code, so Jinja's escaping is exactly right.
+   Forms marked data-async are handled by initAsyncActions, which does its own
+   confirm — excluded here so they do not ask twice. */
+function initConfirmForms() {
+  document.addEventListener('submit', (e) => {
+    const target = e.target;
+    // The test shim fires synthetic submits without a real element.
+    if (!target || typeof target.closest !== 'function') return;
+    const form = target.closest('form[data-confirm]:not([data-async])');
+    if (!form) return;
+    if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initConfirmForms);
+
 /* ── Warning before abandoning a part-filled form ──
    A misclick on a sidebar link throws away a long work order with no warning.
    beforeunload covers every way of leaving — link, back button, reload, closing

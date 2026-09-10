@@ -4,6 +4,7 @@
 {% block page_title %}{{ 'Edit' if is_edit else 'New' }} User{% endblock %}
 
 {% block content %}
+{% from '_password.html' import requirements_hint, requirements_list %}
 <div class="form-shell" style="--shell-max: 480px;">
   <div class="card">
     <div class="card-body">
@@ -38,10 +39,12 @@
             </select>
           </div>
           <div class="form-group full">
-            <label>{{ 'New Password' if is_edit else 'Password *' }}</label>
+            <label>{{ 'New Password' if is_edit else 'Password *' }} {{ requirements_hint() }}</label>
             <input type="password" name="{{ 'new_password' if is_edit else 'password' }}"
-                   {{ '' if is_edit else 'required' }} minlength="8"
+                   {{ '' if is_edit else 'required' }}
+                   minlength="{{ password_min_length() }}"
                    placeholder="{{ 'Leave blank to keep current' if is_edit else '' }}">
+            {{ requirements_list() }}
           </div>
         </div>
         <div class="form-actions mt-1">

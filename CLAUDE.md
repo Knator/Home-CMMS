@@ -296,6 +296,26 @@ Lists of users are sorted in Python by `label`, since ordering by username looks
 once the two differ. The **API keeps reporting `username`** in `assigned_to`: clients POST
 that value back to assign work, and a non-unique display name cannot address a user.
 
+### Password policy (`app/passwords.py`)
+One rule, called by everything that sets a password: first-run setup, the admin create and
+edit forms, a user changing their own, and `create_admin.py`. Each of those used to carry its
+own length check, which is how they drifted. **12 characters, one capital, one number, one
+symbol.** `password_problems()` returns *every* failing rule rather than the first — learning
+a four-part rule one round trip at a time is what makes people pick the first thing that
+scrapes through.
+
+"Symbol" is anything non-alphanumeric, space included: insisting on a specific punctuation
+set narrows the search space and penalises passphrases and non-US keyboards.
+
+**Existing passwords are not revalidated at sign-in**, only when one is set — enforcing it on
+login would lock people out of an instance that predates the policy.
+
+`REQUIREMENTS` is exported as a Jinja global, so the `?` hint on every password field renders
+the same list the server enforces and the two cannot drift. It reveals on `:hover` *and*
+`:focus-within` rather than using a `title` attribute, which never appears for keyboard or
+touch users. `password_min_length()` drives the field's own `minlength`, so the browser and
+the server agree.
+
 ### Auth & Security
 - Passwords: `werkzeug.security.generate_password_hash` (pbkdf2:sha256)
 - CSRF: `generate_csrf_token()` / `validate_csrf()` in `app/utils.py` (constant-time compare); every POST form includes `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">`

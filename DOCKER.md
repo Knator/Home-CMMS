@@ -303,8 +303,9 @@ Worth knowing before exposing it to the internet:
   that.
 - **`FLASK_DEBUG` is refused** on any non-loopback host: the debugger executes
   arbitrary code, so the app will not start in that configuration.
-- Passwords require 8 characters and nothing else. Internet-facing, choose better
-  ones than that implies.
+- Passwords require 12 characters with a capital, a number and a symbol. The
+  rules are shown on every password field. Existing passwords are not affected
+  until they are next changed.
 - Keep it on your LAN unless you have a reason not to.
 
 ---

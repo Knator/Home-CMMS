@@ -34,9 +34,9 @@ from app import maintenance
 from app.extensions import db
 from app.models.user import User
 from app.setup import bp
+from app.passwords import password_problems
 from app.utils import allow_large_upload, utcnow, validate_csrf
 
-MIN_PASSWORD_LENGTH = 8
 
 
 def database_ready():
@@ -102,9 +102,8 @@ def first_run():
             errors.append('Choose a username.')
         if '@' not in email:
             errors.append('Enter a valid email address.')
-        if len(password) < MIN_PASSWORD_LENGTH:
-            errors.append(f'The password must be at least {MIN_PASSWORD_LENGTH} characters.')
-        elif password != confirm:
+        errors.extend(password_problems(password))
+        if not errors and password != confirm:
             errors.append('The passwords do not match.')
 
         if errors:

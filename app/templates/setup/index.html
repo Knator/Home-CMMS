@@ -8,6 +8,7 @@
   <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </head>
 <body>
+{% from '_password.html' import requirements_hint, requirements_list %}
 <div class="login-wrap">
   <div class="login-toggle">
     <button type="button" class="theme-toggle" onclick="toggleTheme()"
@@ -46,10 +47,11 @@
                autocomplete="email" required>
       </div>
       <div class="form-group" style="margin-bottom:14px;">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" minlength="8"
+        <label for="password">Password {{ requirements_hint() }}</label>
+        <input type="password" id="password" name="password"
+               minlength="{{ password_min_length() }}"
                autocomplete="new-password" required>
-        <span class="field-hint">At least 8 characters.</span>
+        {{ requirements_list() }}
       </div>
       <div class="form-group" style="margin-bottom:20px;">
         <label for="confirm_password">Confirm password</label>

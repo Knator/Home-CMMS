@@ -65,6 +65,11 @@ def create_app(config_class=Config, config_overrides=None):
 
     from app.settings import archived_deletion_allowed
     app.jinja_env.globals['archived_deletion_allowed'] = archived_deletion_allowed
+    # So the rules on screen come from the same source that enforces them.
+    from app.passwords import MIN_LENGTH, REQUIREMENTS
+    app.jinja_env.globals['password_requirements'] = lambda: REQUIREMENTS
+    # Drives the browser's own minlength, so the field agrees with the server.
+    app.jinja_env.globals['password_min_length'] = lambda: MIN_LENGTH
     app.jinja_env.globals['csrf_token'] = generate_csrf_token
     app.jinja_env.globals['format_file_size'] = format_file_size
     app.jinja_env.globals['format_duration'] = format_duration

@@ -27,7 +27,7 @@ def run_create_admin(app, *args, env=None):
 
 def test_an_admin_can_be_created_without_a_terminal(app, db):
     result = run_create_admin(app, '--username', 'boss', '--email', 'boss@example.com',
-                              '--password', 'a-long-enough-password')
+                              '--password', 'A-long-enough-password1')
     assert result.returncode == 0, result.stderr
     assert User.query.filter_by(username='boss').one().role == 'admin'
 
@@ -35,7 +35,7 @@ def test_an_admin_can_be_created_without_a_terminal(app, db):
 def test_environment_variables_work_too(app, db):
     result = run_create_admin(app, env={'ADMIN_USERNAME': 'boss',
                                         'ADMIN_EMAIL': 'boss@example.com',
-                                        'ADMIN_PASSWORD': 'a-long-enough-password'})
+                                        'ADMIN_PASSWORD': 'A-long-enough-password1'})
     assert result.returncode == 0, result.stderr
     assert User.query.filter_by(username='boss').first() is not None
 
@@ -43,7 +43,7 @@ def test_environment_variables_work_too(app, db):
 def test_if_missing_is_safe_to_repeat(app, db):
     """The entrypoint runs it on every start."""
     args = ('--if-missing', '--username', 'boss', '--email', 'boss@example.com',
-            '--password', 'a-long-enough-password')
+            '--password', 'A-long-enough-password1')
     first = run_create_admin(app, *args)
     second = run_create_admin(app, *args)
 

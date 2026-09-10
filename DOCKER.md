@@ -277,6 +277,22 @@ and writes only to its two volumes. Built in: sign-in rate limiting with lockout
 hashed passwords, hashed API tokens, CSRF on every form, an upload allowlist, and
 a signing key generated per install rather than shipped.
 
+The app sets its own security headers on every response: a Content Security
+Policy, `X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`,
+`Referrer-Policy` and `Permissions-Policy`. They are set in the application
+rather than at a proxy so they also apply when the instance is reached directly
+on the LAN, which bypasses any proxy.
+
+**`Strict-Transport-Security` is deliberately not set by the app** — it asserts
+something about transport that only whatever terminates TLS can know. Enable it
+there: Cloudflare under *SSL/TLS → Edge Certificates → HSTS*, or `header
+Strict-Transport-Security` in Caddy.
+
+The CSP allows `'unsafe-inline'` for scripts, because the templates still carry
+inline handlers. That is a known compromise; `frame-ancestors`, `form-action`,
+`base-uri` and `object-src` do not depend on it and block clickjacking, form
+hijacking and `<base>` injection regardless.
+
 Worth knowing before exposing it to the internet:
 
 - **Everyone signed in can see and edit everything.** The `admin` role only gates

@@ -110,6 +110,61 @@ def create_app(config_class=Config, config_overrides=None):
     # Flask raises routing errors before a blueprint is known, so these live at
     # app level and check the path. Without them an API client gets an HTML
     # error page where it expects JSON.
+    
+    # ── Security response headers ──────────────────────────────────────
+    #
+    # Set here rather than at a proxy because this is self-hosted software:
+    # most instances have no proxy to configure, and one that does may still be
+    # reached directly on the LAN, which bypasses the proxy entirely. Headers
+    # that travel with the app protect every route on every path by default.
+    #
+    # HSTS is deliberately absent. It is an assertion about transport, and the
+    # app does not terminate TLS — whatever does (Cloudflare, Caddy, nginx) is
+    # the only thing that knows whether HTTPS is actually enforced. Sent from
+    # here it would also go out over plain http on a LAN address, where the
+    # browser ignores it.
+    CONTENT_SECURITY_POLICY = '; '.join([
+        "default-src 'self'",
+        # 'unsafe-inline' is an honest compromise, not an oversight: the
+        # templates carry ~35 inline handlers (onclick/onchange) and one inline
+        # script. Removing them is a worthwhile refactor, but the directives
+        # below do not depend on it and block real attacks today.
+        "script-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data:",
+        # The create-record modal frames this app in itself.
+        "frame-src 'self'",
+        # Clickjacking. Must be 'self', never 'none': that same modal would
+        # break. Destructive admin actions are one-click POSTs, and a confirm()
+        # dialog is no defence against a framed, invisible page.
+        "frame-ancestors 'self'",
+        # An injected form cannot post elsewhere — which matters because every
+        # form here carries a valid CSRF token.
+        "form-action 'self'",
+        # Blocks <base href="//evil"> silently repointing every relative URL.
+        "base-uri 'self'",
+        "object-src 'none'",
+    ])
+
+    @app.after_request
+    def security_headers(response):
+        # setdefault throughout: routes that have already made a deliberate
+        # choice keep it. The attachment routes set their own nosniff, and the
+        # thumbnail route sets its own long-lived Cache-Control.
+        response.headers.setdefault('Content-Security-Policy',
+                                    CONTENT_SECURITY_POLICY)
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        # Legacy backstop for frame-ancestors, which older browsers ignore.
+        response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+        # Referrers leak record ids and filenames in paths; same-origin keeps
+        # them internal without breaking navigation within the app.
+        response.headers.setdefault('Referrer-Policy', 'same-origin')
+        # Nothing here uses these, so refuse them rather than leave them open.
+        response.headers.setdefault(
+            'Permissions-Policy',
+            'camera=(), microphone=(), geolocation=(), interest-cohort=()')
+        return response
+
     @app.errorhandler(404)
     def api_aware_not_found(error):
         if _is_api_request():

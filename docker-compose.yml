@@ -1,4 +1,10 @@
-# Home CMMS — docker compose deployment.
+# Home CMMS — build from source.
+#
+# Use this when you are working on the code: it builds the image from this
+# directory, so your changes are what runs.
+#
+# To RUN a release rather than develop against one, use docker-compose.ghcr.yml
+# instead — it pulls a published image and needs no source at all.
 #
 #   1. cp .env.docker.example .env
 #   2. edit .env  (at minimum set TZ)
@@ -13,13 +19,6 @@
 services:
   cmms:
     build: .
-    # Or run a published release instead of building from source — comment out
-    # `build:` above and uncomment one of these. Note the lowercase: GHCR
-    # rejects capitals, so the repository name is not the image name.
-    #   image: ghcr.io/knator/home-cmms:latest    # newest full release
-    #   image: ghcr.io/knator/home-cmms:0.1.0     # pinned
-    # With an image rather than a build, updating is `docker compose pull &&
-    # docker compose up -d` and --build stops being needed at all.
 
     container_name: "${CONTAINER_NAME:-home-cmms}"
     restart: unless-stopped

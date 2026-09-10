@@ -593,6 +593,25 @@ def restore_backup(path, take_safety_copy=True):
     """
     summary = inspect_backup(path)          # validates; raises before any change
 
+    # A backup with no accounts would empty the user table, and `needs_setup()`
+    # is `User.query.count() == 0` — so the unauthenticated first-run page
+    # reopens and hands an administrator account to whoever reaches it first.
+    # On an internet-facing instance that is a total takeover, arriving silently
+    # and looking like a successful restore.
+    #
+    # Enforced here rather than in the routes because it has to hold on both
+    # paths, and refused *before* the swap rather than reported after it: an
+    # archive that cannot safely be restored should cost nothing to try.
+    #
+    # There is no legitimate case to allow. The only way to produce a userless
+    # backup is to take one during the setup window, before any account exists,
+    # and such a backup contains nothing worth restoring.
+    if not summary.get('counts', {}).get('users'):
+        raise RestoreError(
+            'That backup contains no user accounts. Restoring it would empty '
+            'the user table and reopen the first-run setup page, letting anyone '
+            'who can reach this instance claim an administrator account.')
+
     db_path = database_path()
     if not db_path:
         raise RestoreError('Restore is only supported for SQLite databases.')

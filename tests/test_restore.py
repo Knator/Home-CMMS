@@ -15,6 +15,7 @@ import pytest
 from flask_migrate import stamp
 
 from app import maintenance
+from app.extensions import db as _db
 from app.maintenance import RestoreError
 from app.models.asset import Asset
 from app.models.attachment import Attachment
@@ -430,9 +431,9 @@ def test_setup_restore_takes_no_safety_copy(stamped, client, app):
     assert not any(b['automatic'] for b in maintenance.list_backups())
 
 
-def test_setup_restore_of_a_userless_backup_leaves_setup_open(
-        stamped, client, app):
-    """A backup with no accounts would lock the instance out of both paths."""
+def test_setup_restore_of_a_userless_backup_is_refused(stamped, client, app):
+    """Refused before anything is touched, rather than restored and then
+    reported — an archive that cannot safely be restored should cost nothing."""
     create_asset(name='Sump Pump')
     created = maintenance.create_backup()
     archive_bytes = open(
@@ -446,6 +447,9 @@ def test_setup_restore_of_a_userless_backup_leaves_setup_open(
 
     assert b'no user accounts' in response.data
     assert b'Create administrator' in response.data
+    # Nothing was swapped in: the asset from the archive is not here, because
+    # the restore never ran.
+    assert Asset.query.count() == 1        # the one this test created, not a restore
 
 
 def test_setup_restore_is_closed_once_an_account_exists(stamped, client, app):
@@ -570,3 +574,94 @@ def test_ordinary_attachment_uploads_still_respect_the_limit(stamped, client, lo
     # The 413 handler turns it into a flash rather than a raw error page.
     assert b'too large' in response.data
     assert Attachment.query.count() == 0
+
+
+# ── a backup with no accounts is refused on every path ─────────────────────
+#
+# needs_setup() is `User.query.count() == 0`, so emptying the user table
+# reopens the unauthenticated first-run page and hands an administrator account
+# to whoever reaches it first. On an internet-facing instance that is a total
+# takeover, and it arrives looking like a successful restore.
+
+def userless_backup(app):
+    """An archive containing data but no user accounts."""
+    create_asset(name='Sump Pump')
+    User.query.delete()
+    _db.session.commit()
+    created = maintenance.create_backup()
+    return os.path.join(maintenance.backup_dir(), created['name'])
+
+
+def test_a_userless_backup_is_refused_by_the_service(stamped, app):
+    make_user('alice', role='admin')
+    archive = userless_backup(app)
+    make_user('bob', role='admin')          # the instance has an account again
+
+    with pytest.raises(RestoreError, match='no user accounts'):
+        maintenance.restore_backup(archive)
+
+
+def test_the_refusal_happens_before_anything_is_replaced(stamped, app):
+    """Validated up front, so a bad archive leaves the instance untouched."""
+    make_user('alice', role='admin')
+    create_asset(name='Keep me')
+    archive = userless_backup(app)
+    make_user('bob', role='admin')
+    create_asset(name='Also keep me')
+
+    before = sorted(a.name for a in Asset.query.all())
+    with pytest.raises(RestoreError):
+        maintenance.restore_backup(archive)
+
+    assert sorted(a.name for a in Asset.query.all()) == before
+    assert User.query.count() == 1
+    # And no safety copy was written, because nothing needed undoing.
+    assert not any(b['automatic'] for b in maintenance.list_backups())
+
+
+def test_the_admin_page_refuses_it_too(stamped, client, login, app):
+    """This was the gap: the setup path checked, the admin page did not."""
+    make_user('admin', role='admin')
+    archive = userless_backup(app)
+    admin = make_user('admin', role='admin')
+
+    login('admin')
+    prime_csrf(client)
+    response = client.post('/admin/maintenance/restore', data={
+        'csrf_token': CSRF, 'confirm': '1',
+        'name': os.path.basename(archive),
+    }, follow_redirects=True)
+
+    assert b'no user accounts' in response.data
+    assert User.query.count() == 1          # still signed-in, still an admin
+
+
+def test_setup_is_not_reopened_by_a_restore(stamped, client, login, app):
+    """The property that actually matters."""
+    make_user('admin', role='admin')
+    archive = userless_backup(app)
+    make_user('admin', role='admin')
+
+    login('admin')
+    prime_csrf(client)
+    client.post('/admin/maintenance/restore', data={
+        'csrf_token': CSRF, 'confirm': '1', 'name': os.path.basename(archive),
+    }, follow_redirects=True)
+
+    # /setup must still be closed; if it reopened it would answer 200 with the
+    # account form rather than redirecting to the login page.
+    fresh = app.test_client()
+    assert '/auth/login' in fresh.get('/setup').headers.get('Location', '')
+
+
+def test_a_backup_with_accounts_still_restores(stamped, app):
+    """The guard must not block the normal case."""
+    make_user('alice', role='admin')
+    create_asset(name='Furnace')
+    created = maintenance.create_backup()
+
+    Asset.query.delete()
+    _db.session.commit()
+
+    maintenance.restore_backup(os.path.join(maintenance.backup_dir(), created['name']))
+    assert [a.name for a in Asset.query.all()] == ['Furnace']

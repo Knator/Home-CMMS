@@ -649,6 +649,13 @@ backups and system health, Immich's orphaned-file repair, LubeLogger's single-ar
   Safety copies are ordinary backups (`is_backup_name()` accepts both prefixes, so they
   list, download and delete) but `prune_backups()` skips them — pruning away the undo copy
   is exactly the moment someone needs it.
+  **A backup containing no user accounts is refused on every path**, before anything is
+  touched. `needs_setup()` is `User.query.count() == 0`, so emptying the user table reopens
+  the unauthenticated first-run page and hands an administrator account to whoever reaches it
+  first — a silent total takeover on an internet-facing instance, arriving as what looks like
+  a successful restore. Enforced in `restore_backup()` rather than the routes so it holds for
+  both, and there is no legitimate case to allow: the only way to make such a backup is to
+  take one during the setup window, when there is nothing worth restoring anyway.
   The setup-screen path takes no safety copy and no confirmation (an instance with no users
   has nothing to lose) and refuses a backup containing no accounts, which would otherwise
   leave an instance nobody can sign into.

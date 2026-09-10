@@ -30,12 +30,25 @@ everybody out.
 `create_admin.py` takes `--username/--email/--password` or `ADMIN_*`, plus `--if-missing` so
 the entrypoint can run it on every start.
 
+## Dependencies
+`requirements.txt` is **runtime only** — it is what the Docker image installs, so anything
+added there ships to every deployment. `requirements-dev.txt` adds `pytest`, `dukpy` and
+`PyYAML` and pulls the runtime file in with `-r`, so contributors need one command.
+
+None of the three is imported by the application. A JavaScript engine and a test runner in a
+production container are code that can never run correctly but can still carry a
+vulnerability. `test_deployment.py` fails if one reappears in the runtime file, if the dev
+file stops including the runtime file, or if the Dockerfile starts installing the dev file.
+
+`gunicorn` is installed by the Dockerfile rather than either file: it is needed only in the
+container, never for `flask run`.
+
 ## Environment Setup
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # runtime deps + pytest, dukpy, PyYAML
 cp .env.example .env          # optional — every setting has a working default
                               # (Docker uses .env.docker.example instead)
 flask db upgrade              # creates instance/home_cmms.db

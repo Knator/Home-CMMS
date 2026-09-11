@@ -277,6 +277,33 @@ field cannot wipe history — so a floating PM stays anchored to work that was l
 Documented in `GettingStarted.txt` §9 as behaviour, not fixed as a bug, because which way it
 should go is a product decision.
 
+**Two global settings.** `pm_stall_on_open` defaults **on** — a PM raising a second work
+order while the first is still open produces duplicates for one job, which is rarely wanted,
+so the safer behaviour is the default and switching it off restores the old one.
+`pm_cancel_restarts_clock` defaults **off**, because it changes when work comes round and
+should be a deliberate choice.
+
+`pm_stall_on_open` — an unfinished work order (open, in progress or **on hold**; on hold
+counts, the job is not done) stops its PM generating another. Without it a PM raises its next
+work order on schedule whether or not the last was ever touched, so several pile up against
+one job. A stalled PM's due date is deliberately **not** advanced: advancing it would quietly
+consume the occurrence, so instead the PM stays due, reads as overdue, and generates the
+moment the blocker is closed. The PM page says which work order it is waiting on — an overdue
+PM that is waiting on purpose otherwise looks like the scheduler has died. "Generate WO Now"
+still generates: it is an explicit instruction from an admin looking at that open work order,
+and refusing would make the button a lie — it flashes what it noticed instead.
+
+`pm_cancel_restarts_clock` — treats cancelling as "finished with this one", so a **floating**
+PM counts its interval from the cancellation rather than from the date already set at
+generation. `last_closure_date()` takes the latest closure across all the PM's work orders
+(completion date where there is one, otherwise the local date from `status_changed_at`), so
+out-of-order edits cannot drag the schedule backwards and repeating it changes nothing.
+**Floating only**: re-anchoring a fixed PM would walk its calendar anniversary forward every
+time a work order was cancelled, which is the one thing a fixed schedule exists to prevent.
+
+Note for tests: `run_pm_check` skips any PM whose `last_generated_date` is today, a guard that
+predates both settings. A test observing a second run has to clear that stamp.
+
 Generation still advances the due date in both modes — otherwise a floating PM would
 regenerate every day until someone completed the work.
 

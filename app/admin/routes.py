@@ -257,6 +257,12 @@ def settings_page():
                                current_user.id)
         app_settings.set_value('upload_limit_enabled', limit_on, current_user.id)
         app_settings.set_value('auto_archive_enabled', archive_on, current_user.id)
+        app_settings.set_value('pm_stall_on_open',
+                               bool(request.form.get('pm_stall_on_open')),
+                               current_user.id)
+        app_settings.set_value('pm_cancel_restarts_clock',
+                               bool(request.form.get('pm_cancel_restarts_clock')),
+                               current_user.id)
         if limit is not None:
             app_settings.set_value('max_upload_mb', limit, current_user.id)
         if days is not None:

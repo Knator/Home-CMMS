@@ -1,12 +1,3 @@
-# Run a published release. No source checkout and no build.
-#
-#   1. cp .env.docker.example .env      (or write the few lines you need)
-#   2. set IMAGE_TAG in .env            e.g. IMAGE_TAG=0.3.1-dev
-#   3. docker compose -f docker-compose.ghcr.yml pull
-#   4. docker compose -f docker-compose.ghcr.yml up -d
-
-#
-# Updating is `pull` then `up -d`
 
 services:
   cmms:

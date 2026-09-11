@@ -30,12 +30,25 @@ everybody out.
 `create_admin.py` takes `--username/--email/--password` or `ADMIN_*`, plus `--if-missing` so
 the entrypoint can run it on every start.
 
+## Dependencies
+`requirements.txt` is **runtime only** — it is what the Docker image installs, so anything
+added there ships to every deployment. `requirements-dev.txt` adds `pytest`, `dukpy` and
+`PyYAML` and pulls the runtime file in with `-r`, so contributors need one command.
+
+None of the three is imported by the application. A JavaScript engine and a test runner in a
+production container are code that can never run correctly but can still carry a
+vulnerability. `test_deployment.py` fails if one reappears in the runtime file, if the dev
+file stops including the runtime file, or if the Dockerfile starts installing the dev file.
+
+`gunicorn` is installed by the Dockerfile rather than either file: it is needed only in the
+container, never for `flask run`.
+
 ## Environment Setup
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # runtime deps + pytest, dukpy, PyYAML
 cp .env.example .env          # optional — every setting has a working default
                               # (Docker uses .env.docker.example instead)
 flask db upgrade              # creates instance/home_cmms.db
@@ -296,6 +309,26 @@ Lists of users are sorted in Python by `label`, since ordering by username looks
 once the two differ. The **API keeps reporting `username`** in `assigned_to`: clients POST
 that value back to assign work, and a non-unique display name cannot address a user.
 
+### Password policy (`app/passwords.py`)
+One rule, called by everything that sets a password: first-run setup, the admin create and
+edit forms, a user changing their own, and `create_admin.py`. Each of those used to carry its
+own length check, which is how they drifted. **12 characters, one capital, one number, one
+symbol.** `password_problems()` returns *every* failing rule rather than the first — learning
+a four-part rule one round trip at a time is what makes people pick the first thing that
+scrapes through.
+
+"Symbol" is anything non-alphanumeric, space included: insisting on a specific punctuation
+set narrows the search space and penalises passphrases and non-US keyboards.
+
+**Existing passwords are not revalidated at sign-in**, only when one is set — enforcing it on
+login would lock people out of an instance that predates the policy.
+
+`REQUIREMENTS` is exported as a Jinja global, so the `?` hint on every password field renders
+the same list the server enforces and the two cannot drift. It reveals on `:hover` *and*
+`:focus-within` rather than using a `title` attribute, which never appears for keyboard or
+touch users. `password_min_length()` drives the field's own `minlength`, so the browser and
+the server agree.
+
 ### Auth & Security
 - Passwords: `werkzeug.security.generate_password_hash` (pbkdf2:sha256)
 - CSRF: `generate_csrf_token()` / `validate_csrf()` in `app/utils.py` (constant-time compare); every POST form includes `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">`
@@ -510,6 +543,18 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
   inherited). `targetOrigin` is the instance's own origin, never `'*'`, and the listener
   checks both origin and a `source: 'home-cmms'` marker. Validation errors re-render inside
   the dialog because the query string rides along with the POST.
+- **Never interpolate user-supplied text into an inline handler.**
+  `onclick="return confirm('Revoke {{ name }}')"` puts two parsers in sequence: Jinja
+  escapes for HTML, the HTML parser decodes those entities and hands the result to the
+  JavaScript parser — so an apostrophe in the name arrives as a real quote, closes the
+  string early, and what follows executes. Autoescaping is on and does not help, because
+  HTML escaping is the wrong escaping for a JavaScript context.
+  The message goes in `data-confirm` instead, which `initConfirmForms()` reads and passes
+  to `confirm()`; nothing parses it as code, so Jinja's escaping is exactly right there.
+  `form[data-confirm]:not([data-async])` — async forms run their own confirm in
+  `initAsyncActions`, and would otherwise ask twice. A static message or a server-generated
+  identifier (`wo_number`) in an inline handler is fine; anything a user can type is not, and
+  `test_confirm_escaping.py` fails the build if one appears.
 - `initFieldTooltips()` mirrors each text field's value into its `title`, so hovering shows
   content too long for the box. It skips password fields and leaves an author-supplied
   `title` alone, and is re-run for dynamically added rows.
@@ -641,6 +686,22 @@ backups and system health, Immich's orphaned-file repair, LubeLogger's single-ar
   sidecars deleted (they belong to the replaced file); then `flask db upgrade` runs so an
   older backup opens. `_safe_members()` rejects absolute paths, `..`, links and anything
   outside `home_cmms.db`/`uploads/` — a tar member is an arbitrary write primitive otherwise.
+  `check_expansion()` refuses a **decompression bomb** before anything is extracted. Sizes
+  come from the tar headers: cheap, because reading headers writes nothing, and trustworthy,
+  because tar uses the declared size to find the next header — so extraction writes exactly
+  that many bytes and understating it only truncates the attacker's own payload.
+  Thresholds were **calibrated against real archives**, not guessed: a photo-heavy backup
+  expands 1.0x, a text-heavy database 8.7x, an empty one 25x, and a database with many freed
+  pages **650x** — legitimate, and the reason a ratio check alone is unusable. The app's own
+  backups avoid that case because `VACUUM INTO` compacts free pages away, but a hand-made tar
+  of a stopped instance (which DOCKER.md documents) keeps them. So the ratio is consulted
+  only above `RATIO_FLOOR_BYTES`; below it, size alone decides. The ceiling is free disk
+  space less headroom and is deliberately **not** configurable — it follows the machine on
+  its own, and if a backup genuinely does not fit, the answer is disk space rather than a
+  larger number.
+  `restore_blockers()` runs the same checks read-only, and **creating a backup checks it
+  immediately**: a guard that silently rejects the instance's own backups is worse than no
+  guard, and the day it is needed is the wrong time to find out.
   A **failed safety copy does not block the restore**: it usually fails because the current
   database is unreadable, which is exactly when someone is restoring.
   `rotate_secret_key()` then invalidates every session, because the restored database can
@@ -649,6 +710,13 @@ backups and system health, Immich's orphaned-file repair, LubeLogger's single-ar
   Safety copies are ordinary backups (`is_backup_name()` accepts both prefixes, so they
   list, download and delete) but `prune_backups()` skips them — pruning away the undo copy
   is exactly the moment someone needs it.
+  **A backup containing no user accounts is refused on every path**, before anything is
+  touched. `needs_setup()` is `User.query.count() == 0`, so emptying the user table reopens
+  the unauthenticated first-run page and hands an administrator account to whoever reaches it
+  first — a silent total takeover on an internet-facing instance, arriving as what looks like
+  a successful restore. Enforced in `restore_backup()` rather than the routes so it holds for
+  both, and there is no legitimate case to allow: the only way to make such a backup is to
+  take one during the setup window, when there is nothing worth restoring anyway.
   The setup-screen path takes no safety copy and no confirmation (an instance with no users
   has nothing to lose) and refuses a backup containing no accounts, which would otherwise
   leave an instance nobody can sign into.

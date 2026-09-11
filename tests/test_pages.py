@@ -65,19 +65,19 @@ def test_change_password_flow(client, db, user, login):
     login()
     client.post('/auth/change-password', data={
         'current_password': 'password123',
-        'new_password': 'brand-new-password',
-        'confirm_password': 'brand-new-password',
+        'new_password': 'Brand-new-password1',
+        'confirm_password': 'Brand-new-password1',
         'csrf_token': CSRF,
     })
-    assert user.check_password('brand-new-password')
+    assert user.check_password('Brand-new-password1')
 
 
 def test_change_password_requires_the_current_one(client, db, user, login):
     login()
     client.post('/auth/change-password', data={
         'current_password': 'wrong',
-        'new_password': 'brand-new-password',
-        'confirm_password': 'brand-new-password',
+        'new_password': 'Brand-new-password1',
+        'confirm_password': 'Brand-new-password1',
         'csrf_token': CSRF,
     })
     assert user.check_password('password123')

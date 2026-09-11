@@ -12,12 +12,12 @@ Runs the published image. No clone, no build.
 ```bash
 mkdir home-cmms && cd home-cmms
 
-curl -O https://raw.githubusercontent.com/Knator/Home-CMMS/master/docker-compose.ghcr.yml
+curl -o docker-compose.yml https://raw.githubusercontent.com/Knator/Home-CMMS/master/docker-compose.ghcr.yml
 curl -o .env https://raw.githubusercontent.com/Knator/Home-CMMS/master/.env.docker.example
-$EDITOR .env                    # at minimum, set TZ
+nano .env                    # at minimum, set TZ  - use other editor of your choice.
 
-docker compose -f docker-compose.ghcr.yml pull
-docker compose -f docker-compose.ghcr.yml up -d
+docker compose pull
+docker compose up -d
 ```
 
 Open `http://<your-host>:8080`. The first start creates the database, generates a
@@ -277,6 +277,22 @@ and writes only to its two volumes. Built in: sign-in rate limiting with lockout
 hashed passwords, hashed API tokens, CSRF on every form, an upload allowlist, and
 a signing key generated per install rather than shipped.
 
+The app sets its own security headers on every response: a Content Security
+Policy, `X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`,
+`Referrer-Policy` and `Permissions-Policy`. They are set in the application
+rather than at a proxy so they also apply when the instance is reached directly
+on the LAN, which bypasses any proxy.
+
+**`Strict-Transport-Security` is deliberately not set by the app** — it asserts
+something about transport that only whatever terminates TLS can know. Enable it
+there: Cloudflare under *SSL/TLS → Edge Certificates → HSTS*, or `header
+Strict-Transport-Security` in Caddy.
+
+The CSP allows `'unsafe-inline'` for scripts, because the templates still carry
+inline handlers. That is a known compromise; `frame-ancestors`, `form-action`,
+`base-uri` and `object-src` do not depend on it and block clickjacking, form
+hijacking and `<base>` injection regardless.
+
 Worth knowing before exposing it to the internet:
 
 - **Everyone signed in can see and edit everything.** The `admin` role only gates
@@ -287,8 +303,9 @@ Worth knowing before exposing it to the internet:
   that.
 - **`FLASK_DEBUG` is refused** on any non-loopback host: the debugger executes
   arbitrary code, so the app will not start in that configuration.
-- Passwords require 8 characters and nothing else. Internet-facing, choose better
-  ones than that implies.
+- Passwords require 12 characters with a capital, a number and a symbol. The
+  rules are shown on every password field. Existing passwords are not affected
+  until they are next changed.
 - Keep it on your LAN unless you have a reason not to.
 
 ---

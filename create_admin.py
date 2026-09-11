@@ -21,8 +21,9 @@ os.environ.setdefault('SCHEDULER_ENABLED', '0')
 from app import create_app  # noqa: E402
 from app.extensions import db  # noqa: E402
 from app.models.user import User  # noqa: E402
-
-MIN_PASSWORD_LENGTH = 8
+from app.passwords import (  # noqa: E402
+    describe_requirements, password_problems,
+)
 
 
 def parse_args(argv=None):
@@ -40,7 +41,8 @@ def parse_args(argv=None):
 def collect_interactively():
     username = input('Admin username: ').strip()
     email = input('Admin email: ').strip()
-    password = getpass.getpass(f'Admin password (min {MIN_PASSWORD_LENGTH} chars): ')
+    print(f'Password requirements: {describe_requirements()}')
+    password = getpass.getpass('Admin password: ')
     confirm = getpass.getpass('Confirm password: ')
     if password != confirm:
         print('  error: Passwords do not match.', file=sys.stderr)
@@ -58,8 +60,9 @@ def validate(username, email, password):
         errors.append('A valid email address is required.')
     elif User.query.filter_by(email=email).first():
         errors.append(f"Email '{email}' is already in use.")
-    if not password or len(password) < MIN_PASSWORD_LENGTH:
-        errors.append(f'Password must be at least {MIN_PASSWORD_LENGTH} characters.')
+    # Same policy as every web form, so an unattended ADMIN_PASSWORD cannot
+    # create an account the app itself would refuse.
+    errors.extend(f'Password: {problem.lower()}.' for problem in password_problems(password))
     return errors
 
 

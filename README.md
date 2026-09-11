@@ -68,6 +68,9 @@ flask run
 
 Then open `http://127.0.0.1:5000` and complete the setup page. Python 3.11+.
 
+To run the tests, install the development dependencies as well —
+`pip install -r requirements-dev.txt`, which pulls in the runtime ones too.
+
 ---
 
 ## Backups

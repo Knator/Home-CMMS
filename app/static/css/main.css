@@ -1754,3 +1754,66 @@ body.embedded { background: var(--card-bg); }
 /* The hint explains the setting; it should not be part of the label, or
    clicking it toggles the checkbox. Indented to the checkbox's text instead. */
 .setting .checkbox-label + .field-hint { margin-left: 24px; }
+
+/* ── Password requirements hint ──
+   A `?` that reveals the rules on hover and on keyboard focus. Not a `title`
+   attribute: those never appear for keyboard or touch users, cannot be styled,
+   and are slow enough to feel broken. No JS — :hover and :focus-within. */
+.req-hint {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 4px;
+  cursor: help;
+}
+
+.req-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border: 1px solid var(--card-border);
+  border-radius: 50%;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.req-hint:hover .req-mark,
+.req-hint:focus-visible .req-mark { border-color: var(--accent); color: var(--accent); }
+.req-hint:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 50%; }
+
+.req-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: max-content;
+  max-width: 240px;
+  padding: 10px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-transform: none;
+  letter-spacing: 0;
+  /* Hidden without display:none, so a screen reader can still reach it. */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s;
+}
+
+.req-hint:hover .req-tip,
+.req-hint:focus-within .req-tip { opacity: 1; visibility: visible; }
+
+.req-tip strong { display: block; margin-bottom: 6px; color: var(--text-primary); }
+.req-tip ul { margin: 0; padding-left: 16px; }
+.req-tip li { margin: 2px 0; }

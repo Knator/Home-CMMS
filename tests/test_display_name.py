@@ -120,7 +120,7 @@ def test_the_admin_list_shows_both(admin_client, db):
 def test_an_admin_can_set_a_display_name_on_creation(admin_client, db):
     admin_client.post('/admin/users/new', data={
         'csrf_token': CSRF, 'username': 'jsmith', 'email': 'j@example.com',
-        'password': 'password123', 'role': 'user', 'display_name': 'Jamie Smith',
+        'password': 'Password123!', 'role': 'user', 'display_name': 'Jamie Smith',
     })
     assert User.query.filter_by(username='jsmith').one().display_name == 'Jamie Smith'
 

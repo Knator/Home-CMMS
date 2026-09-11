@@ -30,18 +30,23 @@ This guide takes you from a fresh clone to a running, testable app.
 --------------------------------------------------------------------------------
 
       source .venv/bin/activate
-      pip install -r requirements.txt
+      pip install -r requirements-dev.txt
+
+  requirements.txt holds what the app needs to run; requirements-dev.txt adds
+  pytest and the two packages the tests use, and pulls the runtime ones in
+  with it. The Docker image installs only requirements.txt, so a test-only
+  package never ships to a deployment.
 
   If .venv does not exist or is broken, recreate it. A venv breaks if the
   Python it was built against is removed or upgraded — the symptom is:
 
       bad interpreter: No such file or directory
 
-  It holds nothing you cannot rebuild from requirements.txt:
+  It holds nothing you cannot rebuild:
 
       python -m venv .venv
       source .venv/bin/activate
-      pip install -r requirements.txt
+      pip install -r requirements-dev.txt
 
 
 --------------------------------------------------------------------------------

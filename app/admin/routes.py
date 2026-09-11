@@ -17,6 +17,7 @@ from app.utils import (
 from app import maintenance
 from app import security
 from app import settings as app_settings
+from app.passwords import password_problems
 from app.services import auto_archive_closed_work_orders
 
 
@@ -52,8 +53,7 @@ def create_user():
             errors.append('Username is required.')
         if '@' not in email:
             errors.append('A valid email address is required.')
-        if len(password) < 8:
-            errors.append('Password must be at least 8 characters.')
+        errors.extend(password_problems(password))
         if username and User.query.filter_by(username=username).first():
             errors.append('Username already taken.')
         if email and User.query.filter_by(email=email).first():
@@ -102,9 +102,13 @@ def edit_user(id):
             flash('This is the only administrator; assign another admin first.', 'error')
             return render_template('admin/user_form.html', user=user)
 
-        if new_password and len(new_password) < 8:
-            flash('Password must be at least 8 characters.', 'error')
-            return render_template('admin/user_form.html', user=user)
+        # Blank means "leave it alone"; anything else must meet the policy.
+        if new_password:
+            problems = password_problems(new_password)
+            if problems:
+                for problem in problems:
+                    flash(f'Password: {problem.lower()}.', 'error')
+                return render_template('admin/user_form.html', user=user)
 
         user.email = email
         user.role = role
@@ -309,6 +313,16 @@ def create_backup():
 
     flash(f"Backup {result['name']} created "
           f"({result['size'] // 1024} KB in {result['seconds']}s).", 'success')
+
+    # Check it against the rules that govern restoring, now rather than on the
+    # day it is needed. A guard that quietly rejects this instance's own backups
+    # would be worse than having no guard, and this is the only way to find out.
+    blockers = maintenance.restore_blockers(result['name'])
+    for blocker in blockers:
+        current_app.logger.warning('Backup %s would be refused on restore: %s',
+                                   result['name'], blocker)
+        flash(f'Warning — this backup could not be restored as things stand: '
+              f'{blocker}', 'error')
 
     keep = parse_int(request.form.get('keep'), minimum=1)
     if keep:

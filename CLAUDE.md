@@ -234,6 +234,31 @@ Write paths shared by the routes and the scheduler. **Never insert a `WorkOrder`
 - `hierarchy_ordered(nodes)` — depth-first `[(node, depth)]` for indented tree lists.
   Nodes whose parent was filtered out are promoted to roots so nothing disappears.
 
+### Text search (`app/search.py`)
+Shared by every list page: work orders, job plans, locations, assets and PMs. Extracted rather than copied, because the regex
+half carries a timeout guard that would be easy to get subtly wrong a second time.
+
+`like_clause()` is the plain case-insensitive match, escaping LIKE wildcards so `50%` looks
+for that text. `compile_pattern()` + `regex_filter()` are the `.*` toggle. `regex_filter()`
+takes a `texts(row)` callable, so a caller can include text from related records — the job
+plan list yields its **task descriptions** that way.
+
+In SQL the related table is reached with `JobPlan.tasks.any(...)`, an EXISTS rather than a
+join: a plan with three matching tasks must appear once, not three times.
+
+Which columns each list searches differs and is stated at the call site: work orders look at
+title/description/notes, job plans add their task descriptions, locations use
+name/description/notes, and assets and PMs use name/notes (neither has a description column).
+`_search.html` holds the markup, so the five boxes cannot drift apart.
+
+On the **hierarchies** — locations and assets — the filter runs *before* `hierarchy_ordered()`,
+which promotes a match whose parent was filtered away. Searching for a sub-assembly therefore
+finds it rather than hiding it under a branch that did not match.
+
+A **timeout is flashed separately from a syntax error** — reporting "that is not a valid
+regular expression" for a pattern that was merely slow sends someone hunting for a typo that
+is not there.
+
 ### Work order filtering
 Status, type and priority each take **several values**: `request.args.getlist()` filtered
 against the model's vocabulary, then `.in_()`. **OR inside a filter, AND between them** — open

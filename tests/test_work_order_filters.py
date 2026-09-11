@@ -258,9 +258,9 @@ def test_the_toggle_works_without_javascript(signed_in, orders):
 
 def test_the_timeout_capable_engine_is_the_one_in_use():
     """Not the standard library's re, which has no timeout at all."""
-    from app.work_orders import routes
-    assert routes._regex is not None
-    assert routes._regex.__name__ == 'regex'
+    from app import search
+    assert search._regex is not None
+    assert search._regex.__name__ == 'regex'
 
 
 def test_regex_is_a_declared_runtime_dependency():
@@ -272,8 +272,8 @@ def test_regex_is_a_declared_runtime_dependency():
 
 def test_a_pathological_pattern_is_stopped_rather_than_hanging(
         signed_in, db, monkeypatch):
-    from app.work_orders import routes
-    monkeypatch.setattr(routes, 'REGEX_TIME_BUDGET', 0.3)
+    from app import search
+    monkeypatch.setattr(search, 'REGEX_TIME_BUDGET', 0.3)
 
     for i in range(40):
         create_work_order(title=f'Job {i}', wo_type='planned',
@@ -294,10 +294,9 @@ def test_a_pathological_pattern_is_stopped_rather_than_hanging(
 def test_the_budget_covers_the_whole_pass_not_each_row(signed_in, db, monkeypatch):
     """A per-call timeout would still allow rows x fields x timeout in total,
     which on a long list is worse than no limit."""
-    from app.work_orders import routes
-    assert 'deadline' in routes._regex_filter.__doc__.lower() or True
+    from app import search
     import inspect
-    source = inspect.getsource(routes._regex_filter)
+    source = inspect.getsource(search.regex_filter)
     assert 'deadline' in source
     assert 'remaining' in source
 

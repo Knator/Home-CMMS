@@ -9,6 +9,10 @@ from app.models.asset import Asset, ASSET_CATEGORIES
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
+from app.search import (
+    SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
+)
+
 from app.models.asset_material import AssetMaterial
 from app.services import (
     _match_existing_material, asset_delete_blockers, create_asset, hierarchy_ordered,
@@ -93,6 +97,9 @@ def index():
     location_id = parse_int(request.args.get('location_id'))
     show_all = request.args.get('show', 'active') == 'all'
 
+    search = request.args.get('q', '').strip()
+    use_regex = bool(request.args.get('regex'))
+
     q = Asset.query
     if category:
         q = q.filter_by(category=category)
@@ -101,13 +108,33 @@ def index():
     if not show_all:
         q = q.filter(Asset.status == STATUS_ACTIVE)
 
-    rows = hierarchy_ordered(q.order_by(Asset.name).all())
+    pattern = regex_error = None
+    if search and use_regex:
+        pattern, regex_error = compile_pattern(search)
+    elif search:
+        q = q.filter(like_clause(search, Asset.name, Asset.notes))
+
+    matched = q.order_by(Asset.name).all()
+    if pattern is not None:
+        try:
+            matched = regex_filter(pattern, matched,
+                                   lambda a: (a.name, a.notes))
+        except SearchTooSlow:
+            matched = []
+            flash(too_slow_message().capitalize(), 'error')
+    if regex_error:
+        flash(f'That is not a valid regular expression: {regex_error}', 'error')
+        matched = []
+
+    # Filtered first, arranged second: hierarchy_ordered promotes a match whose
+    # parent did not match, so a sub-assembly is still found on its own.
+    rows = hierarchy_ordered(matched)
     return render_template(
         'assets/list.html', rows=rows,
         locations=Location.query.order_by(Location.name).all(),
         categories=ASSET_CATEGORIES, selected_category=category,
         selected_location=str(location_id) if location_id is not None else '',
-        show_all=show_all,
+        show_all=show_all, search=search, use_regex=use_regex,
     )
 
 

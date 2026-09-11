@@ -1,4 +1,3 @@
-import time
 from datetime import date
 
 from flask import render_template, redirect, url_for, flash, request
@@ -24,6 +23,9 @@ from app.services import (
     archive_work_order, copy_job_plan_items, create_work_order, NotArchivable,
     record_materials_on_asset, related_attachments, selectable_assets,
     selectable_locations, sync_pm_schedule,
+)
+from app.search import (
+    SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
 from app.settings import archived_deletion_allowed
 from app.utils import (
@@ -134,88 +136,13 @@ def _chosen(param, allowed):
     return [value for value in request.args.getlist(param) if value in allowed]
 
 
-# A pattern long enough to be pathological is not one anyone typed by hand.
-MAX_PATTERN = 200
+def _chosen(param, allowed):
+    """The values picked for one filter, ignoring anything not in the vocabulary.
 
-# The whole regex pass gets this long, not each call. A per-call timeout would
-# still allow rows x fields x timeout in total, which on a large list is worse
-# than no limit at all.
-REGEX_TIME_BUDGET = 2.0
-
-# `regex` rather than the standard `re`, for one reason: it can be given a
-# timeout. `re` cannot be interrupted at all, so a pattern with nested
-# quantifiers blocks the worker until gunicorn kills the request — and this app
-# runs a single worker, so that is the whole instance, for everyone, for two
-# minutes. Measured: `(a+)+$` against 29 characters takes 28s under `re` and
-# 1ms under `regex`.
-try:
-    import regex as _regex
-except ImportError:                                  # pragma: no cover
-    _regex = None
-
-
-class SearchTooSlow(Exception):
-    """The pattern spent its whole budget without finishing."""
-
-
-def _compile_search(needle):
-    """Compile a user-supplied pattern. Returns (compiled, error_message).
-
-    Case-insensitive, to match how the plain search behaves — someone toggling
-    regex on should not find their search has quietly become case-sensitive too.
+    A filter with nothing ticked means "no opinion", not "match nothing" — an
+    empty list is how the filter says it should not narrow anything.
     """
-    if _regex is None:                               # pragma: no cover
-        return None, ('regular expression search is unavailable — the `regex` '
-                      'package is not installed')
-    if len(needle) > MAX_PATTERN:
-        return None, f'patterns are limited to {MAX_PATTERN} characters'
-    try:
-        return _regex.compile(needle, _regex.IGNORECASE), None
-    except _regex.error as error:
-        return None, str(error)
-
-
-def _regex_filter(pattern, work_orders):
-    """Rows whose text the pattern matches, within the time budget.
-
-    Every call is given only the time left, so the pass as a whole cannot run
-    longer than REGEX_TIME_BUDGET no matter how many rows it walks.
-    """
-    deadline = time.monotonic() + REGEX_TIME_BUDGET
-    matched = []
-    for work_order in work_orders:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise SearchTooSlow()
-        for value in (work_order.title, work_order.description, work_order.notes):
-            if not value:
-                continue
-            try:
-                if pattern.search(value, timeout=remaining):
-                    matched.append(work_order)
-                    break
-            except TimeoutError:
-                raise SearchTooSlow()
-    return matched
-
-
-def _search_clause(needle):
-    """Case-insensitive substring match across title, description and notes.
-
-    LIKE wildcards in the needle are escaped, so searching for `50%` looks for
-    that text rather than matching everything after `50`. lower() on both sides
-    rather than relying on LIKE's own casing, which SQLite only applies to
-    ASCII.
-    """
-    escaped = (needle.replace('\\', '\\\\')
-                     .replace('%', '\\%')
-                     .replace('_', '\\_')
-                     .lower())
-    pattern = f'%{escaped}%'
-    return db.or_(*[
-        db.func.lower(column).like(pattern, escape='\\')
-        for column in (WorkOrder.title, WorkOrder.description, WorkOrder.notes)
-    ])
+    return [value for value in request.args.getlist(param) if value in allowed]
 
 
 @bp.route('/')
@@ -247,9 +174,10 @@ def index():
     regex_error = None
     pattern = None
     if search and use_regex:
-        pattern, regex_error = _compile_search(search)
+        pattern, regex_error = compile_pattern(search)
     elif search:
-        q = q.filter(_search_clause(search))
+        q = q.filter(like_clause(
+            search, WorkOrder.title, WorkOrder.description, WorkOrder.notes))
 
     # Independent of status: archived work is history, not a working list, so it
     # is out of the way by default and stays that way even when you filter for
@@ -262,12 +190,13 @@ def index():
     work_orders = q.order_by(WorkOrder.created_at.desc()).all()
     if pattern is not None:
         try:
-            work_orders = _regex_filter(pattern, work_orders)
+            work_orders = regex_filter(
+                pattern, work_orders,
+                lambda wo: (wo.title, wo.description, wo.notes))
         except SearchTooSlow:
+            # Not a syntax error, so it must not be reported as one.
             work_orders = []
-            regex_error = (f'that pattern took longer than {REGEX_TIME_BUDGET:g} '
-                           'seconds, so the search was stopped. Nested quantifiers '
-                           'such as (a+)+ are the usual cause.')
+            flash(too_slow_message().capitalize(), 'error')
     if regex_error:
         flash(f'That is not a valid regular expression: {regex_error}', 'error')
         work_orders = []

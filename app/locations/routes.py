@@ -6,6 +6,10 @@ from app.extensions import db
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
+from app.search import (
+    SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
+)
+
 from app.models.work_order import WorkOrder
 from app.services import (
     create_location, location_delete_blockers, hierarchy_ordered, sibling_name_taken,
@@ -73,11 +77,39 @@ def _form_context(location=None):
 @login_required
 def index():
     show_all = request.args.get('show', 'active') == 'all'
+    search = request.args.get('q', '').strip()
+    use_regex = bool(request.args.get('regex'))
+
     q = Location.query
     if not show_all:
         q = q.filter(Location.status == STATUS_ACTIVE)
-    rows = hierarchy_ordered(q.order_by(Location.name).all())
-    return render_template('locations/list.html', rows=rows, show_all=show_all)
+
+    pattern = regex_error = None
+    if search and use_regex:
+        pattern, regex_error = compile_pattern(search)
+    elif search:
+        q = q.filter(like_clause(
+            search, Location.name, Location.description, Location.notes))
+
+    matched = q.order_by(Location.name).all()
+    if pattern is not None:
+        try:
+            matched = regex_filter(
+                pattern, matched,
+                lambda loc: (loc.name, loc.description, loc.notes))
+        except SearchTooSlow:
+            matched = []
+            flash(too_slow_message().capitalize(), 'error')
+    if regex_error:
+        flash(f'That is not a valid regular expression: {regex_error}', 'error')
+        matched = []
+
+    # Filtered first, arranged second: hierarchy_ordered promotes a match whose
+    # parent did not match, so searching for a child still finds it rather than
+    # hiding it under a branch that was filtered away.
+    rows = hierarchy_ordered(matched)
+    return render_template('locations/list.html', rows=rows, show_all=show_all,
+                           search=search, use_regex=use_regex)
 
 
 @bp.route('/new', methods=['GET', 'POST'])

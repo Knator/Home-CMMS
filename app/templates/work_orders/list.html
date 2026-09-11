@@ -3,6 +3,7 @@
 {% block page_title %}Work Orders{% endblock %}
 
 {% block content %}
+{% from '_search.html' import search_box %}
 <div class="page-header">
   <h1>Work Orders</h1>
   <div class="page-actions">
@@ -39,25 +40,9 @@
 {% endmacro %}
 
 <form method="get" class="filters">
-  {# Named `q` and placed first: it is the one people reach for. #}
-  <input type="search" name="q" value="{{ search }}" class="filter-search"
-         placeholder="{{ 'Regular expression' if use_regex else 'Search title, description, notes' }}"
-         aria-label="Search work orders">
-  {# A checkbox styled as a toggle: it submits with the form and needs no
-     JavaScript, and its state rides in the query string like every other filter.
-
-     The input is a *sibling* of the label rather than inside it so the styling
-     can hang off `:checked`. Nested, the appearance would have to come from a
-     server-rendered class, which means the button only fills in after the page
-     reloads — and the focus ring lights up immediately, so it looks toggled and
-     unset at the same time. #}
-  <input type="checkbox" id="regex-toggle" name="regex" value="1"
-         class="regex-check" {{ 'checked' if use_regex }}
-         aria-label="Match the search as a regular expression">
-  <label for="regex-toggle" class="regex-toggle"
-         title="Match the search as a regular expression">
-    <span aria-hidden="true">.*</span>
-  </label>
+  {# Placed first: it is the one people reach for. #}
+  {{ search_box(search, use_regex,
+                'Search title, description, notes') }}
 
   {{ multi_filter('status', 'Status', statuses, selected_statuses) }}
   {{ multi_filter('type', 'Type', wo_types, selected_types) }}

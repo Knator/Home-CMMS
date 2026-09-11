@@ -4,6 +4,7 @@ from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 
 from app.pms import bp
+from app import settings as app_settings
 from app.extensions import db
 from app.models.pm import PM
 from app.models.job_plan import JobPlan
@@ -115,7 +116,11 @@ def detail(id):
         .order_by(Attachment.uploaded_at.desc())
         .all()
     )
+    # So the page can say why nothing is being generated, rather than
+    # leaving an overdue PM looking broken.
+    blocker = pm.blocking_work_order() if app_settings.get('pm_stall_on_open') else None
     return render_template('pms/detail.html', pm=pm, generated_wos=generated_wos,
+                           stalled_by=blocker,
                            attachments=attachments, today=date.today())
 
 
@@ -176,12 +181,21 @@ def generate_now(id):
         flash('This PM schedule is inactive. Activate it before generating a work order.', 'error')
         return redirect(url_for('pms.detail', id=id))
 
+    # The stall setting holds back *automatic* generation. This button is an
+    # explicit instruction from an administrator who can see the open work order
+    # on this very page, so it proceeds — refusing would make the button a lie —
+    # but it says what it noticed.
+    blocker = pm.blocking_work_order() if app_settings.get('pm_stall_on_open') else None
+
     wo = generate_work_order_for_pm(
         pm,
         created_by=current_user.id,
         description=f"Manually generated from PM schedule: {pm.name}",
     )
     flash(f'Work order {wo.wo_number} generated.', 'success')
+    if blocker is not None:
+        flash(f'Note: {blocker.wo_number} was already open for this PM. '
+              'Automatic generation was waiting on it.', 'info')
     return redirect(url_for('pms.detail', id=id))
 
 

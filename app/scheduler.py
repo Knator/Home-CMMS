@@ -33,6 +33,23 @@ def run_pm_check(app):
         ).all()
         due_pms = [pm for pm in candidates if pm.is_due_for_generation(today)]
 
+        # An unfinished work order holds its PM back, when that is switched on.
+        # The due date is deliberately NOT advanced for a stalled PM: advancing
+        # it would quietly consume the occurrence, so instead the PM stays due,
+        # reads as overdue, and generates the moment the blocker is closed.
+        from app import settings as app_settings
+
+        if app_settings.get('pm_stall_on_open'):
+            unstalled = []
+            for pm in due_pms:
+                blocker = pm.blocking_work_order()
+                if blocker is None:
+                    unstalled.append(pm)
+                else:
+                    log.info('PM %s (%s) held back: %s is still %s',
+                             pm.id, pm.name, blocker.wo_number, blocker.status)
+            due_pms = unstalled
+
         generated = 0
         for pm in due_pms:
             # Each PM commits on its own so one failure cannot discard the work

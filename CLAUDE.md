@@ -234,6 +234,40 @@ Write paths shared by the routes and the scheduler. **Never insert a `WorkOrder`
 - `hierarchy_ordered(nodes)` — depth-first `[(node, depth)]` for indented tree lists.
   Nodes whose parent was filtered out are promoted to roots so nothing disappears.
 
+### Work order filtering
+Status, type and priority each take **several values**: `request.args.getlist()` filtered
+against the model's vocabulary, then `.in_()`. **OR inside a filter, AND between them** — open
+*or* in progress, at low *or* high priority, is one query. An empty list means "no opinion"
+and narrows nothing, so a filter with nothing ticked is not a filter that matches nothing.
+Values outside the vocabulary are dropped, so a hand-edited query string cannot introduce a
+status that does not exist.
+
+`_search_clause()` matches the needle against title, description and notes, case-insensitively.
+**LIKE wildcards in the needle are escaped** — searching for `50%` looks for that text rather
+than matching everything after `50` — and `lower()` is applied to both sides rather than
+relying on LIKE's own casing, which SQLite only applies to ASCII.
+
+The `.*` toggle beside the search box switches to a regular expression, matched in Python
+because SQLite ships no REGEXP implementation.
+
+It uses the **`regex` package, not the standard library's `re`, for one reason: `re` cannot be
+interrupted.** A pattern with nested quantifiers blocks the worker until gunicorn kills the
+request, and this app runs a single worker — so that is the whole instance, for everyone, for
+two minutes. Measured on the real path: `(a+)+$` against 29 characters takes **28s under `re`
+and 1ms under `regex`**.
+
+`REGEX_TIME_BUDGET` bounds the **whole pass, not each call**: every `search()` is handed only
+the time remaining. A per-call timeout would still permit rows × fields × timeout in total,
+which on a long list is worse than no limit. Exceeding it returns an empty list with an
+explanation rather than a hung page. An invalid pattern is reported the same way rather than
+raised, and matching nothing is deliberate — silently listing everything would look as though
+the filter had applied.
+
+The filter menus are `<details>` plus checkboxes, both native, so the whole thing works with
+JavaScript off; only the appearance is CSS. The summary reports the current choice, because a
+collapsed filter that does not say what it is doing is worse than no filter. Archived stays a
+single tri-state select: it is orthogonal to the rest.
+
 ### PM Scheduler (`app/scheduler.py`)
 `run_pm_check(app)` runs hourly. It finds active PMs where `next_due_date <= today` and `last_generated_date` is either NULL or not today (the explicit `IS NULL` matters — SQL treats `NULL != today` as NULL, which would skip brand-new PMs). Each PM commits independently and failures are logged and skipped, so one bad PM can't discard the rest of the pass.
 

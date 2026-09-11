@@ -10,28 +10,58 @@
   </div>
 </div>
 
+{# A filter that takes several values at once. <details> and checkboxes are
+   both native, so this needs no JavaScript: without it you get an open list of
+   checkboxes and an Apply button, which is the same thing less prettily. The
+   summary reports the current choice, because a collapsed filter that does not
+   say what it is doing is worse than no filter. #}
+{% macro multi_filter(field, label, options, chosen) %}
+  <details class="filter-menu">
+    <summary>
+      {{ label }}:
+      <strong>
+        {% if not chosen %}All
+        {% elif chosen | length == 1 %}{{ chosen[0] | replace('_',' ') | title }}
+        {% else %}{{ chosen | length }} selected{% endif %}
+      </strong>
+    </summary>
+    <div class="filter-menu-body">
+      {% for option in options %}
+        <label class="checkbox-label">
+          <input type="checkbox" name="{{ field }}" value="{{ option }}"
+                 {{ 'checked' if option in chosen }}>
+          {{ option | replace('_',' ') | title }}
+        </label>
+      {% endfor %}
+      <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
+    </div>
+  </details>
+{% endmacro %}
+
 <form method="get" class="filters">
-  <label>Status</label>
-  <select name="status" onchange="this.form.submit()">
-    <option value="">All Statuses</option>
-    {% for s in statuses %}
-      <option value="{{ s }}" {{ 'selected' if selected_status == s }}>{{ s | replace('_',' ') | title }}</option>
-    {% endfor %}
-  </select>
-  <label>Type</label>
-  <select name="type" onchange="this.form.submit()">
-    <option value="">All Types</option>
-    {% for t in wo_types %}
-      <option value="{{ t }}" {{ 'selected' if selected_type == t }}>{{ t | title }}</option>
-    {% endfor %}
-  </select>
-  <label>Priority</label>
-  <select name="priority" onchange="this.form.submit()">
-    <option value="">All Priorities</option>
-    {% for p in priorities %}
-      <option value="{{ p }}" {{ 'selected' if selected_priority == p }}>{{ p | title }}</option>
-    {% endfor %}
-  </select>
+  {# Named `q` and placed first: it is the one people reach for. #}
+  <input type="search" name="q" value="{{ search }}" class="filter-search"
+         placeholder="{{ 'Regular expression' if use_regex else 'Search title, description, notes' }}"
+         aria-label="Search work orders">
+  {# A checkbox styled as a toggle: it submits with the form and needs no
+     JavaScript, and its state rides in the query string like every other filter.
+
+     The input is a *sibling* of the label rather than inside it so the styling
+     can hang off `:checked`. Nested, the appearance would have to come from a
+     server-rendered class, which means the button only fills in after the page
+     reloads — and the focus ring lights up immediately, so it looks toggled and
+     unset at the same time. #}
+  <input type="checkbox" id="regex-toggle" name="regex" value="1"
+         class="regex-check" {{ 'checked' if use_regex }}
+         aria-label="Match the search as a regular expression">
+  <label for="regex-toggle" class="regex-toggle"
+         title="Match the search as a regular expression">
+    <span aria-hidden="true">.*</span>
+  </label>
+
+  {{ multi_filter('status', 'Status', statuses, selected_statuses) }}
+  {{ multi_filter('type', 'Type', wo_types, selected_types) }}
+  {{ multi_filter('priority', 'Priority', priorities, selected_priorities) }}
   {# Its own box rather than a value in the Status list: archiving is
      orthogonal to outcome, so filtering for completed work should not have to
      decide about archived work at the same time. #}
@@ -41,7 +71,8 @@
     <option value="show" {{ 'selected' if selected_archived == 'show' }}>Included</option>
     <option value="only" {{ 'selected' if selected_archived == 'only' }}>Only</option>
   </select>
-  {% if selected_status or selected_type or selected_priority
+  <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+  {% if selected_statuses or selected_types or selected_priorities or search
         or selected_archived != 'hide' %}
     <a href="{{ url_for('work_orders.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}

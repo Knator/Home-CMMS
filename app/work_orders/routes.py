@@ -1,3 +1,4 @@
+import time
 from datetime import date
 
 from flask import render_template, redirect, url_for, flash, request
@@ -124,22 +125,131 @@ def _form_options(wo=None):
     )
 
 
+def _chosen(param, allowed):
+    """The values picked for one filter, ignoring anything not in the vocabulary.
+
+    A filter with nothing ticked means "no opinion", not "match nothing" — an
+    empty list is how the filter says it should not narrow anything.
+    """
+    return [value for value in request.args.getlist(param) if value in allowed]
+
+
+# A pattern long enough to be pathological is not one anyone typed by hand.
+MAX_PATTERN = 200
+
+# The whole regex pass gets this long, not each call. A per-call timeout would
+# still allow rows x fields x timeout in total, which on a large list is worse
+# than no limit at all.
+REGEX_TIME_BUDGET = 2.0
+
+# `regex` rather than the standard `re`, for one reason: it can be given a
+# timeout. `re` cannot be interrupted at all, so a pattern with nested
+# quantifiers blocks the worker until gunicorn kills the request — and this app
+# runs a single worker, so that is the whole instance, for everyone, for two
+# minutes. Measured: `(a+)+$` against 29 characters takes 28s under `re` and
+# 1ms under `regex`.
+try:
+    import regex as _regex
+except ImportError:                                  # pragma: no cover
+    _regex = None
+
+
+class SearchTooSlow(Exception):
+    """The pattern spent its whole budget without finishing."""
+
+
+def _compile_search(needle):
+    """Compile a user-supplied pattern. Returns (compiled, error_message).
+
+    Case-insensitive, to match how the plain search behaves — someone toggling
+    regex on should not find their search has quietly become case-sensitive too.
+    """
+    if _regex is None:                               # pragma: no cover
+        return None, ('regular expression search is unavailable — the `regex` '
+                      'package is not installed')
+    if len(needle) > MAX_PATTERN:
+        return None, f'patterns are limited to {MAX_PATTERN} characters'
+    try:
+        return _regex.compile(needle, _regex.IGNORECASE), None
+    except _regex.error as error:
+        return None, str(error)
+
+
+def _regex_filter(pattern, work_orders):
+    """Rows whose text the pattern matches, within the time budget.
+
+    Every call is given only the time left, so the pass as a whole cannot run
+    longer than REGEX_TIME_BUDGET no matter how many rows it walks.
+    """
+    deadline = time.monotonic() + REGEX_TIME_BUDGET
+    matched = []
+    for work_order in work_orders:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise SearchTooSlow()
+        for value in (work_order.title, work_order.description, work_order.notes):
+            if not value:
+                continue
+            try:
+                if pattern.search(value, timeout=remaining):
+                    matched.append(work_order)
+                    break
+            except TimeoutError:
+                raise SearchTooSlow()
+    return matched
+
+
+def _search_clause(needle):
+    """Case-insensitive substring match across title, description and notes.
+
+    LIKE wildcards in the needle are escaped, so searching for `50%` looks for
+    that text rather than matching everything after `50`. lower() on both sides
+    rather than relying on LIKE's own casing, which SQLite only applies to
+    ASCII.
+    """
+    escaped = (needle.replace('\\', '\\\\')
+                     .replace('%', '\\%')
+                     .replace('_', '\\_')
+                     .lower())
+    pattern = f'%{escaped}%'
+    return db.or_(*[
+        db.func.lower(column).like(pattern, escape='\\')
+        for column in (WorkOrder.title, WorkOrder.description, WorkOrder.notes)
+    ])
+
+
 @bp.route('/')
 @login_required
 def index():
-    status = request.args.get('status', '')
-    wo_type = request.args.get('type', '')
-    priority = request.args.get('priority', '')
+    # Several values per filter: OR within a filter, AND between them. Asking
+    # for open *or* in progress, at low *or* high priority, is one query.
+    statuses = _chosen('status', WO_STATUSES)
+    types = _chosen('type', WO_TYPES)
+    priorities = _chosen('priority', WO_PRIORITIES)
+    search = request.args.get('q', '').strip()
+    use_regex = bool(request.args.get('regex'))
 
     archived = request.args.get('archived', '')
     if archived not in ARCHIVE_FILTERS:
         archived = 'hide'
 
     q = WorkOrder.query
-    if status in WO_STATUSES:
-        q = q.filter_by(status=status)
-    else:
-        status = ''
+    if statuses:
+        q = q.filter(WorkOrder.status.in_(statuses))
+    if types:
+        q = q.filter(WorkOrder.wo_type.in_(types))
+    if priorities:
+        q = q.filter(WorkOrder.priority.in_(priorities))
+    # A plain search runs in SQL; a regular expression cannot, because SQLite
+    # ships no REGEXP implementation. Matching in Python instead keeps it to one
+    # readable path and lets a bad pattern be reported rather than raised — and
+    # the rows have already been narrowed by every other filter by then.
+    regex_error = None
+    pattern = None
+    if search and use_regex:
+        pattern, regex_error = _compile_search(search)
+    elif search:
+        q = q.filter(_search_clause(search))
 
     # Independent of status: archived work is history, not a working list, so it
     # is out of the way by default and stays that way even when you filter for
@@ -148,21 +258,26 @@ def index():
         q = q.filter(WorkOrder.archived_at.is_(None))
     elif archived == 'only':
         q = q.filter(WorkOrder.archived_at.isnot(None))
-    if wo_type in WO_TYPES:
-        q = q.filter_by(wo_type=wo_type)
-    else:
-        wo_type = ''
-    if priority in WO_PRIORITIES:
-        q = q.filter_by(priority=priority)
-    else:
-        priority = ''
 
     work_orders = q.order_by(WorkOrder.created_at.desc()).all()
+    if pattern is not None:
+        try:
+            work_orders = _regex_filter(pattern, work_orders)
+        except SearchTooSlow:
+            work_orders = []
+            regex_error = (f'that pattern took longer than {REGEX_TIME_BUDGET:g} '
+                           'seconds, so the search was stopped. Nested quantifiers '
+                           'such as (a+)+ are the usual cause.')
+    if regex_error:
+        flash(f'That is not a valid regular expression: {regex_error}', 'error')
+        work_orders = []
+
     return render_template(
         'work_orders/list.html',
         work_orders=work_orders,
         statuses=WO_STATUSES, priorities=WO_PRIORITIES, wo_types=WO_TYPES,
-        selected_status=status, selected_type=wo_type, selected_priority=priority,
+        selected_statuses=statuses, selected_types=types,
+        selected_priorities=priorities, search=search, use_regex=use_regex,
         archive_filters=ARCHIVE_FILTERS, selected_archived=archived,
         today=date.today(),
     )

@@ -665,3 +665,137 @@ def test_a_backup_with_accounts_still_restores(stamped, app):
 
     maintenance.restore_backup(os.path.join(maintenance.backup_dir(), created['name']))
     assert [a.name for a in Asset.query.all()] == ['Furnace']
+
+
+# ── decompression bombs ────────────────────────────────────────────────────
+#
+# A small archive can expand to an enormous one, and filling the disk bricks the
+# instance: SQLite cannot write, so nothing works until someone clears space by
+# hand. Sizes come from the tar headers, which extraction treats as definitive —
+# understating one only truncates the attacker's own payload — so the check
+# costs nothing and happens before a single byte is written.
+
+def bomb(tmp_path, expanded_bytes, members=1):
+    """A backup-shaped archive whose uploads expand hugely."""
+    path = str(tmp_path / 'bomb.tar.gz')
+    db = str(tmp_path / 'seed.db')
+    connection = sqlite3.connect(db)
+    connection.execute('create table alembic_version (version_num text)')
+    connection.execute("insert into alembic_version values ('x')")
+    connection.execute('create table users (id integer)')
+    connection.execute('insert into users values (1)')
+    connection.commit()
+    connection.close()
+
+    with tarfile.open(path, 'w:gz') as tar:
+        tar.add(db, arcname=maintenance.DB_MEMBER)
+        each = expanded_bytes // members
+        for i in range(members):
+            info = tarfile.TarInfo(f'uploads/pad{i}.bin')
+            info.size = each
+            tar.addfile(info, io.BytesIO(b'\0' * each))
+    return path
+
+
+def test_an_archive_that_expands_past_the_ceiling_is_refused(stamped, app, tmp_path):
+    # A tiny ceiling makes the rule observable without a disk-filling fixture.
+    import app.maintenance as m
+    original = m.expansion_limit_bytes
+    m.expansion_limit_bytes = lambda: 1024 * 1024        # 1 MB
+    try:
+        archive = bomb(tmp_path, 8 * 1024 * 1024)
+        with pytest.raises(RestoreError, match='expands to'):
+            maintenance.restore_backup(archive)
+    finally:
+        m.expansion_limit_bytes = original
+
+
+def test_the_refusal_happens_before_anything_is_written(stamped, app, tmp_path):
+    make_user('alice', role='admin')
+    create_asset(name='Keep me')
+    import app.maintenance as m
+    original = m.expansion_limit_bytes
+    m.expansion_limit_bytes = lambda: 1024 * 1024
+    try:
+        archive = bomb(tmp_path, 8 * 1024 * 1024)
+        with pytest.raises(RestoreError):
+            maintenance.restore_backup(archive)
+    finally:
+        m.expansion_limit_bytes = original
+
+    assert [a.name for a in Asset.query.all()] == ['Keep me']
+    assert User.query.count() == 1
+
+
+def test_too_many_members_is_refused(stamped, app, tmp_path):
+    import app.maintenance as m
+    original = m.MAX_MEMBERS
+    m.MAX_MEMBERS = 5
+    try:
+        archive = bomb(tmp_path, 5000, members=20)
+        with pytest.raises(RestoreError, match='more than'):
+            maintenance.inspect_backup(archive)
+    finally:
+        m.MAX_MEMBERS = original
+
+
+def test_a_legitimate_backup_is_not_refused(stamped, app):
+    """The calibration that matters: a real backup must still restore. A
+    database with freed pages compresses ~650x and is entirely legitimate, which
+    is why the ratio is only consulted for very large expansions."""
+    make_user('alice', role='admin')
+    create_asset(name='Furnace')
+    created = maintenance.create_backup()
+
+    Asset.query.delete()
+    _db.session.commit()
+    maintenance.restore_backup(os.path.join(maintenance.backup_dir(), created['name']))
+    assert [a.name for a in Asset.query.all()] == ['Furnace']
+
+
+def test_a_high_ratio_below_the_floor_is_allowed(stamped, app, tmp_path):
+    """8 MB of zeros compresses enormously and is harmless."""
+    archive = bomb(tmp_path, 8 * 1024 * 1024)
+    summary = maintenance.inspect_backup(archive)      # must not raise
+    assert summary['counts']['users'] == 1
+
+
+# ── the instance can check its own backups ─────────────────────────────────
+
+def test_a_freshly_made_backup_reports_no_blockers(stamped, app):
+    make_user('alice', role='admin')
+    created = maintenance.create_backup()
+    assert maintenance.restore_blockers(created['name']) == []
+
+
+def test_blockers_are_reported_for_a_backup_that_would_be_refused(stamped, app):
+    make_user('alice', role='admin')
+    created = maintenance.create_backup()
+
+    import app.maintenance as m
+    original = m.expansion_limit_bytes
+    m.expansion_limit_bytes = lambda: 1              # nothing can pass
+    try:
+        blockers = m.restore_blockers(created['name'])
+    finally:
+        m.expansion_limit_bytes = original
+    assert blockers and 'expands to' in blockers[0]
+
+
+def test_creating_a_backup_warns_when_it_could_not_be_restored(
+        stamped, client, login, app):
+    """Told at creation time, not on the day it is needed."""
+    make_user('admin', role='admin')
+    login('admin')
+    prime_csrf(client)
+
+    import app.maintenance as m
+    original = m.expansion_limit_bytes
+    m.expansion_limit_bytes = lambda: 1
+    try:
+        response = client.post('/admin/maintenance/backup',
+                               data={'csrf_token': CSRF}, follow_redirects=True)
+    finally:
+        m.expansion_limit_bytes = original
+
+    assert b'could not be restored' in response.data

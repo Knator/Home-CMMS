@@ -686,6 +686,22 @@ backups and system health, Immich's orphaned-file repair, LubeLogger's single-ar
   sidecars deleted (they belong to the replaced file); then `flask db upgrade` runs so an
   older backup opens. `_safe_members()` rejects absolute paths, `..`, links and anything
   outside `home_cmms.db`/`uploads/` — a tar member is an arbitrary write primitive otherwise.
+  `check_expansion()` refuses a **decompression bomb** before anything is extracted. Sizes
+  come from the tar headers: cheap, because reading headers writes nothing, and trustworthy,
+  because tar uses the declared size to find the next header — so extraction writes exactly
+  that many bytes and understating it only truncates the attacker's own payload.
+  Thresholds were **calibrated against real archives**, not guessed: a photo-heavy backup
+  expands 1.0x, a text-heavy database 8.7x, an empty one 25x, and a database with many freed
+  pages **650x** — legitimate, and the reason a ratio check alone is unusable. The app's own
+  backups avoid that case because `VACUUM INTO` compacts free pages away, but a hand-made tar
+  of a stopped instance (which DOCKER.md documents) keeps them. So the ratio is consulted
+  only above `RATIO_FLOOR_BYTES`; below it, size alone decides. The ceiling is free disk
+  space less headroom and is deliberately **not** configurable — it follows the machine on
+  its own, and if a backup genuinely does not fit, the answer is disk space rather than a
+  larger number.
+  `restore_blockers()` runs the same checks read-only, and **creating a backup checks it
+  immediately**: a guard that silently rejects the instance's own backups is worse than no
+  guard, and the day it is needed is the wrong time to find out.
   A **failed safety copy does not block the restore**: it usually fails because the current
   database is unreadable, which is exactly when someone is restoring.
   `rotate_secret_key()` then invalidates every session, because the restored database can

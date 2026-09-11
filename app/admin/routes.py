@@ -314,6 +314,16 @@ def create_backup():
     flash(f"Backup {result['name']} created "
           f"({result['size'] // 1024} KB in {result['seconds']}s).", 'success')
 
+    # Check it against the rules that govern restoring, now rather than on the
+    # day it is needed. A guard that quietly rejects this instance's own backups
+    # would be worse than having no guard, and this is the only way to find out.
+    blockers = maintenance.restore_blockers(result['name'])
+    for blocker in blockers:
+        current_app.logger.warning('Backup %s would be refused on restore: %s',
+                                   result['name'], blocker)
+        flash(f'Warning — this backup could not be restored as things stand: '
+              f'{blocker}', 'error')
+
     keep = parse_int(request.form.get('keep'), minimum=1)
     if keep:
         pruned = maintenance.prune_backups(keep)

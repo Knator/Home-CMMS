@@ -12,12 +12,12 @@ Runs the published image. No clone, no build.
 ```bash
 mkdir home-cmms && cd home-cmms
 
-curl -O https://raw.githubusercontent.com/Knator/Home-CMMS/master/docker-compose.ghcr.yml
+curl -o docker-compose.yml https://raw.githubusercontent.com/Knator/Home-CMMS/master/docker-compose.ghcr.yml
 curl -o .env https://raw.githubusercontent.com/Knator/Home-CMMS/master/.env.docker.example
-$EDITOR .env                    # at minimum, set TZ
+nano .env                    # at minimum, set TZ  - use other editor of your choice.
 
-docker compose -f docker-compose.ghcr.yml pull
-docker compose -f docker-compose.ghcr.yml up -d
+docker compose pull
+docker compose up -d
 ```
 
 Open `http://<your-host>:8080`. The first start creates the database, generates a

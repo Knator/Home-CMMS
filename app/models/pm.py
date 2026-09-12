@@ -77,6 +77,54 @@ class PM(db.Model):
         """First day this PM counts as overdue."""
         return self.next_due_date + timedelta(days=(self.overdue_grace_days or 0) + 1)
 
+    def blocking_work_order(self):
+        """An unfinished work order this PM already raised, or None.
+
+        "Unfinished" is open, in progress or on hold — anything not completed,
+        cancelled or archived. On hold counts: the job is not done, so raising
+        a second one helps nobody.
+
+        Only consulted when the stall setting is on. Without it a PM happily
+        generates alongside its own open work orders, which is how duplicates
+        accumulate.
+        """
+        from app.models.work_order import WorkOrder
+
+        return (
+            WorkOrder.query
+            .filter(
+                WorkOrder.pm_id == self.id,
+                WorkOrder.archived_at.is_(None),
+                WorkOrder.status.notin_(('completed', 'cancelled')),
+            )
+            .order_by(WorkOrder.created_at)
+            .first()
+        )
+
+    def last_closure_date(self):
+        """The most recent day work for this PM stopped being live.
+
+        Completion date where there is one, otherwise the day it was cancelled.
+        Uses the latest across all of the PM's work orders rather than whichever
+        was just saved, so out-of-order edits cannot drag the schedule backwards
+        and repeating the calculation changes nothing.
+        """
+        from app.models.work_order import WorkOrder
+        from app.utils import to_local
+
+        latest = None
+        rows = WorkOrder.query.filter(
+            WorkOrder.pm_id == self.id,
+            WorkOrder.status.in_(('completed', 'cancelled')),
+        ).all()
+        for wo in rows:
+            closed = wo.completed_date
+            if closed is None and wo.status_changed_at:
+                closed = to_local(wo.status_changed_at).date()
+            if closed and (latest is None or closed > latest):
+                latest = closed
+        return latest
+
     def last_completion_date(self):
         """Most recent completion among the work orders this PM generated."""
         from app.models.work_order import WorkOrder
@@ -100,7 +148,20 @@ class PM(db.Model):
         if not self.schedule_from_completion:
             return False
 
-        completed = self.last_completion_date()
+        # With the setting on, a cancellation anchors the schedule just as a
+        # completion does — "we are finished with this one" either way. Only for
+        # a floating PM: re-anchoring a fixed one would walk its anniversary
+        # forward every time a work order was cancelled, which is the one thing
+        # a fixed schedule exists to prevent.
+        from app import settings as app_settings
+
+        try:
+            from_cancellation = app_settings.get('pm_cancel_restarts_clock')
+        except Exception:
+            from_cancellation = False
+
+        completed = (self.last_closure_date() if from_cancellation
+                     else self.last_completion_date())
         if completed is None:
             return False
 

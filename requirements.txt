@@ -1,3 +1,6 @@
+# Runtime dependencies — everything the application needs to serve requests.
+# This is the file the Docker image installs, so anything added here ships to
+# every deployment. Test and tooling packages belong in requirements-dev.txt.
 Flask>=3.1
 Flask-SQLAlchemy>=3.1
 Flask-Migrate>=4.0
@@ -5,7 +8,5 @@ Flask-Login>=0.6
 APScheduler>=3.10
 python-dotenv>=1.0
 Werkzeug>=3.1
-pytest>=8.0
-dukpy>=0.3          # JS engine for the browser-code tests
-PyYAML>=6.0         # validates docker-compose.yml in the tests
-Pillow>=10.0         # thumbnails for image attachments
+regex>=2024.0
+Pillow>=10.0

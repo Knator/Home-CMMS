@@ -1,0 +1,13 @@
+# Development and test dependencies.
+#
+#   pip install -r requirements-dev.txt
+#
+# Kept out of requirements.txt so they are not installed into the container.
+# None of them is imported by the application: shipping a JavaScript engine and
+# a test runner into production is code that can never run correctly but can
+# still carry a vulnerability.
+-r requirements.txt
+
+pytest>=8.0
+dukpy>=0.3          # JS engine, so tests exercise the real main.js
+PyYAML>=6.0         # parses docker-compose.yml in the deployment tests

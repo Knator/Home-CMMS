@@ -1,0 +1,42 @@
+
+services:
+  cmms:
+    # Pin a version for anything you rely on; `latest` follows full
+    # releases only and never moves to a pre-release.
+    image: "ghcr.io/knator/home-cmms:${IMAGE_TAG:-latest}"
+    # Never quietly run a stale local copy of a moving tag.
+    pull_policy: always
+
+    container_name: "${CONTAINER_NAME:-home-cmms}"
+    restart: unless-stopped
+
+    ports:
+      - "${WEB_PORT:-8080}:8000"
+
+    environment:
+      TZ: "${TZ:-UTC}"
+      SECRET_KEY: "${SECRET_KEY:-}"
+      FLASK_ENV: "${FLASK_ENV:-}"
+      TRUST_PROXY_HEADERS: "${TRUST_PROXY_HEADERS:-}"
+      MAX_UPLOAD_MB: "${MAX_UPLOAD_MB:-100}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+
+    volumes:
+      - cmms-instance:/app/instance
+      - cmms-uploads:/app/uploads
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/auth/login > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  cmms-instance:
+  cmms-uploads:

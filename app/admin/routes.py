@@ -12,11 +12,13 @@ from app.extensions import db
 from app.models.user import User
 from app.models.api_token import ApiToken
 from app.utils import (
-    validate_csrf, admin_required, parse_int, utcnow, allow_large_upload,
+    validate_csrf, admin_required, parse_date, parse_int, utcnow,
+    allow_large_upload,
 )
 from app import maintenance
 from app import security
 from app import settings as app_settings
+from app.passwords import password_problems
 from app.services import auto_archive_closed_work_orders
 
 
@@ -52,8 +54,7 @@ def create_user():
             errors.append('Username is required.')
         if '@' not in email:
             errors.append('A valid email address is required.')
-        if len(password) < 8:
-            errors.append('Password must be at least 8 characters.')
+        errors.extend(password_problems(password))
         if username and User.query.filter_by(username=username).first():
             errors.append('Username already taken.')
         if email and User.query.filter_by(email=email).first():
@@ -102,9 +103,13 @@ def edit_user(id):
             flash('This is the only administrator; assign another admin first.', 'error')
             return render_template('admin/user_form.html', user=user)
 
-        if new_password and len(new_password) < 8:
-            flash('Password must be at least 8 characters.', 'error')
-            return render_template('admin/user_form.html', user=user)
+        # Blank means "leave it alone"; anything else must meet the policy.
+        if new_password:
+            problems = password_problems(new_password)
+            if problems:
+                for problem in problems:
+                    flash(f'Password: {problem.lower()}.', 'error')
+                return render_template('admin/user_form.html', user=user)
 
         user.email = email
         user.role = role
@@ -253,6 +258,12 @@ def settings_page():
                                current_user.id)
         app_settings.set_value('upload_limit_enabled', limit_on, current_user.id)
         app_settings.set_value('auto_archive_enabled', archive_on, current_user.id)
+        app_settings.set_value('pm_stall_on_open',
+                               bool(request.form.get('pm_stall_on_open')),
+                               current_user.id)
+        app_settings.set_value('pm_cancel_restarts_clock',
+                               bool(request.form.get('pm_cancel_restarts_clock')),
+                               current_user.id)
         if limit is not None:
             app_settings.set_value('max_upload_mb', limit, current_user.id)
         if days is not None:
@@ -309,6 +320,16 @@ def create_backup():
 
     flash(f"Backup {result['name']} created "
           f"({result['size'] // 1024} KB in {result['seconds']}s).", 'success')
+
+    # Check it against the rules that govern restoring, now rather than on the
+    # day it is needed. A guard that quietly rejects this instance's own backups
+    # would be worse than having no guard, and this is the only way to find out.
+    blockers = maintenance.restore_blockers(result['name'])
+    for blocker in blockers:
+        current_app.logger.warning('Backup %s would be refused on restore: %s',
+                                   result['name'], blocker)
+        flash(f'Warning — this backup could not be restored as things stand: '
+              f'{blocker}', 'error')
 
     keep = parse_int(request.form.get('keep'), minimum=1)
     if keep:
@@ -489,12 +510,24 @@ def checkpoint_wal():
 @admin_required
 def sign_in_attempts():
     """The full attempt log, paginated, so the maintenance page stays usable."""
-    only_failures = request.args.get('show', 'failed') != 'all'
+    outcome = request.args.get('outcome', 'failed')
+    if outcome not in security.OUTCOMES:
+        outcome = 'failed'
+    ip = request.args.get('ip', '').strip()
+    # Local calendar dates; attempt_page converts them to the UTC the column
+    # holds. parse_date returns None on junk rather than raising.
+    date_from = parse_date(request.args.get('from', '').strip())
+    date_to = parse_date(request.args.get('to', '').strip())
     page = parse_int(request.args.get('page'), minimum=1) or 1
+
     return render_template(
         'admin/sign_in_attempts.html',
-        attempts=security.attempt_page(page=page, only_failures=only_failures),
-        only_failures=only_failures,
+        attempts=security.attempt_page(page=page, outcome=outcome, ip=ip,
+                                       date_from=date_from, date_to=date_to),
+        outcome=outcome, outcomes=security.OUTCOMES,
+        ip=ip,
+        date_from=request.args.get('from', '').strip(),
+        date_to=request.args.get('to', '').strip(),
         failure_count=security.count_failures(),
     )
 

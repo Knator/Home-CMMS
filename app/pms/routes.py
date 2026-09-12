@@ -4,11 +4,16 @@ from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 
 from app.pms import bp
+from app import settings as app_settings
 from app.extensions import db
 from app.models.pm import PM
 from app.models.job_plan import JobPlan
 from app.models.work_order import WorkOrder, WO_PRIORITIES
 from app.models.attachment import Attachment
+from app.search import (
+    SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
+)
+
 from app.scheduler import MAX_LEAD_DAYS
 from app.services import generate_work_order_for_pm, selectable_assets, selectable_locations
 from app.utils import (
@@ -61,11 +66,33 @@ def _read_form():
 @login_required
 def index():
     active_only = request.args.get('show', 'active') != 'all'
+    search = request.args.get('q', '').strip()
+    use_regex = bool(request.args.get('regex'))
+
     q = PM.query
     if active_only:
         q = q.filter_by(is_active=True)
+
+    pattern = regex_error = None
+    if search and use_regex:
+        pattern, regex_error = compile_pattern(search)
+    elif search:
+        q = q.filter(like_clause(search, PM.name, PM.notes))
+
     pms = q.order_by(PM.next_due_date).all()
-    return render_template('pms/list.html', pms=pms, today=date.today(), active_only=active_only)
+    if pattern is not None:
+        try:
+            pms = regex_filter(pattern, pms, lambda pm: (pm.name, pm.notes))
+        except SearchTooSlow:
+            pms = []
+            flash(too_slow_message().capitalize(), 'error')
+    if regex_error:
+        flash(f'That is not a valid regular expression: {regex_error}', 'error')
+        pms = []
+
+    return render_template('pms/list.html', pms=pms, today=date.today(),
+                           active_only=active_only,
+                           search=search, use_regex=use_regex)
 
 
 @bp.route('/new', methods=['GET', 'POST'])
@@ -115,7 +142,11 @@ def detail(id):
         .order_by(Attachment.uploaded_at.desc())
         .all()
     )
+    # So the page can say why nothing is being generated, rather than
+    # leaving an overdue PM looking broken.
+    blocker = pm.blocking_work_order() if app_settings.get('pm_stall_on_open') else None
     return render_template('pms/detail.html', pm=pm, generated_wos=generated_wos,
+                           stalled_by=blocker,
                            attachments=attachments, today=date.today())
 
 
@@ -176,12 +207,21 @@ def generate_now(id):
         flash('This PM schedule is inactive. Activate it before generating a work order.', 'error')
         return redirect(url_for('pms.detail', id=id))
 
+    # The stall setting holds back *automatic* generation. This button is an
+    # explicit instruction from an administrator who can see the open work order
+    # on this very page, so it proceeds — refusing would make the button a lie —
+    # but it says what it noticed.
+    blocker = pm.blocking_work_order() if app_settings.get('pm_stall_on_open') else None
+
     wo = generate_work_order_for_pm(
         pm,
         created_by=current_user.id,
         description=f"Manually generated from PM schedule: {pm.name}",
     )
     flash(f'Work order {wo.wo_number} generated.', 'success')
+    if blocker is not None:
+        flash(f'Note: {blocker.wo_number} was already open for this PM. '
+              'Automatic generation was waiting on it.', 'info')
     return redirect(url_for('pms.detail', id=id))
 
 

@@ -24,6 +24,9 @@ from app.services import (
     record_materials_on_asset, related_attachments, selectable_assets,
     selectable_locations, sync_pm_schedule,
 )
+from app.search import (
+    SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
+)
 from app.settings import archived_deletion_allowed
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads, upload_rows_from_form,
@@ -124,22 +127,57 @@ def _form_options(wo=None):
     )
 
 
+def _chosen(param, allowed):
+    """The values picked for one filter, ignoring anything not in the vocabulary.
+
+    A filter with nothing ticked means "no opinion", not "match nothing" — an
+    empty list is how the filter says it should not narrow anything.
+    """
+    return [value for value in request.args.getlist(param) if value in allowed]
+
+
+def _chosen(param, allowed):
+    """The values picked for one filter, ignoring anything not in the vocabulary.
+
+    A filter with nothing ticked means "no opinion", not "match nothing" — an
+    empty list is how the filter says it should not narrow anything.
+    """
+    return [value for value in request.args.getlist(param) if value in allowed]
+
+
 @bp.route('/')
 @login_required
 def index():
-    status = request.args.get('status', '')
-    wo_type = request.args.get('type', '')
-    priority = request.args.get('priority', '')
+    # Several values per filter: OR within a filter, AND between them. Asking
+    # for open *or* in progress, at low *or* high priority, is one query.
+    statuses = _chosen('status', WO_STATUSES)
+    types = _chosen('type', WO_TYPES)
+    priorities = _chosen('priority', WO_PRIORITIES)
+    search = request.args.get('q', '').strip()
+    use_regex = bool(request.args.get('regex'))
 
     archived = request.args.get('archived', '')
     if archived not in ARCHIVE_FILTERS:
         archived = 'hide'
 
     q = WorkOrder.query
-    if status in WO_STATUSES:
-        q = q.filter_by(status=status)
-    else:
-        status = ''
+    if statuses:
+        q = q.filter(WorkOrder.status.in_(statuses))
+    if types:
+        q = q.filter(WorkOrder.wo_type.in_(types))
+    if priorities:
+        q = q.filter(WorkOrder.priority.in_(priorities))
+    # A plain search runs in SQL; a regular expression cannot, because SQLite
+    # ships no REGEXP implementation. Matching in Python instead keeps it to one
+    # readable path and lets a bad pattern be reported rather than raised — and
+    # the rows have already been narrowed by every other filter by then.
+    regex_error = None
+    pattern = None
+    if search and use_regex:
+        pattern, regex_error = compile_pattern(search)
+    elif search:
+        q = q.filter(like_clause(
+            search, WorkOrder.title, WorkOrder.description, WorkOrder.notes))
 
     # Independent of status: archived work is history, not a working list, so it
     # is out of the way by default and stays that way even when you filter for
@@ -148,21 +186,27 @@ def index():
         q = q.filter(WorkOrder.archived_at.is_(None))
     elif archived == 'only':
         q = q.filter(WorkOrder.archived_at.isnot(None))
-    if wo_type in WO_TYPES:
-        q = q.filter_by(wo_type=wo_type)
-    else:
-        wo_type = ''
-    if priority in WO_PRIORITIES:
-        q = q.filter_by(priority=priority)
-    else:
-        priority = ''
 
     work_orders = q.order_by(WorkOrder.created_at.desc()).all()
+    if pattern is not None:
+        try:
+            work_orders = regex_filter(
+                pattern, work_orders,
+                lambda wo: (wo.title, wo.description, wo.notes))
+        except SearchTooSlow:
+            # Not a syntax error, so it must not be reported as one.
+            work_orders = []
+            flash(too_slow_message().capitalize(), 'error')
+    if regex_error:
+        flash(f'That is not a valid regular expression: {regex_error}', 'error')
+        work_orders = []
+
     return render_template(
         'work_orders/list.html',
         work_orders=work_orders,
         statuses=WO_STATUSES, priorities=WO_PRIORITIES, wo_types=WO_TYPES,
-        selected_status=status, selected_type=wo_type, selected_priority=priority,
+        selected_statuses=statuses, selected_types=types,
+        selected_priorities=priorities, search=search, use_regex=use_regex,
         archive_filters=ARCHIVE_FILTERS, selected_archived=archived,
         today=date.today(),
     )

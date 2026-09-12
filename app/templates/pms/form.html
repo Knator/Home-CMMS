@@ -86,13 +86,13 @@
             <label class="checkbox-label" for="schedule_from_completion">
               <input type="checkbox" id="schedule_from_completion" name="schedule_from_completion"
                      {{ 'checked' if is_edit and pm.schedule_from_completion }}>
-              Schedule Based on Last Completed
+              Schedule Based on Last Completed (Floating Schedule)
             </label>
             <span class="field-hint">
               Off: the next due date follows a fixed calendar rhythm, counted from the
               previous due date.<br>
               On: the next due date is counted from the day the work was actually
-              completed. 
+              completed, unless work isn't completed before next due date.
             </span>
           </div>
           {% if is_edit %}

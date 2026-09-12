@@ -26,6 +26,14 @@ DEFAULTS = {
                              'Automatically archive closed work orders'),
     'auto_archive_days': ('int', 90, None,
                           'Days a closed work order waits before archiving'),
+    # On by default: a PM raising a second work order while the first is still
+    # open produces duplicates for one job, which is rarely what anyone wants.
+    'pm_stall_on_open': ('bool', True, None,
+                         'An open work order stops its PM generating another'),
+    # Off by default: it changes when work comes round, so it should be chosen.
+    'pm_cancel_restarts_clock': ('bool', False, None,
+                                 'A cancelled work order restarts a floating '
+                                 "PM's clock from the cancellation"),
 }
 
 # What "no limit" means when the limit is switched off. Werkzeug has no

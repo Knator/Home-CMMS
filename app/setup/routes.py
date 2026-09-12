@@ -34,9 +34,9 @@ from app import maintenance
 from app.extensions import db
 from app.models.user import User
 from app.setup import bp
+from app.passwords import password_problems
 from app.utils import allow_large_upload, utcnow, validate_csrf
 
-MIN_PASSWORD_LENGTH = 8
 
 
 def database_ready():
@@ -102,9 +102,8 @@ def first_run():
             errors.append('Choose a username.')
         if '@' not in email:
             errors.append('Enter a valid email address.')
-        if len(password) < MIN_PASSWORD_LENGTH:
-            errors.append(f'The password must be at least {MIN_PASSWORD_LENGTH} characters.')
-        elif password != confirm:
+        errors.extend(password_problems(password))
+        if not errors and password != confirm:
             errors.append('The passwords do not match.')
 
         if errors:
@@ -193,7 +192,7 @@ def restore():
 
 def _restore_from(path, label):
     try:
-        summary = maintenance.restore_backup(path, take_safety_copy=False)
+        maintenance.restore_backup(path, take_safety_copy=False)
     except maintenance.RestoreError as error:
         flash(f'Restore refused: {error}', 'error')
         return redirect(url_for('setup.first_run'))
@@ -203,15 +202,9 @@ def _restore_from(path, label):
               'error')
         return redirect(url_for('setup.first_run'))
 
-    users = summary.get('counts', {}).get('users', 0)
-    if not users:
-        # Setup would still be open, which is confusing rather than harmful:
-        # say so instead of bouncing the visitor back to a page that looks
-        # like the restore did nothing.
-        flash('That backup restored successfully but contains no user accounts, '
-              'so you still need to create an administrator below.', 'error')
-        return redirect(url_for('setup.first_run'))
-
+    # A userless backup is refused by restore_backup() before anything is
+    # touched, so it arrives above as a RestoreError rather than as a successful
+    # restore that quietly leaves setup open.
     current_app.logger.info('Instance restored from %r during first-run setup.', label)
     flash(f'Restored from {label}. Sign in with an account from that backup.',
           'success')

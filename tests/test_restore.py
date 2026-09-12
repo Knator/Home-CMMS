@@ -15,6 +15,7 @@ import pytest
 from flask_migrate import stamp
 
 from app import maintenance
+from app.extensions import db as _db
 from app.maintenance import RestoreError
 from app.models.asset import Asset
 from app.models.attachment import Attachment
@@ -430,9 +431,9 @@ def test_setup_restore_takes_no_safety_copy(stamped, client, app):
     assert not any(b['automatic'] for b in maintenance.list_backups())
 
 
-def test_setup_restore_of_a_userless_backup_leaves_setup_open(
-        stamped, client, app):
-    """A backup with no accounts would lock the instance out of both paths."""
+def test_setup_restore_of_a_userless_backup_is_refused(stamped, client, app):
+    """Refused before anything is touched, rather than restored and then
+    reported — an archive that cannot safely be restored should cost nothing."""
     create_asset(name='Sump Pump')
     created = maintenance.create_backup()
     archive_bytes = open(
@@ -446,6 +447,9 @@ def test_setup_restore_of_a_userless_backup_leaves_setup_open(
 
     assert b'no user accounts' in response.data
     assert b'Create administrator' in response.data
+    # Nothing was swapped in: the asset from the archive is not here, because
+    # the restore never ran.
+    assert Asset.query.count() == 1        # the one this test created, not a restore
 
 
 def test_setup_restore_is_closed_once_an_account_exists(stamped, client, app):
@@ -570,3 +574,228 @@ def test_ordinary_attachment_uploads_still_respect_the_limit(stamped, client, lo
     # The 413 handler turns it into a flash rather than a raw error page.
     assert b'too large' in response.data
     assert Attachment.query.count() == 0
+
+
+# ── a backup with no accounts is refused on every path ─────────────────────
+#
+# needs_setup() is `User.query.count() == 0`, so emptying the user table
+# reopens the unauthenticated first-run page and hands an administrator account
+# to whoever reaches it first. On an internet-facing instance that is a total
+# takeover, and it arrives looking like a successful restore.
+
+def userless_backup(app):
+    """An archive containing data but no user accounts."""
+    create_asset(name='Sump Pump')
+    User.query.delete()
+    _db.session.commit()
+    created = maintenance.create_backup()
+    return os.path.join(maintenance.backup_dir(), created['name'])
+
+
+def test_a_userless_backup_is_refused_by_the_service(stamped, app):
+    make_user('alice', role='admin')
+    archive = userless_backup(app)
+    make_user('bob', role='admin')          # the instance has an account again
+
+    with pytest.raises(RestoreError, match='no user accounts'):
+        maintenance.restore_backup(archive)
+
+
+def test_the_refusal_happens_before_anything_is_replaced(stamped, app):
+    """Validated up front, so a bad archive leaves the instance untouched."""
+    make_user('alice', role='admin')
+    create_asset(name='Keep me')
+    archive = userless_backup(app)
+    make_user('bob', role='admin')
+    create_asset(name='Also keep me')
+
+    before = sorted(a.name for a in Asset.query.all())
+    with pytest.raises(RestoreError):
+        maintenance.restore_backup(archive)
+
+    assert sorted(a.name for a in Asset.query.all()) == before
+    assert User.query.count() == 1
+    # And no safety copy was written, because nothing needed undoing.
+    assert not any(b['automatic'] for b in maintenance.list_backups())
+
+
+def test_the_admin_page_refuses_it_too(stamped, client, login, app):
+    """This was the gap: the setup path checked, the admin page did not."""
+    make_user('admin', role='admin')
+    archive = userless_backup(app)
+    admin = make_user('admin', role='admin')
+
+    login('admin')
+    prime_csrf(client)
+    response = client.post('/admin/maintenance/restore', data={
+        'csrf_token': CSRF, 'confirm': '1',
+        'name': os.path.basename(archive),
+    }, follow_redirects=True)
+
+    assert b'no user accounts' in response.data
+    assert User.query.count() == 1          # still signed-in, still an admin
+
+
+def test_setup_is_not_reopened_by_a_restore(stamped, client, login, app):
+    """The property that actually matters."""
+    make_user('admin', role='admin')
+    archive = userless_backup(app)
+    make_user('admin', role='admin')
+
+    login('admin')
+    prime_csrf(client)
+    client.post('/admin/maintenance/restore', data={
+        'csrf_token': CSRF, 'confirm': '1', 'name': os.path.basename(archive),
+    }, follow_redirects=True)
+
+    # /setup must still be closed; if it reopened it would answer 200 with the
+    # account form rather than redirecting to the login page.
+    fresh = app.test_client()
+    assert '/auth/login' in fresh.get('/setup').headers.get('Location', '')
+
+
+def test_a_backup_with_accounts_still_restores(stamped, app):
+    """The guard must not block the normal case."""
+    make_user('alice', role='admin')
+    create_asset(name='Furnace')
+    created = maintenance.create_backup()
+
+    Asset.query.delete()
+    _db.session.commit()
+
+    maintenance.restore_backup(os.path.join(maintenance.backup_dir(), created['name']))
+    assert [a.name for a in Asset.query.all()] == ['Furnace']
+
+
+# ── decompression bombs ────────────────────────────────────────────────────
+#
+# A small archive can expand to an enormous one, and filling the disk bricks the
+# instance: SQLite cannot write, so nothing works until someone clears space by
+# hand. Sizes come from the tar headers, which extraction treats as definitive —
+# understating one only truncates the attacker's own payload — so the check
+# costs nothing and happens before a single byte is written.
+
+def bomb(tmp_path, expanded_bytes, members=1):
+    """A backup-shaped archive whose uploads expand hugely."""
+    path = str(tmp_path / 'bomb.tar.gz')
+    db = str(tmp_path / 'seed.db')
+    connection = sqlite3.connect(db)
+    connection.execute('create table alembic_version (version_num text)')
+    connection.execute("insert into alembic_version values ('x')")
+    connection.execute('create table users (id integer)')
+    connection.execute('insert into users values (1)')
+    connection.commit()
+    connection.close()
+
+    with tarfile.open(path, 'w:gz') as tar:
+        tar.add(db, arcname=maintenance.DB_MEMBER)
+        each = expanded_bytes // members
+        for i in range(members):
+            info = tarfile.TarInfo(f'uploads/pad{i}.bin')
+            info.size = each
+            tar.addfile(info, io.BytesIO(b'\0' * each))
+    return path
+
+
+def test_an_archive_that_expands_past_the_ceiling_is_refused(stamped, app, tmp_path):
+    # A tiny ceiling makes the rule observable without a disk-filling fixture.
+    import app.maintenance as m
+    original = m.expansion_limit_bytes
+    m.expansion_limit_bytes = lambda: 1024 * 1024        # 1 MB
+    try:
+        archive = bomb(tmp_path, 8 * 1024 * 1024)
+        with pytest.raises(RestoreError, match='expands to'):
+            maintenance.restore_backup(archive)
+    finally:
+        m.expansion_limit_bytes = original
+
+
+def test_the_refusal_happens_before_anything_is_written(stamped, app, tmp_path):
+    make_user('alice', role='admin')
+    create_asset(name='Keep me')
+    import app.maintenance as m
+    original = m.expansion_limit_bytes
+    m.expansion_limit_bytes = lambda: 1024 * 1024
+    try:
+        archive = bomb(tmp_path, 8 * 1024 * 1024)
+        with pytest.raises(RestoreError):
+            maintenance.restore_backup(archive)
+    finally:
+        m.expansion_limit_bytes = original
+
+    assert [a.name for a in Asset.query.all()] == ['Keep me']
+    assert User.query.count() == 1
+
+
+def test_too_many_members_is_refused(stamped, app, tmp_path):
+    import app.maintenance as m
+    original = m.MAX_MEMBERS
+    m.MAX_MEMBERS = 5
+    try:
+        archive = bomb(tmp_path, 5000, members=20)
+        with pytest.raises(RestoreError, match='more than'):
+            maintenance.inspect_backup(archive)
+    finally:
+        m.MAX_MEMBERS = original
+
+
+def test_a_legitimate_backup_is_not_refused(stamped, app):
+    """The calibration that matters: a real backup must still restore. A
+    database with freed pages compresses ~650x and is entirely legitimate, which
+    is why the ratio is only consulted for very large expansions."""
+    make_user('alice', role='admin')
+    create_asset(name='Furnace')
+    created = maintenance.create_backup()
+
+    Asset.query.delete()
+    _db.session.commit()
+    maintenance.restore_backup(os.path.join(maintenance.backup_dir(), created['name']))
+    assert [a.name for a in Asset.query.all()] == ['Furnace']
+
+
+def test_a_high_ratio_below_the_floor_is_allowed(stamped, app, tmp_path):
+    """8 MB of zeros compresses enormously and is harmless."""
+    archive = bomb(tmp_path, 8 * 1024 * 1024)
+    summary = maintenance.inspect_backup(archive)      # must not raise
+    assert summary['counts']['users'] == 1
+
+
+# ── the instance can check its own backups ─────────────────────────────────
+
+def test_a_freshly_made_backup_reports_no_blockers(stamped, app):
+    make_user('alice', role='admin')
+    created = maintenance.create_backup()
+    assert maintenance.restore_blockers(created['name']) == []
+
+
+def test_blockers_are_reported_for_a_backup_that_would_be_refused(stamped, app):
+    make_user('alice', role='admin')
+    created = maintenance.create_backup()
+
+    import app.maintenance as m
+    original = m.expansion_limit_bytes
+    m.expansion_limit_bytes = lambda: 1              # nothing can pass
+    try:
+        blockers = m.restore_blockers(created['name'])
+    finally:
+        m.expansion_limit_bytes = original
+    assert blockers and 'expands to' in blockers[0]
+
+
+def test_creating_a_backup_warns_when_it_could_not_be_restored(
+        stamped, client, login, app):
+    """Told at creation time, not on the day it is needed."""
+    make_user('admin', role='admin')
+    login('admin')
+    prime_csrf(client)
+
+    import app.maintenance as m
+    original = m.expansion_limit_bytes
+    m.expansion_limit_bytes = lambda: 1
+    try:
+        response = client.post('/admin/maintenance/backup',
+                               data={'csrf_token': CSRF}, follow_redirects=True)
+    finally:
+        m.expansion_limit_bytes = original
+
+    assert b'could not be restored' in response.data

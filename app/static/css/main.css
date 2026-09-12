@@ -490,6 +490,10 @@ input[type="email"],
 input[type="password"],
 input[type="date"],
 input[type="number"],
+/* Was missing, so every search box fell back to the browser's own styling and
+   sat in the page with no border, padding or background of its own. The mobile
+   font-size rule below already listed it, which is how the omission showed. */
+input[type="search"],
 select,
 textarea {
   width: 100%;
@@ -1754,3 +1758,195 @@ body.embedded { background: var(--card-bg); }
 /* The hint explains the setting; it should not be part of the label, or
    clicking it toggles the checkbox. Indented to the checkbox's text instead. */
 .setting .checkbox-label + .field-hint { margin-left: 24px; }
+
+/* ── Password requirements hint ──
+   A `?` that reveals the rules on hover and on keyboard focus. Not a `title`
+   attribute: those never appear for keyboard or touch users, cannot be styled,
+   and are slow enough to feel broken. No JS — :hover and :focus-within. */
+.req-hint {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 4px;
+  cursor: help;
+}
+
+.req-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border: 1px solid var(--card-border);
+  border-radius: 50%;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.req-hint:hover .req-mark,
+.req-hint:focus-visible .req-mark { border-color: var(--accent); color: var(--accent); }
+.req-hint:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 50%; }
+
+.req-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: max-content;
+  max-width: 240px;
+  padding: 10px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-transform: none;
+  letter-spacing: 0;
+  /* Hidden without display:none, so a screen reader can still reach it. */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s;
+}
+
+.req-hint:hover .req-tip,
+.req-hint:focus-within .req-tip { opacity: 1; visibility: visible; }
+
+.req-tip strong { display: block; margin-bottom: 6px; color: var(--text-primary); }
+.req-tip ul { margin: 0; padding-left: 16px; }
+.req-tip li { margin: 2px 0; }
+
+/* ── Multi-value filters ──
+   <details> and checkboxes, so the whole thing works with JavaScript off: the
+   menu opens natively and Apply submits the form. Only the appearance is CSS. */
+.filter-search {
+  min-width: 220px;
+  flex: 1 1 220px;
+  max-width: 340px;
+  /* Matches the height of the filter menus and the regex toggle beside it. */
+  height: 34px;
+  padding-left: 30px;
+  /* Normalised: Safari gives search fields their own rounded appearance and
+     ignores some of the styling above otherwise. */
+  appearance: none;
+  -webkit-appearance: none;
+  /* A magnifier, inline so it needs no asset and no extra request. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23888' stroke-width='1.6'%3E%3Ccircle cx='7' cy='7' r='4.5'/%3E%3Cpath d='M10.5 10.5 L14 14' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 9px center;
+  background-size: 14px 14px;
+}
+
+/* Keep the native clear button, which `appearance: none` would otherwise hide. */
+.filter-search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' stroke='%23888' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M2 2 L10 10 M10 2 L2 10'/%3E%3C/svg%3E");
+  background-size: 12px 12px;
+}
+
+.filter-menu { position: relative; }
+
+.filter-menu > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 7px 10px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.filter-menu > summary::-webkit-details-marker { display: none; }
+.filter-menu > summary::after { content: ' ▾'; color: var(--text-muted); }
+.filter-menu > summary:hover { border-color: var(--accent); }
+.filter-menu[open] > summary { border-color: var(--accent); }
+.filter-menu > summary strong { color: var(--text-primary); font-weight: 600; }
+
+.filter-menu-body {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  min-width: 180px;
+  padding: 10px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-lg);
+}
+
+.filter-menu-body .checkbox-label { margin: 0 0 6px; white-space: nowrap; }
+.filter-menu-body .btn { margin-top: 4px; width: 100%; justify-content: center; }
+
+/* Below the phone breakpoint an absolutely positioned menu can run off the
+   edge, so it becomes an ordinary block in the flow instead. */
+@media (max-width: 480px) {
+  .filter-menu-body { position: static; box-shadow: none; min-width: 0; }
+}
+
+/* ── Regex toggle beside the search box ──
+   A checkbox styled as a toggle: it submits with the form, keeps its state in
+   the query string, and needs no JavaScript. The appearance is driven by
+   `:checked` on the input, so it fills in the instant it is clicked rather than
+   after the page reloads. */
+.regex-check {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.regex-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--text-muted);
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.regex-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Immediate: no server round trip involved. */
+.regex-check:checked + .regex-toggle {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
+}
+
+.regex-check:focus-visible + .regex-toggle {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Visible to screen readers only. */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -12,7 +12,7 @@ def csrf_from(page):
     return re.search(r'name="csrf_token" value="([^"]+)"', page.get_data(as_text=True)).group(1)
 
 
-def complete_setup(client, username='kevin', password='a-good-password', **overrides):
+def complete_setup(client, username='kevin', password='A-good-password1', **overrides):
     token = csrf_from(client.get('/setup'))
     data = {'username': username, 'email': f'{username}@example.com',
             'password': password, 'confirm_password': password, 'csrf_token': token}
@@ -55,7 +55,7 @@ def test_it_creates_an_admin_and_signs_them_in(client, db):
 
     user = User.query.one()
     assert user.role == 'admin'
-    assert user.check_password('a-good-password')
+    assert user.check_password('A-good-password1')
     assert client.get('/').status_code == 200          # already signed in
 
 
@@ -79,8 +79,8 @@ def test_a_bad_email_is_refused(client, db):
 def test_setup_requires_csrf(client, db):
     client.get('/setup')
     response = client.post('/setup', data={'username': 'x', 'email': 'x@example.com',
-                                           'password': 'a-good-password',
-                                           'confirm_password': 'a-good-password'})
+                                           'password': 'A-good-password1',
+                                           'confirm_password': 'A-good-password1'})
     assert response.status_code == 403
     assert User.query.count() == 0
 
@@ -98,8 +98,8 @@ def test_it_cannot_be_used_to_add_a_second_admin(client, db, user):
     """The whole security model is that one account closes the door."""
     before = User.query.count()
     response = client.post('/setup', data={'username': 'intruder', 'email': 'i@example.com',
-                                           'password': 'a-good-password',
-                                           'confirm_password': 'a-good-password',
+                                           'password': 'A-good-password1',
+                                           'confirm_password': 'A-good-password1',
                                            'csrf_token': CSRF})
     assert response.status_code == 302
     assert User.query.count() == before
@@ -113,12 +113,12 @@ def test_a_race_between_two_visitors_makes_only_one_admin(client, app, db):
     token_two = csrf_from(second.get('/setup'))
 
     first.post('/setup', data={'username': 'one', 'email': 'one@example.com',
-                               'password': 'a-good-password',
-                               'confirm_password': 'a-good-password',
+                               'password': 'A-good-password1',
+                               'confirm_password': 'A-good-password1',
                                'csrf_token': token_one})
     second.post('/setup', data={'username': 'two', 'email': 'two@example.com',
-                                'password': 'a-good-password',
-                                'confirm_password': 'a-good-password',
+                                'password': 'A-good-password1',
+                                'confirm_password': 'A-good-password1',
                                 'csrf_token': token_two})
 
     assert User.query.count() == 1
@@ -147,8 +147,8 @@ def test_the_window_can_be_bounded(client, app, db):
     assert 'Setup window closed' in response.get_data(as_text=True)
 
     assert client.post('/setup', data={'username': 'late', 'email': 'l@example.com',
-                                       'password': 'a-good-password',
-                                       'confirm_password': 'a-good-password',
+                                       'password': 'A-good-password1',
+                                       'confirm_password': 'A-good-password1',
                                        'csrf_token': CSRF}).status_code == 403
     assert User.query.count() == 0
 

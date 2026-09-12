@@ -5,6 +5,7 @@ from app.auth import bp
 from app.extensions import db
 from app.models.user import User
 from app.security import client_ip, is_locked_out, lockout_remaining, record_attempt
+from app.passwords import password_problems
 from app.utils import validate_csrf, safe_redirect, utcnow
 
 
@@ -69,10 +70,12 @@ def change_password():
         new_pw = request.form.get('new_password', '')
         confirm_pw = request.form.get('confirm_password', '')
 
+        problems = password_problems(new_pw)
         if not current_user.check_password(current_pw):
             flash('Current password is incorrect.', 'error')
-        elif len(new_pw) < 8:
-            flash('New password must be at least 8 characters.', 'error')
+        elif problems:
+            for problem in problems:
+                flash(f'New password: {problem.lower()}.', 'error')
         elif new_pw != confirm_pw:
             flash('Passwords do not match.', 'error')
         else:

@@ -8,9 +8,9 @@
     <h1>Settings</h1>
 
   </div>
-  <div class="page-actions">
+  <!-- <div class="page-actions">
     <a href="{{ url_for('admin.maintenance_page') }}" class="btn btn-ghost">Maintenance</a>
-  </div>
+  </div> -->
 </div>
 
 
@@ -22,8 +22,6 @@
     <div class="card-body">
       <div class="setting">
         <div class="form-group">
-          {# The hint sits outside the label on purpose: inside it, clicking the
-             explanation toggles the checkbox. #}
           <label class="checkbox-label">
             <input type="checkbox" name="allow_archived_deletion" value="1"
                    {{ 'checked' if settings.allow_archived_deletion.value }}>
@@ -35,9 +33,7 @@
         </div>
       </div>
 
-      {# One setting, two fields: the switch and the number it governs belong
-         together, so they sit inside a single block rather than being separated
-         from each other. #}
+
       <div class="setting">
         <div class="form-group">
           <label class="checkbox-label">
@@ -67,6 +63,44 @@
             Applies the rule immediately instead of waiting for the next hourly check.
           </span>
         {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Preventive Maintenance</span></div>
+    <div class="card-body">
+      <div class="setting">
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="pm_stall_on_open" value="1"
+                   {{ 'checked' if settings.pm_stall_on_open.value }}>
+            An open work order stops its PM generating another
+          </label>
+          <div class="field-hint">
+            <strong>On (default):</strong> a PM waits until its work order is completed or
+            cancelled before generating another. The due date is not changed while
+            it waits — the PM reads as overdue and generates as soon as you close
+            the old one. Applies to fixed and floating schedules alike.<br>
+            <strong>Off</strong>: a PM raises its next work order on schedule whether or not
+            the last was ever touched, so several can pile up against one job.
+          </div>
+        </div>
+      </div>
+
+      <div class="setting">
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="pm_cancel_restarts_clock" value="1"
+                   {{ 'checked' if settings.pm_cancel_restarts_clock.value }}>
+            Cancelling resets a floating PM's due date
+          </label>
+          <div class="field-hint">
+            <strong>Floating schedules only.</strong><br>
+            <strong>On:</strong> canceling a floating schedule workorder triggers the setting of the new due date the same as completing it.<br>
+            <strong>Off (default):</strong> canceling a floating schedule pm keeps the PMs next due date unchanged.
+          </div>
         </div>
       </div>
     </div>

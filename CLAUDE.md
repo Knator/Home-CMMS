@@ -30,12 +30,25 @@ everybody out.
 `create_admin.py` takes `--username/--email/--password` or `ADMIN_*`, plus `--if-missing` so
 the entrypoint can run it on every start.
 
+## Dependencies
+`requirements.txt` is **runtime only** — it is what the Docker image installs, so anything
+added there ships to every deployment. `requirements-dev.txt` adds `pytest`, `dukpy` and
+`PyYAML` and pulls the runtime file in with `-r`, so contributors need one command.
+
+None of the three is imported by the application. A JavaScript engine and a test runner in a
+production container are code that can never run correctly but can still carry a
+vulnerability. `test_deployment.py` fails if one reappears in the runtime file, if the dev
+file stops including the runtime file, or if the Dockerfile starts installing the dev file.
+
+`gunicorn` is installed by the Dockerfile rather than either file: it is needed only in the
+container, never for `flask run`.
+
 ## Environment Setup
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # runtime deps + pytest, dukpy, PyYAML
 cp .env.example .env          # optional — every setting has a working default
                               # (Docker uses .env.docker.example instead)
 flask db upgrade              # creates instance/home_cmms.db
@@ -221,6 +234,65 @@ Write paths shared by the routes and the scheduler. **Never insert a `WorkOrder`
 - `hierarchy_ordered(nodes)` — depth-first `[(node, depth)]` for indented tree lists.
   Nodes whose parent was filtered out are promoted to roots so nothing disappears.
 
+### Text search (`app/search.py`)
+Shared by every list page: work orders, job plans, locations, assets and PMs. Extracted rather than copied, because the regex
+half carries a timeout guard that would be easy to get subtly wrong a second time.
+
+`like_clause()` is the plain case-insensitive match, escaping LIKE wildcards so `50%` looks
+for that text. `compile_pattern()` + `regex_filter()` are the `.*` toggle. `regex_filter()`
+takes a `texts(row)` callable, so a caller can include text from related records — the job
+plan list yields its **task descriptions** that way.
+
+In SQL the related table is reached with `JobPlan.tasks.any(...)`, an EXISTS rather than a
+join: a plan with three matching tasks must appear once, not three times.
+
+Which columns each list searches differs and is stated at the call site: work orders look at
+title/description/notes, job plans add their task descriptions, locations use
+name/description/notes, and assets and PMs use name/notes (neither has a description column).
+`_search.html` holds the markup, so the five boxes cannot drift apart.
+
+On the **hierarchies** — locations and assets — the filter runs *before* `hierarchy_ordered()`,
+which promotes a match whose parent was filtered away. Searching for a sub-assembly therefore
+finds it rather than hiding it under a branch that did not match.
+
+A **timeout is flashed separately from a syntax error** — reporting "that is not a valid
+regular expression" for a pattern that was merely slow sends someone hunting for a typo that
+is not there.
+
+### Work order filtering
+Status, type and priority each take **several values**: `request.args.getlist()` filtered
+against the model's vocabulary, then `.in_()`. **OR inside a filter, AND between them** — open
+*or* in progress, at low *or* high priority, is one query. An empty list means "no opinion"
+and narrows nothing, so a filter with nothing ticked is not a filter that matches nothing.
+Values outside the vocabulary are dropped, so a hand-edited query string cannot introduce a
+status that does not exist.
+
+`_search_clause()` matches the needle against title, description and notes, case-insensitively.
+**LIKE wildcards in the needle are escaped** — searching for `50%` looks for that text rather
+than matching everything after `50` — and `lower()` is applied to both sides rather than
+relying on LIKE's own casing, which SQLite only applies to ASCII.
+
+The `.*` toggle beside the search box switches to a regular expression, matched in Python
+because SQLite ships no REGEXP implementation.
+
+It uses the **`regex` package, not the standard library's `re`, for one reason: `re` cannot be
+interrupted.** A pattern with nested quantifiers blocks the worker until gunicorn kills the
+request, and this app runs a single worker — so that is the whole instance, for everyone, for
+two minutes. Measured on the real path: `(a+)+$` against 29 characters takes **28s under `re`
+and 1ms under `regex`**.
+
+`REGEX_TIME_BUDGET` bounds the **whole pass, not each call**: every `search()` is handed only
+the time remaining. A per-call timeout would still permit rows × fields × timeout in total,
+which on a long list is worse than no limit. Exceeding it returns an empty list with an
+explanation rather than a hung page. An invalid pattern is reported the same way rather than
+raised, and matching nothing is deliberate — silently listing everything would look as though
+the filter had applied.
+
+The filter menus are `<details>` plus checkboxes, both native, so the whole thing works with
+JavaScript off; only the appearance is CSS. The summary reports the current choice, because a
+collapsed filter that does not say what it is doing is worse than no filter. Archived stays a
+single tri-state select: it is orthogonal to the rest.
+
 ### PM Scheduler (`app/scheduler.py`)
 `run_pm_check(app)` runs hourly. It finds active PMs where `next_due_date <= today` and `last_generated_date` is either NULL or not today (the explicit `IS NULL` matters — SQL treats `NULL != today` as NULL, which would skip brand-new PMs). Each PM commits independently and failures are logged and skipped, so one bad PM can't discard the rest of the pass.
 
@@ -264,6 +336,33 @@ field cannot wipe history — so a floating PM stays anchored to work that was l
 Documented in `GettingStarted.txt` §9 as behaviour, not fixed as a bug, because which way it
 should go is a product decision.
 
+**Two global settings.** `pm_stall_on_open` defaults **on** — a PM raising a second work
+order while the first is still open produces duplicates for one job, which is rarely wanted,
+so the safer behaviour is the default and switching it off restores the old one.
+`pm_cancel_restarts_clock` defaults **off**, because it changes when work comes round and
+should be a deliberate choice.
+
+`pm_stall_on_open` — an unfinished work order (open, in progress or **on hold**; on hold
+counts, the job is not done) stops its PM generating another. Without it a PM raises its next
+work order on schedule whether or not the last was ever touched, so several pile up against
+one job. A stalled PM's due date is deliberately **not** advanced: advancing it would quietly
+consume the occurrence, so instead the PM stays due, reads as overdue, and generates the
+moment the blocker is closed. The PM page says which work order it is waiting on — an overdue
+PM that is waiting on purpose otherwise looks like the scheduler has died. "Generate WO Now"
+still generates: it is an explicit instruction from an admin looking at that open work order,
+and refusing would make the button a lie — it flashes what it noticed instead.
+
+`pm_cancel_restarts_clock` — treats cancelling as "finished with this one", so a **floating**
+PM counts its interval from the cancellation rather than from the date already set at
+generation. `last_closure_date()` takes the latest closure across all the PM's work orders
+(completion date where there is one, otherwise the local date from `status_changed_at`), so
+out-of-order edits cannot drag the schedule backwards and repeating it changes nothing.
+**Floating only**: re-anchoring a fixed PM would walk its calendar anniversary forward every
+time a work order was cancelled, which is the one thing a fixed schedule exists to prevent.
+
+Note for tests: `run_pm_check` skips any PM whose `last_generated_date` is today, a guard that
+predates both settings. A test observing a second run has to clear that stamp.
+
 Generation still advances the due date in both modes — otherwise a floating PM would
 regenerate every day until someone completed the work.
 
@@ -296,6 +395,26 @@ Lists of users are sorted in Python by `label`, since ordering by username looks
 once the two differ. The **API keeps reporting `username`** in `assigned_to`: clients POST
 that value back to assign work, and a non-unique display name cannot address a user.
 
+### Password policy (`app/passwords.py`)
+One rule, called by everything that sets a password: first-run setup, the admin create and
+edit forms, a user changing their own, and `create_admin.py`. Each of those used to carry its
+own length check, which is how they drifted. **12 characters, one capital, one number, one
+symbol.** `password_problems()` returns *every* failing rule rather than the first — learning
+a four-part rule one round trip at a time is what makes people pick the first thing that
+scrapes through.
+
+"Symbol" is anything non-alphanumeric, space included: insisting on a specific punctuation
+set narrows the search space and penalises passphrases and non-US keyboards.
+
+**Existing passwords are not revalidated at sign-in**, only when one is set — enforcing it on
+login would lock people out of an instance that predates the policy.
+
+`REQUIREMENTS` is exported as a Jinja global, so the `?` hint on every password field renders
+the same list the server enforces and the two cannot drift. It reveals on `:hover` *and*
+`:focus-within` rather than using a `title` attribute, which never appears for keyboard or
+touch users. `password_min_length()` drives the field's own `minlength`, so the browser and
+the server agree.
+
 ### Auth & Security
 - Passwords: `werkzeug.security.generate_password_hash` (pbkdf2:sha256)
 - CSRF: `generate_csrf_token()` / `validate_csrf()` in `app/utils.py` (constant-time compare); every POST form includes `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">`
@@ -315,6 +434,14 @@ that value back to assign work, and a non-unique display name cannot address a u
   account. Resolution order: `SECRET_KEY` env var, then `instance/secret_key`, then generate
   one and persist it at mode 0600. Keep `instance/` on a volume in a container or sessions
   reset on every restart.
+- The **sign-in attempt log** (`/admin/sign-in-attempts`) filters on outcome (failed /
+  successful / all), an IP substring — so `192.168.` finds a subnet rather than needing an
+  exact address — and a **local** date range. `local_day_start_utc()` converts at the
+  boundary: `created_at` is stored UTC and the admin picks local dates, so comparing the two
+  directly is wrong by the UTC offset, which is most of a day in some timezones and an hour
+  either side of a daylight saving change in the rest. The `to` date is inclusive of the whole
+  of that day (`created_at < start of the next day`). Paging links carry every filter, or
+  page two silently widens the search.
 - **Brute-force protection** (`app/security.py`): failures are recorded in `auth_attempts`,
   not process memory, so a lockout is not cleared by restarting and the log doubles as the
   audit trail. Two independent limits — 5 failures per identifier and 20 per source address
@@ -510,6 +637,18 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
   inherited). `targetOrigin` is the instance's own origin, never `'*'`, and the listener
   checks both origin and a `source: 'home-cmms'` marker. Validation errors re-render inside
   the dialog because the query string rides along with the POST.
+- **Never interpolate user-supplied text into an inline handler.**
+  `onclick="return confirm('Revoke {{ name }}')"` puts two parsers in sequence: Jinja
+  escapes for HTML, the HTML parser decodes those entities and hands the result to the
+  JavaScript parser — so an apostrophe in the name arrives as a real quote, closes the
+  string early, and what follows executes. Autoescaping is on and does not help, because
+  HTML escaping is the wrong escaping for a JavaScript context.
+  The message goes in `data-confirm` instead, which `initConfirmForms()` reads and passes
+  to `confirm()`; nothing parses it as code, so Jinja's escaping is exactly right there.
+  `form[data-confirm]:not([data-async])` — async forms run their own confirm in
+  `initAsyncActions`, and would otherwise ask twice. A static message or a server-generated
+  identifier (`wo_number`) in an inline handler is fine; anything a user can type is not, and
+  `test_confirm_escaping.py` fails the build if one appears.
 - `initFieldTooltips()` mirrors each text field's value into its `title`, so hovering shows
   content too long for the box. It skips password fields and leaves an author-supplied
   `title` alone, and is re-run for dynamically added rows.
@@ -641,6 +780,22 @@ backups and system health, Immich's orphaned-file repair, LubeLogger's single-ar
   sidecars deleted (they belong to the replaced file); then `flask db upgrade` runs so an
   older backup opens. `_safe_members()` rejects absolute paths, `..`, links and anything
   outside `home_cmms.db`/`uploads/` — a tar member is an arbitrary write primitive otherwise.
+  `check_expansion()` refuses a **decompression bomb** before anything is extracted. Sizes
+  come from the tar headers: cheap, because reading headers writes nothing, and trustworthy,
+  because tar uses the declared size to find the next header — so extraction writes exactly
+  that many bytes and understating it only truncates the attacker's own payload.
+  Thresholds were **calibrated against real archives**, not guessed: a photo-heavy backup
+  expands 1.0x, a text-heavy database 8.7x, an empty one 25x, and a database with many freed
+  pages **650x** — legitimate, and the reason a ratio check alone is unusable. The app's own
+  backups avoid that case because `VACUUM INTO` compacts free pages away, but a hand-made tar
+  of a stopped instance (which DOCKER.md documents) keeps them. So the ratio is consulted
+  only above `RATIO_FLOOR_BYTES`; below it, size alone decides. The ceiling is free disk
+  space less headroom and is deliberately **not** configurable — it follows the machine on
+  its own, and if a backup genuinely does not fit, the answer is disk space rather than a
+  larger number.
+  `restore_blockers()` runs the same checks read-only, and **creating a backup checks it
+  immediately**: a guard that silently rejects the instance's own backups is worse than no
+  guard, and the day it is needed is the wrong time to find out.
   A **failed safety copy does not block the restore**: it usually fails because the current
   database is unreadable, which is exactly when someone is restoring.
   `rotate_secret_key()` then invalidates every session, because the restored database can
@@ -649,6 +804,13 @@ backups and system health, Immich's orphaned-file repair, LubeLogger's single-ar
   Safety copies are ordinary backups (`is_backup_name()` accepts both prefixes, so they
   list, download and delete) but `prune_backups()` skips them — pruning away the undo copy
   is exactly the moment someone needs it.
+  **A backup containing no user accounts is refused on every path**, before anything is
+  touched. `needs_setup()` is `User.query.count() == 0`, so emptying the user table reopens
+  the unauthenticated first-run page and hands an administrator account to whoever reaches it
+  first — a silent total takeover on an internet-facing instance, arriving as what looks like
+  a successful restore. Enforced in `restore_backup()` rather than the routes so it holds for
+  both, and there is no legitimate case to allow: the only way to make such a backup is to
+  take one during the setup window, when there is nothing worth restoring anyway.
   The setup-screen path takes no safety copy and no confirmation (an instance with no users
   has nothing to lose) and refuses a backup containing no accounts, which would otherwise
   leave an instance nobody can sign into.

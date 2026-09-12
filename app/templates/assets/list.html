@@ -3,6 +3,7 @@
 {% block page_title %}Assets{% endblock %}
 
 {% block content %}
+{% from '_search.html' import search_box %}
 <div class="page-header">
   <h1>Assets</h1>
   <div class="page-actions">
@@ -11,6 +12,8 @@
 </div>
 
 <form method="get" class="filters">
+  {{ search_box(search, use_regex,
+                'Search name, notes') }}
   <label>Category</label>
   <select name="category" onchange="this.form.submit()">
     <option value="">All Categories</option>
@@ -30,7 +33,8 @@
     <option value="active" {{ 'selected' if not show_all }}>Active only</option>
     <option value="all" {{ 'selected' if show_all }}>All statuses</option>
   </select>
-  {% if selected_category or selected_location or show_all %}
+  <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+  {% if search or selected_category or selected_location or show_all %}
     <a href="{{ url_for('assets.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}
 </form>

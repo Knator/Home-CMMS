@@ -1,0 +1,22 @@
+{# The search box shared by the list pages.
+
+   A text input plus a regex toggle. The toggle is a checkbox whose input is a
+   *sibling* of its label, so the styling can hang off `:checked` and it fills
+   in the instant it is clicked rather than after the page reloads. Nested, the
+   appearance would have to come from a server-rendered class and the button
+   would look toggled and unset at the same time.
+
+   `placeholder` describes what this particular list searches, since that
+   differs per page. #}
+{% macro search_box(search, use_regex, placeholder) %}
+  <input type="search" name="q" value="{{ search }}" class="filter-search"
+         placeholder="{{ 'Regular expression' if use_regex else placeholder }}"
+         aria-label="{{ placeholder }}">
+  <input type="checkbox" id="regex-toggle" name="regex" value="1"
+         class="regex-check" {{ 'checked' if use_regex }}
+         aria-label="Match the search as a regular expression">
+  <label for="regex-toggle" class="regex-toggle"
+         title="Match the search as a regular expression">
+    <span aria-hidden="true">.*</span>
+  </label>
+{% endmacro %}

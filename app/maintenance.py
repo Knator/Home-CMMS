@@ -3,6 +3,7 @@
 Kept out of the routes so each operation can be tested directly, and so the
 destructive ones can be run in "scan" mode before anything is deleted.
 """
+import logging
 import os
 import shutil
 import sqlite3
@@ -15,7 +16,9 @@ from flask import current_app
 
 from app.extensions import db
 from app.models.attachment import Attachment, ENTITY_TYPES
-from app.utils import thumbnail_dir, thumbnails_available
+from app.utils import format_file_size, thumbnail_dir, thumbnails_available
+
+log = logging.getLogger(__name__)
 
 BACKUP_PREFIX = 'home-cmms-backup-'
 BACKUP_SUFFIX = '.tar.gz'
@@ -198,6 +201,25 @@ def create_backup():
 
     return {'name': name, 'size': os.path.getsize(target),
             'seconds': round(time.time() - started, 2)}
+
+
+def restore_blockers(name):
+    """Why restoring this backup would be refused, or an empty list.
+
+    Read-only. Exists so a backup can be checked the moment it is made, rather
+    than on the day it is needed: a guard that silently rejects the instance's
+    own backups is worse than no guard, and the only way to know is to ask.
+    """
+    path = os.path.join(backup_dir(), name)
+    if not os.path.isfile(path):
+        return ['The file is missing.']
+    try:
+        inspect_backup(path)
+    except RestoreError as error:
+        return [str(error)]
+    except Exception as error:                      # pragma: no cover - defensive
+        return [f'{error.__class__.__name__}: {error}']
+    return []
 
 
 def is_backup_name(name):
@@ -429,6 +451,34 @@ def checkpoint_wal():
 DB_MEMBER = 'home_cmms.db'
 UPLOAD_PREFIX = 'uploads/'
 
+# ── decompression-bomb limits ──────────────────────────────────────────────
+#
+# A small archive can expand to an enormous one. 200 KB of zeros becomes 200 MB,
+# and filling the disk is enough to brick the instance: SQLite cannot write, so
+# nothing works until someone clears space by hand.
+#
+# The sizes come from the tar headers, which is both cheap and trustworthy.
+# Cheap because reading headers writes nothing to disk. Trustworthy because tar
+# uses the declared size to find the next header, so extraction writes exactly
+# that many bytes — understating it only truncates the attacker's own payload.
+#
+# Thresholds were calibrated against real archives rather than guessed:
+#   * a real photo-heavy backup expands 1.0x (JPEGs are already compressed)
+#   * a text-heavy database 8.7x
+#   * an empty database 25x
+#   * a database with many freed pages 650x  <- legitimate, and the reason the
+#     ratio check alone is unusable. The app's own backups avoid it because
+#     VACUUM INTO compacts those pages away, but a hand-made tar of a stopped
+#     instance (DOCKER.md documents that route) keeps them.
+#
+# So the ratio is only consulted once the expansion is large in absolute terms.
+# Below that it does not matter how compressible something was.
+MAX_MEMBERS = 100_000
+RATIO_FLOOR_BYTES = 2 * 1024 ** 3       # ratios are ignored below this
+MAX_EXPANSION_RATIO = 200
+# Refuse if the extraction would leave the disk with less than this free.
+DISK_HEADROOM_BYTES = 512 * 1024 ** 2
+
 
 class RestoreError(Exception):
     """A backup that cannot safely be restored. The message is shown to the user."""
@@ -456,6 +506,64 @@ def _safe_members(archive):
         yield member
 
 
+def expansion_limit_bytes():
+    """The most a restore may expand to: whatever the disk can take, less
+    headroom.
+
+    Deliberately not configurable. It follows the machine on its own, and a
+    setting would be one more thing to get wrong for a limit nobody would ever
+    tune — if a backup genuinely does not fit, the answer is disk space, not a
+    larger number.
+    """
+    try:
+        free = shutil.disk_usage(os.path.dirname(database_path() or '.')).free
+    except OSError:
+        return None                      # cannot tell; fall back to the ratio
+    return max(0, free - DISK_HEADROOM_BYTES)
+
+
+def check_expansion(members, archive_bytes, *, label=''):
+    """Refuse an archive that would expand out of all proportion.
+
+    Returns the total declared size. Raises RestoreError with a message meant to
+    be read by whoever pressed the button, and logs the same facts, because this
+    is the one refusal that looks like the app being broken rather than careful.
+    """
+    if len(members) > MAX_MEMBERS:
+        log.warning('Refused %s: %d members exceeds the %d limit',
+                    label or 'archive', len(members), MAX_MEMBERS)
+        raise RestoreError(
+            f'That archive contains {len(members):,} files, more than the '
+            f'{MAX_MEMBERS:,} a backup should ever hold. It was refused without '
+            'being extracted.')
+
+    declared = sum(m.size for m in members if m.isfile())
+    ceiling = expansion_limit_bytes()
+
+    if ceiling is not None and declared > ceiling:
+        log.warning('Refused %s: expands to %d bytes, ceiling %d',
+                    label or 'archive', declared, ceiling)
+        raise RestoreError(
+            f'That archive expands to {format_file_size(declared)}, which will '
+            f'not fit — only {format_file_size(ceiling)} is available. Nothing '
+            'was extracted. Free up disk space and try again.')
+
+    # Only meaningful once the result is big enough to matter: a database with
+    # many freed pages legitimately compresses several hundred times over.
+    if archive_bytes and declared > RATIO_FLOOR_BYTES:
+        ratio = declared / archive_bytes
+        if ratio > MAX_EXPANSION_RATIO:
+            log.warning('Refused %s: expands %.0fx (%d -> %d bytes)',
+                        label or 'archive', ratio, archive_bytes, declared)
+            raise RestoreError(
+                f'That archive is {format_file_size(archive_bytes)} but expands '
+                f'to {format_file_size(declared)} — {ratio:,.0f} times larger. '
+                'A backup does not compress like that, so it was refused '
+                'without being extracted.')
+
+    return declared
+
+
 def inspect_backup(path):
     """Validate an archive and describe what restoring it would give you.
 
@@ -470,6 +578,9 @@ def inspect_backup(path):
         if DB_MEMBER not in names:
             raise RestoreError(f'The archive has no {DB_MEMBER}, so it is not a '
                                'Home CMMS backup.')
+
+        # Before extracting anything, including the database member below.
+        check_expansion(members, os.path.getsize(path), label=os.path.basename(path))
 
         upload_members = [m for m in members if m.name.startswith(UPLOAD_PREFIX) and m.isfile()]
         with tempfile.TemporaryDirectory() as scratch:
@@ -592,6 +703,25 @@ def restore_backup(path, take_safety_copy=True):
     anything if the archive is not usable.
     """
     summary = inspect_backup(path)          # validates; raises before any change
+
+    # A backup with no accounts would empty the user table, and `needs_setup()`
+    # is `User.query.count() == 0` — so the unauthenticated first-run page
+    # reopens and hands an administrator account to whoever reaches it first.
+    # On an internet-facing instance that is a total takeover, arriving silently
+    # and looking like a successful restore.
+    #
+    # Enforced here rather than in the routes because it has to hold on both
+    # paths, and refused *before* the swap rather than reported after it: an
+    # archive that cannot safely be restored should cost nothing to try.
+    #
+    # There is no legitimate case to allow. The only way to produce a userless
+    # backup is to take one during the setup window, before any account exists,
+    # and such a backup contains nothing worth restoring.
+    if not summary.get('counts', {}).get('users'):
+        raise RestoreError(
+            'That backup contains no user accounts. Restoring it would empty '
+            'the user table and reopen the first-run setup page, letting anyone '
+            'who can reach this instance claim an administrator account.')
 
     db_path = database_path()
     if not db_path:

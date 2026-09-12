@@ -91,7 +91,19 @@
       </div>
       <div class="detail-field">
         <div class="detail-label">Next Due Date</div>
-        <div class="detail-value {{ 'text-danger' if pm.is_overdue }}">{{ pm.next_due_date.strftime('%Y-%m-%d') }}</div>
+        <div class="detail-value {{ 'text-danger' if pm.is_overdue }}">
+          {{ pm.next_due_date.strftime('%Y-%m-%d') }}
+          {# An overdue PM that is deliberately waiting should say so, or it
+             just looks like the scheduler has stopped working. #}
+          {% if stalled_by %}
+            <div class="field-hint">
+              Waiting on
+              <a href="{{ url_for('work_orders.detail', id=stalled_by.id) }}">{{ stalled_by.wo_number }}</a>,
+              still {{ stalled_by.status | replace('_', ' ') }}. No new work order
+              will be generated until it is completed or cancelled.
+            </div>
+          {% endif %}
+        </div>
       </div>
       <div class="detail-field">
         <div class="detail-label">Last Generated</div>

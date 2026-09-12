@@ -234,6 +234,65 @@ Write paths shared by the routes and the scheduler. **Never insert a `WorkOrder`
 - `hierarchy_ordered(nodes)` — depth-first `[(node, depth)]` for indented tree lists.
   Nodes whose parent was filtered out are promoted to roots so nothing disappears.
 
+### Text search (`app/search.py`)
+Shared by every list page: work orders, job plans, locations, assets and PMs. Extracted rather than copied, because the regex
+half carries a timeout guard that would be easy to get subtly wrong a second time.
+
+`like_clause()` is the plain case-insensitive match, escaping LIKE wildcards so `50%` looks
+for that text. `compile_pattern()` + `regex_filter()` are the `.*` toggle. `regex_filter()`
+takes a `texts(row)` callable, so a caller can include text from related records — the job
+plan list yields its **task descriptions** that way.
+
+In SQL the related table is reached with `JobPlan.tasks.any(...)`, an EXISTS rather than a
+join: a plan with three matching tasks must appear once, not three times.
+
+Which columns each list searches differs and is stated at the call site: work orders look at
+title/description/notes, job plans add their task descriptions, locations use
+name/description/notes, and assets and PMs use name/notes (neither has a description column).
+`_search.html` holds the markup, so the five boxes cannot drift apart.
+
+On the **hierarchies** — locations and assets — the filter runs *before* `hierarchy_ordered()`,
+which promotes a match whose parent was filtered away. Searching for a sub-assembly therefore
+finds it rather than hiding it under a branch that did not match.
+
+A **timeout is flashed separately from a syntax error** — reporting "that is not a valid
+regular expression" for a pattern that was merely slow sends someone hunting for a typo that
+is not there.
+
+### Work order filtering
+Status, type and priority each take **several values**: `request.args.getlist()` filtered
+against the model's vocabulary, then `.in_()`. **OR inside a filter, AND between them** — open
+*or* in progress, at low *or* high priority, is one query. An empty list means "no opinion"
+and narrows nothing, so a filter with nothing ticked is not a filter that matches nothing.
+Values outside the vocabulary are dropped, so a hand-edited query string cannot introduce a
+status that does not exist.
+
+`_search_clause()` matches the needle against title, description and notes, case-insensitively.
+**LIKE wildcards in the needle are escaped** — searching for `50%` looks for that text rather
+than matching everything after `50` — and `lower()` is applied to both sides rather than
+relying on LIKE's own casing, which SQLite only applies to ASCII.
+
+The `.*` toggle beside the search box switches to a regular expression, matched in Python
+because SQLite ships no REGEXP implementation.
+
+It uses the **`regex` package, not the standard library's `re`, for one reason: `re` cannot be
+interrupted.** A pattern with nested quantifiers blocks the worker until gunicorn kills the
+request, and this app runs a single worker — so that is the whole instance, for everyone, for
+two minutes. Measured on the real path: `(a+)+$` against 29 characters takes **28s under `re`
+and 1ms under `regex`**.
+
+`REGEX_TIME_BUDGET` bounds the **whole pass, not each call**: every `search()` is handed only
+the time remaining. A per-call timeout would still permit rows × fields × timeout in total,
+which on a long list is worse than no limit. Exceeding it returns an empty list with an
+explanation rather than a hung page. An invalid pattern is reported the same way rather than
+raised, and matching nothing is deliberate — silently listing everything would look as though
+the filter had applied.
+
+The filter menus are `<details>` plus checkboxes, both native, so the whole thing works with
+JavaScript off; only the appearance is CSS. The summary reports the current choice, because a
+collapsed filter that does not say what it is doing is worse than no filter. Archived stays a
+single tri-state select: it is orthogonal to the rest.
+
 ### PM Scheduler (`app/scheduler.py`)
 `run_pm_check(app)` runs hourly. It finds active PMs where `next_due_date <= today` and `last_generated_date` is either NULL or not today (the explicit `IS NULL` matters — SQL treats `NULL != today` as NULL, which would skip brand-new PMs). Each PM commits independently and failures are logged and skipped, so one bad PM can't discard the rest of the pass.
 
@@ -375,6 +434,14 @@ the server agree.
   account. Resolution order: `SECRET_KEY` env var, then `instance/secret_key`, then generate
   one and persist it at mode 0600. Keep `instance/` on a volume in a container or sessions
   reset on every restart.
+- The **sign-in attempt log** (`/admin/sign-in-attempts`) filters on outcome (failed /
+  successful / all), an IP substring — so `192.168.` finds a subnet rather than needing an
+  exact address — and a **local** date range. `local_day_start_utc()` converts at the
+  boundary: `created_at` is stored UTC and the admin picks local dates, so comparing the two
+  directly is wrong by the UTC offset, which is most of a day in some timezones and an hour
+  either side of a daylight saving change in the rest. The `to` date is inclusive of the whole
+  of that day (`created_at < start of the next day`). Paging links carry every filter, or
+  page two silently widens the search.
 - **Brute-force protection** (`app/security.py`): failures are recorded in `auth_attempts`,
   not process memory, so a lockout is not cleared by restarting and the log doubles as the
   audit trail. Two independent limits — 5 failures per identifier and 20 per source address

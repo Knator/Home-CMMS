@@ -7,6 +7,9 @@ from app.models.job_plan import (
     JobPlan, JobPlanTask, JobPlanItem, ITEM_MATERIAL, ITEM_TOOL,
 )
 from app.models.attachment import Attachment
+from app.search import (
+    SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
+)
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads, upload_rows_from_form,
     is_embedded, embedded_created,
@@ -21,8 +24,47 @@ MAX_ITEMS = 200
 @bp.route('/')
 @login_required
 def index():
-    job_plans = JobPlan.query.order_by(JobPlan.name).all()
-    return render_template('job_plans/list.html', job_plans=job_plans)
+    search = request.args.get('q', '').strip()
+    use_regex = bool(request.args.get('regex'))
+
+    query = JobPlan.query
+    pattern = regex_error = None
+
+    if search and use_regex:
+        pattern, regex_error = compile_pattern(search)
+    elif search:
+        # The task descriptions live in another table, so they are reached with
+        # an EXISTS rather than a join — a job plan with three matching tasks
+        # should appear once, not three times.
+        query = query.filter(db.or_(
+            like_clause(search, JobPlan.name, JobPlan.description, JobPlan.notes),
+            JobPlan.tasks.any(like_clause(search, JobPlanTask.description)),
+        ))
+
+    job_plans = query.order_by(JobPlan.name).all()
+
+    if pattern is not None:
+        try:
+            job_plans = regex_filter(pattern, job_plans, _searchable_text)
+        except SearchTooSlow:
+            # Not a syntax error, so it must not be reported as one.
+            job_plans = []
+            flash(too_slow_message().capitalize(), 'error')
+    if regex_error:
+        flash(f'That is not a valid regular expression: {regex_error}', 'error')
+        job_plans = []
+
+    return render_template('job_plans/list.html', job_plans=job_plans,
+                           search=search, use_regex=use_regex)
+
+
+def _searchable_text(job_plan):
+    """Everything a job plan search looks at, including its tasks."""
+    yield job_plan.name
+    yield job_plan.description
+    yield job_plan.notes
+    for task in job_plan.tasks:
+        yield task.description
 
 
 @bp.route('/new', methods=['GET', 'POST'])

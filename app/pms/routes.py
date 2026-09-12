@@ -10,6 +10,10 @@ from app.models.pm import PM
 from app.models.job_plan import JobPlan
 from app.models.work_order import WorkOrder, WO_PRIORITIES
 from app.models.attachment import Attachment
+from app.search import (
+    SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
+)
+
 from app.scheduler import MAX_LEAD_DAYS
 from app.services import generate_work_order_for_pm, selectable_assets, selectable_locations
 from app.utils import (
@@ -62,11 +66,33 @@ def _read_form():
 @login_required
 def index():
     active_only = request.args.get('show', 'active') != 'all'
+    search = request.args.get('q', '').strip()
+    use_regex = bool(request.args.get('regex'))
+
     q = PM.query
     if active_only:
         q = q.filter_by(is_active=True)
+
+    pattern = regex_error = None
+    if search and use_regex:
+        pattern, regex_error = compile_pattern(search)
+    elif search:
+        q = q.filter(like_clause(search, PM.name, PM.notes))
+
     pms = q.order_by(PM.next_due_date).all()
-    return render_template('pms/list.html', pms=pms, today=date.today(), active_only=active_only)
+    if pattern is not None:
+        try:
+            pms = regex_filter(pattern, pms, lambda pm: (pm.name, pm.notes))
+        except SearchTooSlow:
+            pms = []
+            flash(too_slow_message().capitalize(), 'error')
+    if regex_error:
+        flash(f'That is not a valid regular expression: {regex_error}', 'error')
+        pms = []
+
+    return render_template('pms/list.html', pms=pms, today=date.today(),
+                           active_only=active_only,
+                           search=search, use_regex=use_regex)
 
 
 @bp.route('/new', methods=['GET', 'POST'])

@@ -8,7 +8,5 @@ Flask-Login>=0.6
 APScheduler>=3.10
 python-dotenv>=1.0
 Werkzeug>=3.1
-
-# Optional at runtime: without it the app skips image previews rather than
-# failing, but thumbnails are a real feature so it is installed by default.
+regex>=2024.0
 Pillow>=10.0

@@ -140,11 +140,41 @@ def count_failures():
     return AuthAttempt.query.filter(AuthAttempt.successful.is_(False)).count()
 
 
-def attempt_page(page=1, only_failures=True, per_page=PAGE_SIZE):
-    """A page of the attempt log, newest first."""
+# What the outcome filter accepts. 'all' is not a filter, it is the absence of
+# one, and is listed so an unknown value can fall back to it.
+OUTCOMES = ('all', 'failed', 'successful')
+
+
+def attempt_page(page=1, outcome='failed', ip='', date_from=None, date_to=None,
+                 per_page=PAGE_SIZE):
+    """A page of the attempt log, newest first.
+
+    `date_from` and `date_to` are **local** calendar dates and are converted to
+    the UTC instants the column actually holds; `date_to` is inclusive of the
+    whole of that day. Comparing a local date to a UTC timestamp directly would
+    be wrong by the UTC offset, which is most of a day in some timezones and an
+    hour either side of a daylight saving change in the rest.
+    """
+    from app.search import like_clause
+    from app.utils import local_day_start_utc
+
     query = AuthAttempt.query
-    if only_failures:
+    if outcome == 'failed':
         query = query.filter(AuthAttempt.successful.is_(False))
+    elif outcome == 'successful':
+        query = query.filter(AuthAttempt.successful.is_(True))
+
+    if ip:
+        # Substring, so `192.168.` finds a whole subnet rather than needing the
+        # exact address someone happens to remember.
+        query = query.filter(like_clause(ip, AuthAttempt.ip_address))
+
+    if date_from:
+        query = query.filter(AuthAttempt.created_at >= local_day_start_utc(date_from))
+    if date_to:
+        query = query.filter(
+            AuthAttempt.created_at < local_day_start_utc(date_to + timedelta(days=1)))
+
     return (
         query.order_by(AuthAttempt.created_at.desc())
         .paginate(page=max(page, 1), per_page=per_page, error_out=False)

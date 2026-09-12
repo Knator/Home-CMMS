@@ -3,6 +3,7 @@
 {% block page_title %}Locations{% endblock %}
 
 {% block content %}
+{% from '_search.html' import search_box %}
 <div class="page-header">
   <h1>Locations</h1>
   <div class="page-actions">
@@ -11,11 +12,17 @@
 </div>
 
 <form method="get" class="filters">
+  {{ search_box(search, use_regex,
+                'Search name, description, notes') }}
   <label>Show</label>
   <select name="show" onchange="this.form.submit()">
     <option value="active" {{ 'selected' if not show_all }}>Active only</option>
     <option value="all" {{ 'selected' if show_all }}>All statuses</option>
   </select>
+  <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+  {% if search or show_all %}
+    <a href="{{ url_for('locations.index') }}" class="btn btn-ghost btn-sm">Clear</a>
+  {% endif %}
 </form>
 
 <div class="card">

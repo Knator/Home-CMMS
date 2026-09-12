@@ -3,12 +3,22 @@
 {% block page_title %}Job Plans{% endblock %}
 
 {% block content %}
+{% from '_search.html' import search_box %}
 <div class="page-header">
   <h1>Job Plans</h1>
   <div class="page-actions">
     <a href="{{ url_for('job_plans.create') }}" class="btn btn-primary">+ New Job Plan</a>
   </div>
 </div>
+
+<form method="get" class="filters">
+  {{ search_box(search, use_regex,
+                'Search name, description, notes, tasks') }}
+  <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+  {% if search %}
+    <a href="{{ url_for('job_plans.index') }}" class="btn btn-ghost btn-sm">Clear</a>
+  {% endif %}
+</form>
 
 <div class="card">
   <div class="table-wrap">

@@ -322,9 +322,14 @@ def test_the_log_can_show_successes_too(client, db, user, app, login):
 
     login('boss')
     failed_only = client.get('/admin/sign-in-attempts').get_data(as_text=True)
-    everything = client.get('/admin/sign-in-attempts?show=all').get_data(as_text=True)
-    assert 'success' not in failed_only
-    assert 'success' in everything
+    everything = client.get('/admin/sign-in-attempts?outcome=all').get_data(as_text=True)
+
+    # Assert on the row, not on the word: "success" now appears in the filter
+    # dropdown and the Result column header whichever way it is filtered, so a
+    # word check passes even when the filtering is broken. 'tester' signed in
+    # successfully and has no failures, so its presence is the real signal.
+    assert 'tester' not in failed_only
+    assert 'tester' in everything
 
 
 def test_a_junk_page_number_does_not_break_it(client, db, app, login):

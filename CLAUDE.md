@@ -434,6 +434,14 @@ the server agree.
   account. Resolution order: `SECRET_KEY` env var, then `instance/secret_key`, then generate
   one and persist it at mode 0600. Keep `instance/` on a volume in a container or sessions
   reset on every restart.
+- The **sign-in attempt log** (`/admin/sign-in-attempts`) filters on outcome (failed /
+  successful / all), an IP substring — so `192.168.` finds a subnet rather than needing an
+  exact address — and a **local** date range. `local_day_start_utc()` converts at the
+  boundary: `created_at` is stored UTC and the admin picks local dates, so comparing the two
+  directly is wrong by the UTC offset, which is most of a day in some timezones and an hour
+  either side of a daylight saving change in the rest. The `to` date is inclusive of the whole
+  of that day (`created_at < start of the next day`). Paging links carry every filter, or
+  page two silently widens the search.
 - **Brute-force protection** (`app/security.py`): failures are recorded in `auth_attempts`,
   not process memory, so a lockout is not cleared by restarting and the log doubles as the
   audit trail. Two independent limits — 5 failures per identifier and 20 per source address

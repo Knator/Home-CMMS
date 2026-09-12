@@ -8,7 +8,10 @@
     <h1>Sign-in Attempts</h1>
     <div class="header-meta">
       <span class="breadcrumb-path">
-        {{ attempts.total }} {{ 'failed attempt' if only_failures else 'attempt' }}{{ '' if attempts.total == 1 else 's' }} on record
+        {{ attempts.total }}
+        {% if outcome == 'failed' %}failed{% elif outcome == 'successful' %}successful{% endif %}
+        attempt{{ '' if attempts.total == 1 else 's' }}
+        {{ 'matching' if ip or date_from or date_to else 'on record' }}
       </span>
     </div>
   </div>
@@ -25,11 +28,27 @@
 </div>
 
 <form method="get" class="filters">
-  <label>Show</label>
-  <select name="show" onchange="this.form.submit()">
-    <option value="failed" {{ 'selected' if only_failures }}>Failed attempts only</option>
-    <option value="all" {{ 'selected' if not only_failures }}>All attempts</option>
+  <label for="outcome">Show</label>
+  <select name="outcome" id="outcome">
+    <option value="failed" {{ 'selected' if outcome == 'failed' }}>Failed only</option>
+    <option value="successful" {{ 'selected' if outcome == 'successful' }}>Successful only</option>
+    <option value="all" {{ 'selected' if outcome == 'all' }}>All attempts</option>
   </select>
+
+  {# Local dates. The column stores UTC, and the route converts at the boundary
+     rather than comparing the two directly. #}
+  <label for="from">From</label>
+  <input type="date" id="from" name="from" value="{{ date_from }}">
+  <label for="to">To</label>
+  <input type="date" id="to" name="to" value="{{ date_to }}">
+
+  <input type="search" name="ip" value="{{ ip }}" class="filter-search"
+         placeholder="Search IP address" aria-label="Search IP address">
+
+  <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
+  {% if outcome != 'failed' or ip or date_from or date_to %}
+    <a href="{{ url_for('admin.sign_in_attempts') }}" class="btn btn-ghost btn-sm">Clear</a>
+  {% endif %}
 </form>
 
 <div class="card">
@@ -38,8 +57,7 @@
     <table>
       <thead>
         <tr>
-          <th>When</th><th>Account tried</th><th>From</th>
-          {% if not only_failures %}<th>Result</th>{% endif %}
+          <th>When</th><th>Account tried</th><th>From</th><th>Result</th>
         </tr>
       </thead>
       <tbody>
@@ -48,13 +66,11 @@
           <td>{{ format_datetime(attempt.created_at, '%Y-%m-%d %H:%M:%S') }}</td>
           <td class="mono-cell">{{ attempt.identifier }}</td>
           <td class="mono-cell">{{ attempt.ip_address or '—' }}</td>
-          {% if not only_failures %}
           <td>
             <span class="badge {{ 'badge-active' if attempt.successful else 'badge-overdue' }}">
               {{ 'success' if attempt.successful else 'failed' }}
             </span>
           </td>
-          {% endif %}
         </tr>
         {% endfor %}
       </tbody>
@@ -69,12 +85,14 @@
 <div class="pager">
   {% if attempts.has_prev %}
     <a class="btn btn-secondary btn-sm"
-       href="{{ url_for('admin.sign_in_attempts', page=attempts.prev_num, show='failed' if only_failures else 'all') }}">← Newer</a>
+       href="{{ url_for('admin.sign_in_attempts', page=attempts.prev_num,
+                             outcome=outcome, ip=ip, **{'from': date_from, 'to': date_to}) }}">← Newer</a>
   {% endif %}
   <span class="pager-position">Page {{ attempts.page }} of {{ attempts.pages }}</span>
   {% if attempts.has_next %}
     <a class="btn btn-secondary btn-sm"
-       href="{{ url_for('admin.sign_in_attempts', page=attempts.next_num, show='failed' if only_failures else 'all') }}">Older →</a>
+       href="{{ url_for('admin.sign_in_attempts', page=attempts.next_num,
+                             outcome=outcome, ip=ip, **{'from': date_from, 'to': date_to}) }}">Older →</a>
   {% endif %}
 </div>
 {% endif %}

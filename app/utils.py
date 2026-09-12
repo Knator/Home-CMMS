@@ -2,7 +2,7 @@ import os
 import secrets
 import shutil
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from functools import wraps
 from urllib.parse import urlparse
 
@@ -45,6 +45,21 @@ def format_datetime(value, fmt='%Y-%m-%d %H:%M', empty='—'):
     """A stored timestamp rendered in host-local time."""
     local = to_local(value)
     return local.strftime(fmt) if local else empty
+
+
+def local_day_start_utc(day):
+    """The instant a local calendar day begins, as a naive UTC datetime.
+
+    DateTime columns are stored UTC; a person filtering the log picks local
+    dates. Comparing one to the other directly is wrong by the UTC offset — up
+    to most of a day near the date line, and an hour either side of a daylight
+    saving change even here. This converts once, at the boundary.
+
+    Pair it with the *next* day's start for an inclusive "to" date: `created_at
+    < local_day_start_utc(to + 1 day)` covers the whole of that local day.
+    """
+    local_midnight = datetime.combine(day, time.min).astimezone()
+    return local_midnight.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def local_timezone_name():

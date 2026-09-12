@@ -12,7 +12,8 @@ from app.extensions import db
 from app.models.user import User
 from app.models.api_token import ApiToken
 from app.utils import (
-    validate_csrf, admin_required, parse_int, utcnow, allow_large_upload,
+    validate_csrf, admin_required, parse_date, parse_int, utcnow,
+    allow_large_upload,
 )
 from app import maintenance
 from app import security
@@ -509,12 +510,24 @@ def checkpoint_wal():
 @admin_required
 def sign_in_attempts():
     """The full attempt log, paginated, so the maintenance page stays usable."""
-    only_failures = request.args.get('show', 'failed') != 'all'
+    outcome = request.args.get('outcome', 'failed')
+    if outcome not in security.OUTCOMES:
+        outcome = 'failed'
+    ip = request.args.get('ip', '').strip()
+    # Local calendar dates; attempt_page converts them to the UTC the column
+    # holds. parse_date returns None on junk rather than raising.
+    date_from = parse_date(request.args.get('from', '').strip())
+    date_to = parse_date(request.args.get('to', '').strip())
     page = parse_int(request.args.get('page'), minimum=1) or 1
+
     return render_template(
         'admin/sign_in_attempts.html',
-        attempts=security.attempt_page(page=page, only_failures=only_failures),
-        only_failures=only_failures,
+        attempts=security.attempt_page(page=page, outcome=outcome, ip=ip,
+                                       date_from=date_from, date_to=date_to),
+        outcome=outcome, outcomes=security.OUTCOMES,
+        ip=ip,
+        date_from=request.args.get('from', '').strip(),
+        date_to=request.args.get('to', '').strip(),
         failure_count=security.count_failures(),
     )
 

@@ -12,4 +12,4 @@ newest tag in the local checkout, and the Publish workflow compares it to the
 release tag and refuses to build an image that would misreport its own version.
 """
 
-__version__ = '0.9.1'
+__version__ = '1.0.2-dev'

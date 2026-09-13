@@ -786,7 +786,20 @@ tags are not covered by the branch ruleset.
 The image build is **called** from the release workflow rather than left to an `on: release`
 trigger, because a release created with `GITHUB_TOKEN` does not start another workflow —
 GitHub blocks that to stop workflows triggering themselves, and the image would silently never
-be built. `docker-image.yml` therefore also accepts `workflow_call` with a `ref`.
+be built. `docker-image.yml` therefore also accepts `workflow_call` with a `ref` and a
+`prerelease` flag.
+
+Both of those inputs exist because **a called workflow sees the caller's `github` context, not
+its own**. Two things follow, and neither announces itself:
+- `github.ref` is the caller's, so the version tags take `value=${{ inputs.ref || github.ref }}`
+  — the fallback covering the `release` and `workflow_dispatch` paths, where `inputs.ref` is
+  empty.
+- `github.event_name` reads `workflow_dispatch` for *every* release cut by `release.yml`, since
+  that is how the caller was triggered. Deciding `latest` from the event therefore moved it
+  onto pre-releases too, handing unfinished work to everyone running `IMAGE_TAG=latest` while
+  the release itself looked perfectly correct. `MOVE_LATEST` believes the caller's `prerelease`
+  input when called and falls back to the event otherwise; `test_version.py` fails if the
+  `latest` tag starts reading `github.event_name` again.
 
 `app/updates.py` is the **only outbound network call in the application**, which shapes it
 entirely: it is a setting that can be switched off, the answer is cached six hours in the

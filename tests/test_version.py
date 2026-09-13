@@ -285,6 +285,38 @@ def test_every_version_tag_falls_back_to_the_git_ref():
         assert 'inputs.ref || github.ref' in line, line
 
 
+def test_a_prerelease_does_not_move_the_latest_image_tag():
+    """In a called workflow the whole `github` context belongs to the *caller*,
+    so `github.event_name` reads 'workflow_dispatch' for every release cut by
+    release.yml — pre-release or not. Deciding `latest` from the event there
+    would hand unfinished work to everyone running IMAGE_TAG=latest, silently:
+    the release is marked correctly and only the pointer is wrong. The caller's
+    `prerelease` input has to be believed instead."""
+    publish = workflow('docker-image.yml')['jobs']['publish']
+
+    condition = publish['env']['MOVE_LATEST']
+    assert 'inputs.prerelease' in condition, condition
+
+    tags = next(s['with']['tags'] for s in publish['steps']
+                if str(s.get('uses', '')).startswith('docker/metadata-action'))
+    latest = next(line for line in tags.splitlines()
+                  if 'value=latest' in line and not line.strip().startswith('#'))
+    assert 'env.MOVE_LATEST' in latest, latest
+    assert 'github.event_name' not in latest, (
+        'the latest tag is deciding from the event again')
+
+
+def test_the_release_workflow_passes_the_prerelease_flag_on():
+    """Without this the called workflow cannot tell what kind of release it is
+    building, and the check above has nothing to read."""
+    image = workflow('release.yml')['jobs']['image']
+    assert 'prerelease' in image['with'], image['with']
+    assert 'inputs.prerelease' in image['with']['prerelease']
+    call_inputs = workflow('docker-image.yml')
+    call_inputs = call_inputs[True] if True in call_inputs else call_inputs['on']
+    assert 'prerelease' in call_inputs['workflow_call']['inputs']
+
+
 def test_the_release_job_may_write_to_the_repository():
     """It pushes a tag and creates a release; read-only would fail at the push."""
     assert workflow('release.yml')['permissions']['contents'] == 'write'

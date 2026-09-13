@@ -121,6 +121,9 @@ jobs:
     uses: ./.github/workflows/docker-image.yml
     with:
       ref: ${{ needs.release.outputs.tag }}
+      # Must be passed: the called workflow sees the *caller's* event context,
+      # so it cannot tell a pre-release from a full one by itself.
+      prerelease: ${{ inputs.prerelease }}
     permissions:
       contents: read
       packages: write

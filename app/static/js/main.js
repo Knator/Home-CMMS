@@ -978,3 +978,51 @@ function initCopyButtons() {
 }
 
 document.addEventListener('DOMContentLoaded', initCopyButtons);
+
+/* ── Support dialog ────────────────────────────────────────────────────────
+   The trigger is a real link to the real destination, so with JavaScript off
+   clicking it simply opens Buy Me a Coffee in a new tab. This upgrades it into
+   an in-page dialog; nothing here is required for the link to work. */
+function initSupportDialog() {
+  const trigger = document.querySelector('[data-support-open]');
+  const dialog = document.getElementById('support-dialog');
+  if (!trigger || !dialog) return;
+
+  let lastFocus = null;
+
+  function open() {
+    lastFocus = document.activeElement;
+    dialog.hidden = false;
+    document.body.style.overflow = 'hidden';
+    const first = dialog.querySelector('.bmc-button');
+    if (first) first.focus();
+  }
+
+  function close() {
+    if (dialog.hidden) return;
+    dialog.hidden = true;
+    document.body.style.overflow = '';
+    if (lastFocus) lastFocus.focus();
+  }
+
+  trigger.addEventListener('click', (e) => {
+    // A modified click still opens the real tab, as it would for any link.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    open();
+  });
+
+  // Only the backdrop, not a click that happened to bubble up from the panel.
+  dialog.addEventListener('click', (e) => { if (e.target === dialog) close(); });
+
+  dialog.querySelectorAll('[data-support-close]').forEach((button) => {
+    button.addEventListener('click', () => close());
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initSupportDialog);
+

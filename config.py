@@ -88,6 +88,10 @@ def _secret_key():
 
 
 class Config:
+
+    # Where the "Support This Project" link goes. Named here rather than written
+    # into the template so a fork can repoint or remove it in one place.
+    SUPPORT_URL = os.environ.get('SUPPORT_URL', 'https://buymeacoffee.com/knator')
     SECRET_KEY = _secret_key()
     SQLALCHEMY_DATABASE_URI = _database_uri()
     SQLALCHEMY_TRACK_MODIFICATIONS = False

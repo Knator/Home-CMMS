@@ -1950,3 +1950,128 @@ body.embedded { background: var(--card-bg); }
   white-space: nowrap;
   border: 0;
 }
+
+/* ── Support This Project ──────────────────────────────────────────────────
+   The trigger sits at the bottom of the sidebar; `margin-top:auto` in a column
+   flex container is what pins it there regardless of how many nav links are
+   above it. The dialog itself is a sibling of the sidebar — see base.html for
+   why it cannot be a child. */
+.sidebar-support {
+  margin-top: auto;
+  padding: 10px 8px 12px;
+  border-top: 1px solid var(--sidebar-hover);
+}
+
+.support-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: var(--sidebar-text);
+  text-decoration: none;
+  border-radius: var(--radius);
+  font-size: 13px;
+  transition: background .15s, color .15s;
+}
+
+.support-trigger:hover {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text-active);
+}
+
+.support-trigger-icon { font-size: 15px; line-height: 1; }
+
+.support-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/* Required, not tidiness. The `hidden` attribute hides an element through the
+   user agent's `[hidden] { display: none }`, which is a plain type selector and
+   loses to the class rule above — so without this the dialog is displayed
+   permanently, covering every page, and setting `hidden` in JavaScript appears
+   to do nothing. Any element given both a `display` and the `hidden` attribute
+   needs this; `.attachment-icon[hidden]` is here for the same reason. */
+.support-dialog[hidden] { display: none; }
+
+.support-panel {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 28px 24px 24px;
+  background: var(--card-bg);
+  border-radius: 10px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+  text-align: center;
+}
+
+.support-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.support-close:hover { color: var(--text-primary); }
+
+.support-lead {
+  margin: 0 0 18px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.support-or {
+  margin: 22px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Buy Me a Coffee's own colours, drawn in CSS rather than pulled from their
+   CDN: this app is usually offline on a LAN, where a remote image is a broken
+   box. The yellow is fixed in both themes because it is their brand, not ours,
+   so it does not take a custom property. */
+.bmc-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 22px;
+  background: #FFDD00;
+  color: #000000;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: filter .15s, transform .15s;
+}
+
+.bmc-button:hover { filter: brightness(.94); transform: translateY(-1px); }
+.bmc-button:active { transform: translateY(0); }
+
+.bmc-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.bmc-cup { font-size: 19px; line-height: 1; }
+
+/* The link field sits centred under the prose rather than filling the panel. */
+.support-panel .token-row { margin-top: 10px; }
+
+@media (max-width: 480px) {
+  .support-dialog { padding: 12px; }
+  .support-panel { padding: 26px 16px 18px; }
+}

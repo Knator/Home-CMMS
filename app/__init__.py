@@ -70,6 +70,7 @@ def create_app(config_class=Config, config_overrides=None):
     app.jinja_env.globals['password_requirements'] = lambda: REQUIREMENTS
     # Drives the browser's own minlength, so the field agrees with the server.
     app.jinja_env.globals['password_min_length'] = lambda: MIN_LENGTH
+    app.jinja_env.globals['support_url'] = app.config['SUPPORT_URL']
     app.jinja_env.globals['csrf_token'] = generate_csrf_token
     app.jinja_env.globals['format_file_size'] = format_file_size
     app.jinja_env.globals['format_duration'] = format_duration

@@ -44,11 +44,13 @@ def clear_cache(app):
 
 # ── the version itself ─────────────────────────────────────────────────────
 
+@pytest.mark.precheck
 def test_the_version_looks_like_a_version():
     parts = updates.version_parts(__version__)
     assert len(parts) >= 2, __version__
 
 
+@pytest.mark.precheck
 def test_the_constant_matches_the_newest_git_tag():
     """A forgotten bump ships a version that lies about itself. Skipped where
     there is no git checkout — inside the image, for instance."""
@@ -208,6 +210,7 @@ def workflow(name):
     return yaml.safe_load((ROOT / '.github' / 'workflows' / name).read_text())
 
 
+@pytest.mark.precheck
 def test_nothing_tags_or_releases_on_its_own():
     """Releasing is a deliberate manual act, from whichever branch it belongs
     on. No workflow may create a tag, a release, or a version bump."""
@@ -218,6 +221,7 @@ def test_nothing_tags_or_releases_on_its_own():
         assert 'gh release create' not in body, path.name
 
 
+@pytest.mark.precheck
 def test_the_release_tag_is_checked_against_the_constant():
     verify = workflow('docker-image.yml')['jobs']['verify']
     script = ' '.join(s.get('run', '') for s in verify['steps'])
@@ -225,12 +229,14 @@ def test_the_release_tag_is_checked_against_the_constant():
     assert '__version__' in script
 
 
+@pytest.mark.precheck
 def test_the_check_only_runs_for_a_release():
     """A workflow_dispatch rebuild has no release tag to compare against."""
     assert workflow('docker-image.yml')['jobs']['verify']['if'] == \
         "github.event_name == 'release'"
 
 
+@pytest.mark.precheck
 def test_a_mismatched_version_stops_the_image_being_built():
     """Reporting the mismatch is not enough: an image that misreports its own
     version is only a number on a page, so it would go unnoticed."""
@@ -239,6 +245,7 @@ def test_a_mismatched_version_stops_the_image_being_built():
     assert "needs.verify.result != 'failure'" in publish['if']
 
 
+@pytest.mark.precheck
 def test_a_skipped_check_still_builds():
     """`verify` is skipped on a manual rebuild, and a skipped dependency would
     skip the build with it unless `always()` is there."""

@@ -30,6 +30,34 @@ class IsolatedClient(FlaskClient):
         return super().open(*args, **kwargs)
 
 
+# ── prechecks ──────────────────────────────────────────────────────────────
+#
+# Some checks are structural and instant — does the version constant match the
+# tag, does a workflow still refuse to publish a mismatch. They cost
+# milliseconds and they are the ones most likely to be wrong when cutting a
+# release, so waiting five minutes to be told is waste.
+#
+# Marking one `@pytest.mark.precheck` moves it to the front of the run *and*
+# makes its failure end the session. That second half is the point: reordering
+# alone would surface the problem in the first second but still grind through
+# the other thousand tests, leaving you to notice and interrupt.
+
+def pytest_collection_modifyitems(items):
+    """Prechecks first. `sort` is stable, so everything else keeps its order."""
+    items.sort(key=lambda item: 0 if item.get_closest_marker('precheck') else 1)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    report = yield
+    if report.failed and item.get_closest_marker('precheck'):
+        item.session.shouldstop = (
+            f'{item.name} is a precheck and it failed, so the rest of the suite '
+            f'was not run. Fix this first, then run pytest again.'
+        )
+    return report
+
+
 @pytest.fixture
 def app():
     tmpdir = tempfile.TemporaryDirectory()

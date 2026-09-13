@@ -37,7 +37,6 @@ priorities, due dates, assignees, and a checklist of tasks. Each carries its own
 ---
 
 ## Quick start
-
 ```bash
 git clone https://github.com/Knator/Home-CMMS.git
 cd Home-CMMS
@@ -88,3 +87,19 @@ It expects to live on your LAN. There's no multi-tenancy and no ambition toward 
 ## License
 
 [GPL-3.0](LICENSE)
+
+---
+
+## Support this project
+
+Home CMMS is free and GPL-licensed, and it stays that way. If it saves you a service call or just earns its keep on your home server, you're welcome to buy me a coffee.
+
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-%E2%98%95-FFDD00?style=for-the-badge&logoColor=black)](https://buymeacoffee.com/knator)
+
+Or open this link in any browser:
+
+```
+https://buymeacoffee.com/knator
+```
+Starring this repo and making bug reports is also greatly appreciated.  
+Thank you!

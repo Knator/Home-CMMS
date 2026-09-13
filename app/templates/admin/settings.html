@@ -107,6 +107,28 @@
   </div>
 
   <div class="card">
+    <div class="card-header"><span class="card-title">Updates</span></div>
+    <div class="card-body">
+      <div class="setting">
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="update_check_enabled" value="1"
+                   {{ 'checked' if settings.update_check_enabled.value }}>
+            Check GitHub for a newer release
+          </label>
+          <div class="field-hint">
+            The only thing in this application that reaches the internet.
+            Nothing about your instance is sent — it is an unauthenticated
+            request for a public release listing, so GitHub sees an address and
+            nothing more. The answer is cached for six hours, and an instance
+            with no route out simply reports that it could not check.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card-header"><span class="card-title">Attachments</span></div>
     <div class="card-body">
       <div class="setting">

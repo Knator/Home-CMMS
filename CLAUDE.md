@@ -765,6 +765,40 @@ applies the rule immediately, so the effect can be seen rather than waited for.
 `allow_archived_deletion` (default on) gates both the Delete button and the route, since a
 hidden button is a convenience and not a rule.
 
+### Version and update checking
+`app/version.py` holds `__version__` as a **constant**, because `.dockerignore` excludes
+`.git/` — inside the image there is no tag to read.
+
+**Releasing is manual and stays manual**: bump the constant, commit, tag `vX.Y.Z`, publish the
+release from whatever branch it belongs on. Nothing tags, releases or bumps on its own.
+
+Two checks catch a forgotten bump, at different moments. `test_version.py` compares the
+constant to the newest tag in the local checkout (skipped where there is no checkout, such as
+inside the image). The **`verify` job in `docker-image.yml`** compares it to the *release tag*
+and fails the run before the image is built.
+
+That job gates the build rather than merely reporting, because the release cannot be
+prevented: GitHub has no before-publish hook, so by the time any workflow runs, the tag and
+the release already exist. Refusing the **image** is the last point where the mistake is free
+— delete the release, fix the constant, tag again. Shipping it instead would put a container
+on GHCR that misreports its own version, which, being only a number on a page, would go
+unnoticed for a long time.
+
+It runs on `release` events only; a `workflow_dispatch` rebuild has no release tag to compare.
+That is why `publish` carries `if: always() && needs.verify.result != 'failure'` — a *skipped*
+dependency would otherwise skip the build too, and break the manual rebuild path.
+
+`app/updates.py` is the **only outbound network call in the application**, which shapes it
+entirely: it is a setting that can be switched off, the answer is cached six hours in the
+settings table (GitHub allows 60 unauthenticated requests an hour), the request has a
+three-second timeout, and every failure is swallowed — an offline instance renders "could not
+check" rather than hanging the page for whoever opened it. The URL is a constant and nothing
+user-supplied reaches it, so it adds no SSRF surface, and no request body is sent.
+
+`compare()` is numeric, not lexicographic (1.10.0 is ahead of 1.9.0), treats a leading `v` as
+insignificant, and sorts `1.0.1-dev` *below* `1.0.1`. An unknown or unparseable latest reads
+as "current" rather than crying wolf.
+
 ### Maintenance (`app/maintenance.py`, `/admin/maintenance`)
 Admin-only housekeeping, modelled on what self-hosted apps generally need (Home Assistant's
 backups and system health, Immich's orphaned-file repair, LubeLogger's single-archive export):

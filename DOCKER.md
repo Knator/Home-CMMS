@@ -1,7 +1,11 @@
 # Running Home CMMS in Docker
 
-One container, two volumes, no external services — no database server, no Redis,
-no internet needed at runtime.
+One container, two volumes, no external services — no database server, no Redis.
+
+The only thing that reaches the internet is an optional check for a newer
+release, shown on the Maintenance page and switchable off in Settings; nothing
+about your instance is sent, and an offline install simply reports that it could
+not check.
 
 ---
 

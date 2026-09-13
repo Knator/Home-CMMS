@@ -30,6 +30,12 @@ DEFAULTS = {
     # open produces duplicates for one job, which is rarely what anyone wants.
     'pm_stall_on_open': ('bool', True, None,
                          'An open work order stops its PM generating another'),
+    # The one thing in the app that reaches the internet, so it is switchable.
+    # On by default, matching what other self-hosted apps do, and it sends
+    # nothing about the instance — an unauthenticated GET of a public release
+    # listing.
+    'update_check_enabled': ('bool', True, None,
+                             'Check GitHub for a newer release'),
     # Off by default: it changes when work comes round, so it should be chosen.
     'pm_cancel_restarts_clock': ('bool', False, None,
                                  'A cancelled work order restarts a floating '

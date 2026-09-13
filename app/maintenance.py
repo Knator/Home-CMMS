@@ -81,7 +81,10 @@ def system_status():
 
     usage = shutil.disk_usage(os.path.dirname(db_path) if db_path else '.')
 
+    from app.version import __version__ as app_version
+
     return {
+        'app_version': app_version,
         'python_version': sys.version.split()[0],
         # flask.__version__ is deprecated; ask the package metadata instead.
         'flask_version': _package_version('flask'),

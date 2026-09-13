@@ -18,6 +18,7 @@ from app.utils import (
 from app import maintenance
 from app import security
 from app import settings as app_settings
+from app import updates
 from app.passwords import password_problems
 from app.services import auto_archive_closed_work_orders
 
@@ -204,6 +205,7 @@ def _render_maintenance(scan=False):
         failures=security.recent_failures(),
         failure_count=security.count_failures(),
         now=utcnow(),
+        update=updates.check(),
     )
 
 
@@ -258,6 +260,9 @@ def settings_page():
                                current_user.id)
         app_settings.set_value('upload_limit_enabled', limit_on, current_user.id)
         app_settings.set_value('auto_archive_enabled', archive_on, current_user.id)
+        app_settings.set_value('update_check_enabled',
+                               bool(request.form.get('update_check_enabled')),
+                               current_user.id)
         app_settings.set_value('pm_stall_on_open',
                                bool(request.form.get('pm_stall_on_open')),
                                current_user.id)
@@ -530,6 +535,24 @@ def sign_in_attempts():
         date_to=request.args.get('to', '').strip(),
         failure_count=security.count_failures(),
     )
+
+
+@bp.route('/maintenance/check-updates', methods=['POST'])
+@login_required
+@admin_required
+def check_updates():
+    """Ask now rather than waiting for the cache to lapse."""
+    validate_csrf()
+    result = updates.check(force=True)
+    if not result['enabled']:
+        flash('Update checking is switched off in Settings.', 'error')
+    elif result['error']:
+        flash(f"Could not reach GitHub: {result['error']}", 'error')
+    elif result['state'] == 'behind':
+        flash(f"Version {result['latest']} is available.", 'info')
+    else:
+        flash('This is the latest release.', 'success')
+    return _maintenance_result()
 
 
 @bp.route('/maintenance/clear-lockouts', methods=['POST'])

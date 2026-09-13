@@ -24,7 +24,14 @@
 
 <!-- System status -->
 <div class="card">
-  <div class="card-header"><span class="card-title">System</span></div>
+  <div class="card-header">
+    <span class="card-title">System</span>
+    {% if update.enabled %}
+      {{ confirm_form(url_for('admin.check_updates'), 'Check for updates',
+                      'Check GitHub for a newer release now?', 'btn-secondary btn-sm',
+                      'Checking…') }}
+    {% endif %}
+  </div>
   <div class="card-body">
     <div class="detail-grid">
       <div class="detail-field">
@@ -60,6 +67,38 @@
           <div class="field-hint" style="margin-top:4px;">
             Host timezone {{ local_timezone() }}. Timestamps are stored in UTC and shown here.
           </div>
+        </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Release Version</div>
+        <div class="detail-value">
+          <strong>{{ status.app_version }}</strong>
+          {% if update.enabled %}
+            {% if update.state == 'behind' %}
+              <span class="badge badge-overdue">update available</span>
+              <div class="field-hint" style="margin-top:4px;">
+                <a href="{{ update.releases_url }}" target="_blank" rel="noopener">{{ update.latest }}</a>
+                is the latest release.
+              </div>
+            {% elif update.state == 'ahead' %}
+              <span class="badge badge-inactive">ahead of {{ update.latest }}</span>
+              <div class="field-hint" style="margin-top:4px;">
+                Running something newer than the latest published release.
+              </div>
+            {% elif update.state == 'current' %}
+              <span class="badge badge-active">up to date</span>
+            {% endif %}
+            {% if update.error %}
+              <div class="field-hint" style="margin-top:4px;">
+                Could not check for updates — {{ update.error }}
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="field-hint" style="margin-top:4px;">
+              Update checking is off. Turn it on in
+              <a href="{{ url_for('admin.settings_page') }}">Settings</a>.
+            </div>
+          {% endif %}
         </div>
       </div>
       <div class="detail-field">

@@ -15,8 +15,54 @@ permissions:
   packages: write
 
 jobs:
+  # Refuses a release whose app/version.py was never bumped. That constant is
+  # what the Maintenance page reports and what the update check compares, so a
+  # forgotten bump ships an image that misreports its own version — and, being
+  # only a number on a page, would go unnoticed for a long time.
+  #
+  # It gates the build rather than merely reporting, because the release itself
+  # cannot be prevented: GitHub has no before-publish hook, so by the time any
+  # workflow runs the tag and the release already exist. Stopping the *image* is
+  # the last point where the mistake costs nothing — delete the release, fix the
+  # constant, tag again.
+  #
+  # Releases only. A workflow_dispatch rebuild has no release tag to compare.
+  verify:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The version constant must match the release tag
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, sys
+
+          tag = os.environ['TAG'].strip()
+          want = tag[1:] if tag[:1] in 'vV' else tag
+
+          found = re.findall(r"__version__ = '([^']*)'",
+                             pathlib.Path('app/version.py').read_text())
+          if len(found) != 1:
+              sys.exit(f'::error::expected one __version__ line in app/version.py, '
+                       f'found {len(found)} — cannot tell which to check')
+          if found[0] != want:
+              sys.exit(
+                  f'::error::Release {tag} was published, but app/version.py says '
+                  f"{found[0]}. No image has been built. Set __version__ = '{want}', "
+                  f'delete the release and its tag, and publish it again.'
+              )
+          print(f'app/version.py says {found[0]}, matching {tag}')
+          PY
+
   publish:
     runs-on: ubuntu-latest
+    # `always()` keeps the manual-rebuild path working: `verify` is skipped
+    # there, and a skipped dependency would otherwise skip this too.
+    needs: verify
+    if: always() && needs.verify.result != 'failure'
 
     steps:
       - name: Check out the tagged source

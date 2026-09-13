@@ -1,0 +1,126 @@
+# Cut a release: check the version, test it, tag it, publish it, build the image.
+#
+# The version in app/version.py is bumped **by hand**, in the pull request that
+# becomes the release. This workflow does not write to the repository at all —
+# `master` is protected by a ruleset requiring pull requests, and a ruleset's
+# bypass list can only name installed GitHub Apps, which github-actions[bot] is
+# not. Pushing the bump from here would need a long-lived personal access token
+# with write access to a public repo, which is a worse thing to own than a
+# one-line edit is to type.
+#
+# So the constant is verified rather than written: release 1.0.1 and the
+# workflow refuses unless app/version.py already says 1.0.1. That keeps the
+# tagged source agreeing with the release — which is what
+# test_the_constant_matches_the_newest_git_tag checks on the very commit people
+# download — without anything needing to push to a protected branch. Tags are
+# not covered by the branch ruleset, so creating one is fine.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, without the v — must already be set in app/version.py'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as a pre-release (latest will not move to it)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write      # push the tag, create the release
+  packages: write      # the image build this calls
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0            # tags, so an existing one can be detected
+
+      - name: Check the version and make sure it is new
+        id: plan
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$VERSION' is not a version. Use 1.2.3 or 1.2.3-rc1, with no leading v."
+            exit 1
+          fi
+          TAG="v$VERSION"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::$TAG already exists. Releasing it again would move a tag people may already be running."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      # Before the tests, so a forgotten bump costs seconds rather than the
+      # whole suite.
+      - name: Check app/version.py already says that
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, sys
+          want = os.environ['WANT']
+          source = pathlib.Path('app/version.py').read_text()
+          found = re.findall(r"__version__ = '([^']*)'", source)
+          if len(found) != 1:
+              sys.exit(f'::error::expected one __version__ line in app/version.py, found {len(found)}')
+          if found[0] != want:
+              sys.exit(
+                  f"::error::app/version.py says {found[0]}, but you asked to release {want}. "
+                  f"Set __version__ = '{want}' on this branch first — the tag and the "
+                  f"source it points at have to agree."
+              )
+          print(f'app/version.py says {want}')
+          PY
+        env:
+          WANT: ${{ steps.plan.outputs.version }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # A release that fails its own tests should not become an image anyone
+      # can pull. This is the one place the whole suite is worth the minutes.
+      - name: Run the tests
+        run: python -m pytest -q
+        env:
+          SCHEDULER_ENABLED: '0'
+
+      - name: Tag it
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git tag -a "${{ steps.plan.outputs.tag }}" -m "Release ${{ steps.plan.outputs.tag }}"
+          git push origin "${{ steps.plan.outputs.tag }}"
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.plan.outputs.tag }}" \
+            --title "${{ steps.plan.outputs.tag }}" \
+            --generate-notes \
+            ${{ inputs.prerelease && '--prerelease' || '' }}
+
+  # Called rather than left to the `release: published` trigger: a release made
+  # with GITHUB_TOKEN does not start another workflow, so the image would
+  # otherwise never be built.
+  image:
+    needs: release
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      ref: ${{ needs.release.outputs.tag }}
+    permissions:
+      contents: read
+      packages: write

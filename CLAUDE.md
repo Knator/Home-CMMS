@@ -765,6 +765,40 @@ applies the rule immediately, so the effect can be seen rather than waited for.
 `allow_archived_deletion` (default on) gates both the Delete button and the route, since a
 hidden button is a convenience and not a rule.
 
+### Version and update checking
+`app/version.py` holds `__version__` as a **constant**, because `.dockerignore` excludes
+`.git/` — inside the image there is no tag to read. `test_version.py` fails when the constant
+and the newest tag disagree, so a forgotten bump is caught before it ships (skipped where
+there is no checkout).
+
+**Releasing** is Actions → Release → Run workflow, with the version typed in. The bump itself
+is **manual**, made in the pull request that becomes the release; the workflow *verifies* the
+constant already matches and refuses otherwise, before it runs the tests, so a forgotten bump
+costs seconds. It then runs the full suite, tags, publishes and builds the image.
+
+It deliberately **writes nothing back to the repository**. `master` is protected by a ruleset,
+and a ruleset's bypass list can only name installed GitHub Apps — `github-actions[bot]` is not
+one, so unlike classic branch protection there is no way to let it through. Pushing the bump
+would therefore need a long-lived personal access token with write access to a public repo,
+which is a worse thing to own than a one-line edit is to type. Only the **tag** is pushed, and
+tags are not covered by the branch ruleset.
+
+The image build is **called** from the release workflow rather than left to an `on: release`
+trigger, because a release created with `GITHUB_TOKEN` does not start another workflow —
+GitHub blocks that to stop workflows triggering themselves, and the image would silently never
+be built. `docker-image.yml` therefore also accepts `workflow_call` with a `ref`.
+
+`app/updates.py` is the **only outbound network call in the application**, which shapes it
+entirely: it is a setting that can be switched off, the answer is cached six hours in the
+settings table (GitHub allows 60 unauthenticated requests an hour), the request has a
+three-second timeout, and every failure is swallowed — an offline instance renders "could not
+check" rather than hanging the page for whoever opened it. The URL is a constant and nothing
+user-supplied reaches it, so it adds no SSRF surface, and no request body is sent.
+
+`compare()` is numeric, not lexicographic (1.10.0 is ahead of 1.9.0), treats a leading `v` as
+insignificant, and sorts `1.0.1-dev` *below* `1.0.1`. An unknown or unparseable latest reads
+as "current" rather than crying wolf.
+
 ### Maintenance (`app/maintenance.py`, `/admin/maintenance`)
 Admin-only housekeeping, modelled on what self-hosted apps generally need (Home Assistant's
 backups and system health, Immich's orphaned-file repair, LubeLogger's single-archive export):

@@ -9,6 +9,17 @@ on:
   # So a build can be re-run without cutting another release — useful when a
   # publish fails for a reason that has nothing to do with the code.
   workflow_dispatch:
+  # Called by release.yml. It has to call this directly rather than rely on the
+  # `release: published` trigger above: a release created with GITHUB_TOKEN
+  # deliberately does not start another workflow, which GitHub does to stop
+  # workflows triggering themselves forever. Without this the image would
+  # silently never be built for an automated release.
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Tag to build'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -21,6 +32,8 @@ jobs:
     steps:
       - name: Check out the tagged source
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       # Emulation for the arm64 build. A homelab instance is as likely to be a
       # Raspberry Pi as an x86 box, and every dependency here ships an aarch64
@@ -45,10 +58,17 @@ jobs:
           # Lowercased for us: GHCR rejects capitals, and repository names have
           # them. Knator/Home-CMMS -> ghcr.io/knator/home-cmms
           images: ghcr.io/${{ github.repository }}
+          # `value=` pins the version when release.yml calls this with a ref,
+          # where the git context alone would not carry it. The `|| github.ref`
+          # is not decoration: `inputs.ref` is empty on the `release` and
+          # `workflow_dispatch` triggers, and an empty value would leave the
+          # version tags to whatever metadata-action does with a blank — so a
+          # release published from the GitHub UI could build an image tagged
+          # only `latest`, with nothing reporting a problem.
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=semver,pattern={{version}},value=${{ inputs.ref || github.ref }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.ref || github.ref }}
+            type=semver,pattern={{major}},value=${{ inputs.ref || github.ref }}
             # `latest` follows full releases only. A pre-release moving it would
             # hand unfinished work to everyone who never pins a version.
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}

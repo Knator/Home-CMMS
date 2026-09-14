@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Home CMMS{% endblock %}</title>
+  {# SVG first for anything that understands it, .ico as the fallback — it
+     carries three frames, and its 16px one is a blunter drawing, since the full
+     mark turns to mush at tab size. #}
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/favicon.svg') }}">
+  <link rel="alternate icon" href="{{ url_for('static', filename='icons/favicon.ico') }}" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
   <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </head>
@@ -17,8 +23,17 @@
 
 <div class="sidebar" id="sidebar">
   <a class="sidebar-brand" href="{{ url_for('main.dashboard') }}" aria-label="Home CMMS — go to dashboard">
-    Home CMMS
-    <span>Maintenance Management</span>
+    {# The tile-less mark: transparent, filled white. Not `currentColor` — an
+       SVG loaded through <img> renders in its own document and would resolve
+       that to black, vanishing into the sidebar. White is safe because the
+       sidebar is dark in both themes. Decorative: the link is already
+       labelled, hence aria-hidden and an empty alt. #}
+    <img class="sidebar-mark" alt="" aria-hidden="true"
+         src="{{ url_for('static', filename='icons/mark.svg') }}">
+    <span class="sidebar-brand-text">
+      Home CMMS
+      <span>Maintenance Management</span>
+    </span>
   </a>
   <nav class="sidebar-nav">
     {# The API reference is public, so this layout has to render sensibly for a

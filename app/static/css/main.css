@@ -204,7 +204,9 @@ body {
 }
 
 .sidebar-brand {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 20px 16px 16px;
   font-size: 16px;
   font-weight: 700;
@@ -224,7 +226,21 @@ body {
   outline-offset: -2px;
 }
 
-.sidebar-brand span {
+/* The mark keeps its size while the text column takes the rest. `flex-shrink:0`
+   matters: without it the square is squeezed to a sliver once the brand text
+   wraps, which it does at the narrow end of the drawer. */
+.sidebar-mark {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.sidebar-brand-text { min-width: 0; }
+
+/* Scoped to the text column, not `.sidebar-brand span`: that would also match
+   the wrapper span the mark sits beside, and render the product name in the
+   subtitle's 11px muted style. */
+.sidebar-brand-text span {
   display: block;
   font-size: 11px;
   font-weight: 400;

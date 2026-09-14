@@ -94,6 +94,9 @@ def test_admin_can_be_demoted_when_another_admin_exists(client, admin, db, login
 
 # ── cookie hardening ───────────────────────────────────────────────────────
 
+# The cookie names carry a per-instance suffix (see config.cookie_suffix), so
+# these are looked up from the app rather than written down — two instances on
+# one host would otherwise evict each other's sessions.
 def _cookies(response):
     out = {}
     for header in response.headers.getlist('Set-Cookie'):
@@ -111,33 +114,33 @@ def login_with_remember(client, remember):
     return client.post('/auth/login', data=data)
 
 
-def test_remember_me_issues_a_long_lived_cookie(client, user, login):
+def test_remember_me_issues_a_long_lived_cookie(app, client, user, login):
     cookies = _cookies(login_with_remember(client, True))
-    assert 'expires' in cookies['remember_token']
+    assert 'expires' in cookies[app.config['REMEMBER_COOKIE_NAME']]
 
 
-def test_without_remember_me_there_is_no_login_token(client, user, login):
+def test_without_remember_me_there_is_no_login_token(app, client, user, login):
     cookies = _cookies(login_with_remember(client, False))
     # Flask-Login clears it rather than omitting it.
-    assert cookies['remember_token']['max-age'] == 'Max-Age=0'
+    assert cookies[app.config['REMEMBER_COOKIE_NAME']]['max-age'] == 'Max-Age=0'
 
 
-def test_the_remember_cookie_is_not_reachable_from_javascript(client, user, login):
+def test_the_remember_cookie_is_not_reachable_from_javascript(app, client, user, login):
     """It grants a login on its own, so script must not be able to read it."""
     cookies = _cookies(login_with_remember(client, True))
-    assert 'httponly' in cookies['remember_token']
+    assert 'httponly' in cookies[app.config['REMEMBER_COOKIE_NAME']]
 
 
-def test_the_remember_cookie_is_samesite_like_the_session(client, user, login):
+def test_the_remember_cookie_is_samesite_like_the_session(app, client, user, login):
     cookies = _cookies(login_with_remember(client, True))
-    assert cookies['remember_token']['samesite'] == 'SameSite=Lax'
+    assert cookies[app.config['REMEMBER_COOKIE_NAME']]['samesite'] == 'SameSite=Lax'
 
 
-def test_the_session_cookie_now_expires(client, user, login):
+def test_the_session_cookie_now_expires(app, client, user, login):
     """PERMANENT_SESSION_LIFETIME is inert unless the session is marked
     permanent, which made the configured 8-hour timeout a no-op."""
     cookies = _cookies(login_with_remember(client, False))
-    assert 'expires' in cookies['session']
+    assert 'expires' in cookies[app.config['SESSION_COOKIE_NAME']]
 
 
 def test_neither_cookie_is_secure_without_tls(app, client, user, login):
@@ -147,7 +150,7 @@ def test_neither_cookie_is_secure_without_tls(app, client, user, login):
     assert app.config['REMEMBER_COOKIE_SECURE'] is False
 
     cookies = _cookies(login_with_remember(client, True))
-    assert 'secure' not in cookies['remember_token']
+    assert 'secure' not in cookies[app.config['REMEMBER_COOKIE_NAME']]
 
 
 def test_both_cookies_are_secure_in_production(monkeypatch):

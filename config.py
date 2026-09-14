@@ -1,4 +1,6 @@
+import hashlib
 import os
+import re
 import secrets
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -8,6 +10,34 @@ load_dotenv()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
 DEFAULT_DB_PATH = os.path.join(INSTANCE_DIR, 'home_cmms.db')
+
+
+def cookie_suffix(secret_key):
+    """A per-instance tail for the session and remember-me cookie names.
+
+    Cookies are not scoped by port — RFC 6265 leaves the port out of a cookie's
+    identity entirely — so two instances reached at the same hostname on
+    different ports share one jar. With Flask's default names, `session` and
+    `remember_token`, whichever you sign into last overwrites the other's
+    cookie. The first instance then receives a cookie signed with a SECRET_KEY
+    that is not its own, cannot validate it, and shows you signed out. Nothing
+    looks broken; it reads as being logged out at random.
+
+    Derived from SECRET_KEY because that is already unique per instance and
+    already persisted, so the name is stable across restarts — a name that
+    changed on every boot would sign everybody out, which is the bug, not the
+    fix. Only a digest of the key appears in the name: it is not secret, but
+    there is no reason to put key material in a cookie name either.
+
+    `COOKIE_SUFFIX` overrides it, for two instances deliberately sharing a key.
+    """
+    explicit = os.environ.get('COOKIE_SUFFIX', '').strip()
+    if explicit:
+        # A cookie name is a token: no spaces, separators or control characters.
+        cleaned = re.sub(r'[^A-Za-z0-9_-]', '', explicit)[:32]
+        if cleaned:
+            return cleaned
+    return hashlib.sha256(secret_key.encode('utf-8')).hexdigest()[:8]
 
 
 def _database_uri():

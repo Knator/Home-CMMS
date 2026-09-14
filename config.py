@@ -1,6 +1,5 @@
 import hashlib
 import os
-import re
 import secrets
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -29,14 +28,11 @@ def cookie_suffix(secret_key):
     fix. Only a digest of the key appears in the name: it is not secret, but
     there is no reason to put key material in a cookie name either.
 
-    `COOKIE_SUFFIX` overrides it, for two instances deliberately sharing a key.
+    The corollary is that instances sharing a SECRET_KEY — the same `.env`
+    copied to a second deployment — derive the same suffix and collide again.
+    Give them their own keys, which they should have anyway: a shared key means
+    a session cookie minted by one is valid on the other.
     """
-    explicit = os.environ.get('COOKIE_SUFFIX', '').strip()
-    if explicit:
-        # A cookie name is a token: no spaces, separators or control characters.
-        cleaned = re.sub(r'[^A-Za-z0-9_-]', '', explicit)[:32]
-        if cleaned:
-            return cleaned
     return hashlib.sha256(secret_key.encode('utf-8')).hexdigest()[:8]
 
 

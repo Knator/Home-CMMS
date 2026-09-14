@@ -54,20 +54,14 @@ def test_the_name_is_stable_for_one_instance():
             == build('same-secret').config['SESSION_COOKIE_NAME'])
 
 
-def test_an_operator_can_set_the_suffix_explicitly(monkeypatch):
-    """Two instances deliberately sharing a SECRET_KEY would otherwise still
-    collide, since the suffix is derived from that key."""
-    monkeypatch.setenv('COOKIE_SUFFIX', 'workshop')
-    assert build('shared-secret').config['SESSION_COOKIE_NAME'] \
-        == 'home_cmms_session_workshop'
-
-
-def test_a_hostile_suffix_cannot_break_the_header(monkeypatch):
-    """A cookie name is a token. Spaces or separators would either be dropped or
-    let something be appended to the Set-Cookie header."""
-    monkeypatch.setenv('COOKIE_SUFFIX', 'a b; Path=/; Domain=evil.test')
-    name = build('shared-secret').config['SESSION_COOKIE_NAME']
-    assert name == 'home_cmms_session_abPathDomainevil.test'.replace('.', '')
+def test_instances_sharing_a_secret_key_share_a_name():
+    """The known limit, pinned so it is a documented property rather than a
+    surprise. The suffix comes from SECRET_KEY, so copying one `.env` to a
+    second deployment brings the collision back — and such instances have a
+    worse problem anyway, since a cookie minted by one is valid on the other.
+    """
+    assert (build('shared-secret').config['SESSION_COOKIE_NAME']
+            == build('shared-secret').config['SESSION_COOKIE_NAME'])
 
 
 def test_an_explicit_name_still_wins():

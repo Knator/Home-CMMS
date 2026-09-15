@@ -429,6 +429,9 @@ the server agree.
   does not set — so the configured 8 hours was inert and sessions simply lasted until the
   browser closed. The login route now sets `session.permanent = True`; Flask refreshes it per
   request, making it an 8-hour **idle** timeout rather than an absolute one.
+- **Cookie names carry a per-instance suffix** (`home_cmms_session_<8 hex>`), because
+  **cookies are not scoped by port** — RFC 6265 leaves the port out of a cookie's identity.
+
 - **`SECRET_KEY` has no shipped default.** A constant in the source would be identical on
   every self-hosted install, and anyone holding it can forge a session cookie for any
   account. Resolution order: `SECRET_KEY` env var, then `instance/secret_key`, then generate

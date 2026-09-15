@@ -238,12 +238,19 @@ def settings_page():
         limit = parse_int(request.form.get('max_upload_mb'), minimum=1)
         days = parse_int(request.form.get('auto_archive_days'), minimum=0)
 
+        # A setting the environment governs renders disabled, so the browser
+        # does not submit it — absent here means "not yours to set", not "left
+        # blank". Validating it anyway made the page impossible to save while
+        # MAX_UPLOAD_MB was set, and took every unrelated preference on it down
+        # with the one field.
+        limit_locked = app_settings.env_override('max_upload_mb') is not None
+
         # Everything is checked before anything is written. Staging a value and
         # then bailing out leaves it pending in the session, where it reads back
         # as though it had been saved — and might be committed by whatever runs
         # next.
         errors = []
-        if limit_on and limit is None:
+        if limit_on and limit is None and not limit_locked:
             errors.append('Enter a maximum attachment size of at least 1 MB, '
                           'or switch the limit off.')
         if archive_on and days is None:
@@ -269,7 +276,9 @@ def settings_page():
         app_settings.set_value('pm_cancel_restarts_clock',
                                bool(request.form.get('pm_cancel_restarts_clock')),
                                current_user.id)
-        if limit is not None:
+        # Not written while locked: a stored value would sit there looking
+        # authoritative and take effect the day the variable is removed.
+        if limit is not None and not limit_locked:
             app_settings.set_value('max_upload_mb', limit, current_user.id)
         if days is not None:
             app_settings.set_value('auto_archive_days', days, current_user.id)

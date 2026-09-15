@@ -8,7 +8,7 @@ from app.utils import (
     generate_csrf_token, format_file_size, format_duration, thumbnails_available,
     format_datetime, local_timezone_name, utcnow,
 )
-from config import Config
+from config import Config, cookie_suffix
 
 
 def create_app(config_class=Config, config_overrides=None):
@@ -20,6 +20,17 @@ def create_app(config_class=Config, config_overrides=None):
     )
     if config_overrides:
         app.config.update(config_overrides)
+
+    # After the overrides, so the suffix follows the SECRET_KEY this instance is
+    # actually using. Assigned rather than setdefault: Flask ships a
+    # SESSION_COOKIE_NAME of 'session', so setdefault would silently keep the
+    # colliding default and fix only the remember-me cookie. Anything that named
+    # one deliberately still wins.
+    suffix = cookie_suffix(app.config['SECRET_KEY'])
+    for key, default in (('SESSION_COOKIE_NAME', f'home_cmms_session_{suffix}'),
+                         ('REMEMBER_COOKIE_NAME', f'home_cmms_remember_{suffix}')):
+        chosen = (config_overrides or {}).get(key) or getattr(config_class, key, None)
+        app.config[key] = chosen or default
 
     if app.config.get('TRUST_PROXY_HEADERS'):
         # One hop: the reverse proxy directly in front of us. Trusting more

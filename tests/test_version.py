@@ -51,9 +51,22 @@ def test_the_version_looks_like_a_version():
 
 
 @pytest.mark.precheck
-def test_the_constant_matches_the_newest_git_tag():
-    """A forgotten bump ships a version that lies about itself. Skipped where
-    there is no git checkout — inside the image, for instance."""
+def test_the_constant_is_never_behind_the_newest_git_tag():
+    """A forgotten bump ships a version that lies about itself.
+
+    Not equality. Being *ahead* of the newest tag is the ordinary state of a
+    branch heading for the next release — the constant is bumped in the work,
+    and the tag only appears when it ships — so demanding equality failed for
+    the whole of every development cycle. As a precheck that aborted the run, it
+    meant the suite could not be run at all while any release was in progress.
+
+    Behind is the mistake worth catching: the source claiming an older version
+    than something already tagged. The exact match against a release tag is
+    enforced where it belongs, by the `verify` job in docker-image.yml, which
+    refuses to build an image whose constant disagrees with the release.
+
+    Skipped where there is no checkout — inside the image, for instance.
+    """
     if not (ROOT / '.git').exists():
         pytest.skip('no git checkout')
     try:
@@ -64,8 +77,9 @@ def test_the_constant_matches_the_newest_git_tag():
         pytest.skip('git unavailable')
     if not tag:
         pytest.skip('no version tags yet')
-    assert updates.version_parts(tag) == updates.version_parts(__version__), (
-        f'app/version.py says {__version__} but the newest tag is {tag}')
+    assert updates.compare(__version__, tag) != 'behind', (
+        f'app/version.py says {__version__}, which is older than the newest '
+        f'tag {tag} — the bump looks forgotten')
 
 
 def test_the_maintenance_page_shows_it(admin_client):

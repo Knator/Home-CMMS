@@ -27,6 +27,15 @@ in front, or a client can forge `X-Forwarded-For` to dodge the sign-in rate limi
 **on** behind one, or every request shares the proxy's address and one failing user locks
 everybody out.
 
+It trusts **`x_for` and `x_proto` only** (`x_host=0, x_prefix=0`), and the asymmetry is the
+point: a proxy sets `X-Forwarded-For` itself, so the nearest value is one it controls and
+anything a client prepends is ignored — verified against the live deployment, where a forged
+header was correctly discarded in favour of the real address. Nothing sets `X-Forwarded-Host`
+or `X-Forwarded-Prefix` on the way in, so a client's own header arrives untouched; trusting it
+let a single request rewrite the host every `_external` URL is built from, which made the
+public API specification advertise an attacker's server. Nothing is lost by dropping them —
+a proxy passes the real `Host` through. `test_proxy_headers.py` pins both halves.
+
 `create_admin.py` takes `--username/--email/--password` or `ADMIN_*`, plus `--if-missing` so
 the entrypoint can run it on every start.
 

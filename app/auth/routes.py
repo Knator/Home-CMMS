@@ -56,8 +56,16 @@ def login():
 @bp.route('/logout')
 @login_required
 def logout():
-    logout_user()
+    # Order matters, and getting it wrong is silent. `logout_user()` does not
+    # delete the remember-me cookie itself — it leaves `_remember: clear` in the
+    # session for Flask-Login's response hook to act on. Clearing the session
+    # afterwards erased that instruction, so the cookie survived logout and
+    # re-authenticated the next request: Logout appeared to work, the session
+    # cookie really was dropped, and a thirty-day login token stayed alive in
+    # the browser of someone who had just asked to leave. Clearing first leaves
+    # the marker in place.
     session.clear()
+    logout_user()
     return redirect(url_for('auth.login'))
 
 

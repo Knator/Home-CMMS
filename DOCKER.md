@@ -272,6 +272,34 @@ cmms.example.com {
 Caddy sets `X-Forwarded-For` and `X-Forwarded-Proto` itself, which is what those
 two settings depend on.
 
+**Your proxy must pass the original `Host` header through.** Caddy and Traefik
+do by default; nginx and Apache do not, and need one line:
+
+```nginx
+proxy_set_header Host $host;          # nginx: the default sends the upstream's
+                                      # address instead
+```
+
+```apache
+ProxyPreserveHost On
+```
+
+The application deliberately does not read `X-Forwarded-Host`. Nothing
+overwrites that header on the way in, so a client can set it themselves, and
+believing it would let any request rewrite the hostname the application thinks
+it is served from. `Host` is the header a proxy is supposed to carry.
+
+Getting this wrong is survivable and narrow: the web interface builds every link
+relative to the page, so browsing is unaffected. Only the REST API's absolute
+URLs are affected — the `url` field on a work order, the `Location` header when
+one is created, and the server named in `/api/v1/openapi.json` — which would
+point at your upstream address rather than your domain.
+
+**Sub-paths are not supported.** Serve this at the root of a name
+(`cmms.example.com`), not at `example.com/cmms`: `X-Forwarded-Prefix` is
+untrusted for the same reason as `X-Forwarded-Host`, so generated links would be
+rooted at `/` regardless.
+
 ---
 
 ## Security notes

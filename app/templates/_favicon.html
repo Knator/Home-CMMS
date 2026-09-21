@@ -1,0 +1,13 @@
+{# The tab icon, in one place.
+
+   Several pages are standalone rather than extending base.html — the login
+   screen and the three setup screens each carry their own <head>, because they
+   render before there is a session or even a database. That is how the favicon
+   came to be missing from exactly the page people stare at longest while
+   hunting for the tab: it was added to base.html only.
+
+   Included by every <head> in the application, with a test that fails if a new
+   one forgets. #}
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/favicon.svg') }}">
+<link rel="alternate icon" href="{{ url_for('static', filename='icons/favicon.ico') }}" sizes="16x16 32x32 48x48">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">

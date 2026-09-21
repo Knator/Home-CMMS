@@ -82,3 +82,48 @@ def test_the_mark_has_no_tile_behind_it():
     """The sidebar version is the shape alone; a background rect would put a
     blue box on the sidebar."""
     assert '<rect' not in (ICONS / 'mark.svg').read_text()
+
+
+# ── every page, not just the ones behind a login ───────────────────────────
+
+STANDALONE = ('auth/login.html', 'setup/index.html', 'setup/no_database.html',
+              'setup/expired.html', 'embedded.html', 'base.html')
+
+
+def test_the_login_page_has_a_favicon(client, db, user):
+    """The reported bug. The login screen carries its own <head> rather than
+    extending base.html — it renders before there is a session — so it missed
+    the icons entirely, losing its tab among a dozen others at exactly the
+    moment someone is looking for it."""
+    html = client.get('/auth/login').get_data(as_text=True)
+    assert 'icons/favicon.svg' in html
+    assert 'icons/favicon.ico' in html
+
+
+def test_every_head_in_the_application_includes_the_icons():
+    """Structural, because the functional check can only reach pages a test can
+    render — the setup screens need an empty user table, the embedded layout
+    needs a picker. A new standalone page silently missing its icons is exactly
+    how this bug happened."""
+    root = ROOT / 'app' / 'templates'
+    missing = []
+    for path in root.rglob('*.html'):
+        if path.name == '_favicon.html':
+            continue                      # it is the definition, not a user
+        body = path.read_text()
+        if '<head>' not in body:
+            continue
+        if "include '_favicon.html'" not in body:
+            missing.append(str(path.relative_to(root)))
+    assert not missing, (
+        f'these templates carry a <head> with no favicon include: {missing}'
+    )
+
+
+def test_the_partial_is_the_only_place_the_icons_are_named():
+    """One definition, so the tab icon cannot differ between the login screen
+    and the rest of the application."""
+    root = ROOT / 'app' / 'templates'
+    naming = sorted(str(p.relative_to(root)) for p in root.rglob('*.html')
+                    if 'icons/favicon.svg' in p.read_text())
+    assert naming == ['_favicon.html'], naming

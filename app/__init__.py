@@ -99,8 +99,9 @@ def create_app(config_class=Config, config_overrides=None):
         from app.utils import is_embedded
         return {'layout': 'embedded.html' if is_embedded() else 'base.html'}
 
-    from app.settings import archived_deletion_allowed
+    from app.settings import archived_deletion_allowed, default_grace_days
     app.jinja_env.globals['archived_deletion_allowed'] = archived_deletion_allowed
+    app.jinja_env.globals['default_grace_days'] = default_grace_days
     # So the rules on screen come from the same source that enforces them.
     from app.passwords import MIN_LENGTH, REQUIREMENTS
     app.jinja_env.globals['password_requirements'] = lambda: REQUIREMENTS

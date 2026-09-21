@@ -26,6 +26,16 @@ DEFAULTS = {
                              'Automatically archive closed work orders'),
     'auto_archive_days': ('int', 90, None,
                           'Days a closed work order waits before archiving'),
+    # What the grace box starts at on a new work order or PM. A due date at home
+    # is an intention rather than a contract, so ten days of slack beats turning
+    # red the morning after — but how much slack is a household preference, not
+    # something to compile in.
+    #
+    # It seeds the form only. Existing records keep whatever they were given,
+    # and the API still defaults to 0, so an integration's behaviour does not
+    # shift when somebody changes a number on a settings page.
+    'default_grace_days': ('int', 10, None,
+                           'Overdue grace pre-filled on new work orders and PMs'),
     # On by default: a PM raising a second work order while the first is still
     # open produces duplicates for one job, which is rarely what anyone wants.
     'pm_stall_on_open': ('bool', True, None,
@@ -178,6 +188,11 @@ def explicit_mb():
     if row is None or row.value is None:
         return None
     return _coerce('int', row.value, None)
+
+
+def default_grace_days():
+    """Grace to pre-fill on a new work order or PM. Never negative."""
+    return max(0, get('default_grace_days'))
 
 
 def upload_limit_bytes():

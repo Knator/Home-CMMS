@@ -182,3 +182,26 @@ def test_without_the_env_var_the_field_is_editable(admin_client, app):
     app.config['ENV_SETTING_OVERRIDES'] = {}
     html = admin_client.get('/admin/settings').get_data(as_text=True)
     assert 'Set by the environment' not in html
+
+
+def test_a_blank_grace_is_refused_rather_than_stored(admin_client, app):
+    """Cleared on purpose is a mistake worth reporting; absent is not. The
+    difference is what keeps one field from making the page unsaveable."""
+    admin_client.post('/admin/settings', data={
+        'csrf_token': CSRF, 'default_grace_days': '',
+    }, follow_redirects=True)
+    with app.test_request_context():
+        assert app_settings.get('default_grace_days') == 10   # unchanged
+
+
+def test_omitting_the_grace_leaves_it_alone(admin_client, app):
+    """A POST that does not carry the field must still save everything else."""
+    admin_client.post('/admin/settings', data={
+        'csrf_token': CSRF, 'default_grace_days': '4',
+    }, follow_redirects=True)
+    admin_client.post('/admin/settings', data={
+        'csrf_token': CSRF, 'upload_limit_enabled': '1', 'max_upload_mb': '250',
+    }, follow_redirects=True)
+    with app.test_request_context():
+        assert app_settings.get('default_grace_days') == 4     # untouched
+        assert app_settings.get('max_upload_mb') == 250        # and the rest saved

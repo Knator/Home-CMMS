@@ -53,7 +53,7 @@ docker compose up -d
 
 Open `http://<your-host>:8080`. The first start creates the database, generates a signing key and applies all migrations — a few seconds — then shows a **setup page** that creates the first administrator.
 
-> **Complete setup straight away.** Until an account exists, anyone who can reach the instance can claim the administrator account — the same trade-off Immich, Home Assistant, Nextcloud and Gitea make. The page closes permanently once one account exists.
+> **Complete setup straight away.** Until an account exists, anyone who can reach the instance can claim the administrator account. The page closes permanently once one account exists.
 >
 > To avoid the window entirely, set `ADMIN_USERNAME`/`ADMIN_PASSWORD` so the account exists before anything listens, or `SETUP_WINDOW_MINUTES=5` to close the page shortly after startup.
 

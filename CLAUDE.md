@@ -438,6 +438,24 @@ the server agree.
   does not set — so the configured 8 hours was inert and sessions simply lasted until the
   browser closed. The login route now sets `session.permanent = True`; Flask refreshes it per
   request, making it an 8-hour **idle** timeout rather than an absolute one.
+- **"Remember me" needs the session identity stamped back on.** Flask-Login restores a user
+  from the remember cookie into a *new* session holding only `_user_id` and `_fresh=False` —
+  no `_id` (the identifier `session_protection` compares against) and not `permanent`. On the
+  following request the identifier cannot match, and strong protection takes its harshest
+  branch: it empties the session **and sets `_remember='clear'`, deleting the remember cookie
+  too**. So the checkbox gave one working request after the 8-hour session lapsed and then
+  logged you out for good. A `user_loaded_from_cookie` handler in `create_app()` stamps both,
+  restoring the state a sign-in would have left. `test_remember_me.py` pins the shape that
+  proves it — six requests after a lapse must all be 200, where the bug read
+  `[200, 302, 302, ...]`.
+- **`session_protection = 'strong'` is effectively `'basic'` here, and always has been.**
+  Flask-Login exempts a *permanent* session from the strict branch (`if mode == "basic" or
+  sess.permanent`), and the login route sets `session.permanent = True` to make the 8-hour
+  idle timeout real. A replayed session cookie from another browser is therefore accepted —
+  verified. The strict branch was only ever reachable for the non-permanent session a
+  remember-restore created, which means it never rejected an attacker and only ever fired on
+  legitimate users. The two features are mutually exclusive in Flask-Login 0.6.3: a real
+  strict check would require giving up the idle timeout.
 - **Cookie names carry a per-instance suffix** (`home_cmms_session_<8 hex>`), because
   **cookies are not scoped by port** — RFC 6265 leaves the port out of a cookie's identity.
 
@@ -475,6 +493,15 @@ the server agree.
 distinguishes a **missing** form field (leave the existing value alone, so a POST that doesn't
 carry the input can't wipe history) from a **present-but-empty** one (clear it). Completing a
 work order with no date falls back to today.
+
+**Entering a completion date on the edit form sets the status to completed**, since recording
+when a job finished while insisting it is still open is a contradiction nobody means. It fires
+on the **transition** — a date appearing where there was none — not on the date being present:
+`_resolve_completed_date()` deliberately keeps the date when a completed work order is
+cancelled, so reacting to mere presence would snap the status back on every save and make
+cancelling impossible. It is applied before the materials roll-up and `sync_pm_schedule()`, so
+completing by date does everything completing by status does. The create form and the API are
+deliberately **not** covered: they take the status they were given.
 
 **SQLite gotcha for future migrations:** never change a column to `Date`/`DateTime` with
 `batch_op.alter_column(type_=...)`. Alembic emits `CAST(col AS DATE)`, and SQLite's DATE has

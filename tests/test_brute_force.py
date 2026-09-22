@@ -257,13 +257,21 @@ def test_the_card_shows_only_a_handful(client, db, app, login):
     assert shown <= security.CARD_FAILURE_LIMIT
 
 
-def test_the_card_says_how_many_more_there_are(client, db, app, login):
+def test_more_failures_than_fit_are_still_reachable(client, db, app, login):
+    """The card is capped, so the link is what gets you to the rest of them.
+
+    This used to assert on a "showing N of M" line that had been commented out
+    of the template — Jinja renders inside an HTML comment, so the text still
+    reached the response and the test kept passing against something no one
+    could see.
+    """
     make_user('boss', role='admin')
     _pile_up_failures(client, 40)
 
     login('boss')
     body = client.get('/admin/maintenance').get_data(as_text=True)
-    assert 'most recent of' in body
+    assert body.count('intruder') < 40, 'the card was not capped'
+    assert '/admin/sign-in-attempts' in body
     assert 'View all' in body
 
 
@@ -344,3 +352,29 @@ def test_the_log_is_admin_only(client, db, user, login):
     response = client.get('/admin/sign-in-attempts')
     assert response.status_code == 302
     assert '/admin' not in response.headers['Location']
+
+
+def test_the_log_is_reachable_when_nothing_has_failed(client, db, app, login):
+    """The link used to be hidden unless something had failed, which put the
+    log out of reach on exactly the instances where nothing is wrong. The page
+    behind it filters on outcome and lists successful sign-ins too, so the way
+    in must not depend on there being failures to look at."""
+    make_user('boss', role='admin')
+    login('boss')
+
+    body = client.get('/admin/maintenance').get_data(as_text=True)
+    assert 'No failed sign-in attempts on record' in body, 'expected a clean slate'
+    assert '/admin/sign-in-attempts' in body
+    assert 'View all' in body
+
+
+def test_the_link_carries_no_count(client, db, app, login):
+    """It only ever counted failures, so it read '(0)' beside a link to a page
+    listing every successful sign-in."""
+    make_user('boss', role='admin')
+    _pile_up_failures(client, 3)
+    login('boss')
+
+    body = client.get('/admin/maintenance').get_data(as_text=True)
+    assert 'View all' in body
+    assert 'View all (' not in body

@@ -225,6 +225,14 @@ def create():
             return render_template('work_orders/form.html', wo=None, **options)
 
         status = choice(request.form.get('status'), WO_STATUSES, 'open')
+        completed_date = _resolve_completed_date(status)
+        # Same rule as the edit form: a completion date says the job is done, so
+        # the status follows. No transition test is needed here — a work order
+        # being created has no earlier date to have kept.
+        if completed_date and status != 'completed':
+            status = 'completed'
+            flash('Marked completed, because a completion date was entered.', 'info')
+
         wo = create_work_order(
             title=title,
             wo_type=choice(request.form.get('wo_type'), WO_TYPES, 'unplanned'),
@@ -236,7 +244,7 @@ def create():
             assigned_to=parse_int(request.form.get('assigned_to')),
             due_date=parse_date(request.form.get('due_date')),
             overdue_grace_days=parse_int(request.form.get('overdue_grace_days'), minimum=0) or 0,
-            completed_date=_resolve_completed_date(status),
+            completed_date=completed_date,
             description=request.form.get('description', '').strip() or None,
             notes=request.form.get('notes', '').strip() or None,
             created_by=current_user.id,
@@ -294,6 +302,7 @@ def edit(id):
             return render_template('work_orders/form.html', wo=wo, **options)
 
         was_completed = wo.status == 'completed'
+        had_completed_date = wo.completed_date is not None
         wo.title = title
         wo.wo_type = choice(request.form.get('wo_type'), WO_TYPES, wo.wo_type)
         wo.status = choice(request.form.get('status'), WO_STATUSES, wo.status)
@@ -310,6 +319,19 @@ def edit(id):
         # Manual date wins; blank on a completed work order falls back to today.
         # Reopening keeps the date, so the record of when it was finished stands.
         wo.completed_date = _resolve_completed_date(wo.status, wo.completed_date)
+
+        # Entering a completion date says the job is done, so the status follows
+        # rather than leaving a work order that records when it finished while
+        # insisting it is still open.
+        #
+        # Only on the *transition* — a date appearing where there was none.
+        # Reacting to the date merely being present would make a completed work
+        # order impossible to cancel: `_resolve_completed_date` deliberately
+        # keeps the date across that change, so every save would snap the status
+        # back to completed.
+        if wo.completed_date and not had_completed_date and wo.status != 'completed':
+            wo.status = 'completed'
+            flash('Marked completed, because a completion date was entered.', 'info')
 
         _store_form_uploads(wo.id, commit=False)
         _save_items(wo)

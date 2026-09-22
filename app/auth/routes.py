@@ -28,7 +28,7 @@ def login():
             minutes = max(1, round(remaining / 60))
             flash(f'Too many failed sign-in attempts. Try again in {minutes} minute'
                   f"{'' if minutes == 1 else 's'}.", 'error')
-            return render_template('auth/login.html')
+            return render_template('auth/login.html', username=username)
 
         user = User.query.filter_by(username=username).first()
         if user and user.is_active and user.check_password(password):
@@ -49,6 +49,10 @@ def login():
         # either way so it still cannot be used to enumerate accounts.
         record_attempt(username or '(blank)', successful=False, ip_address=ip_address)
         flash('Invalid username or password.', 'error')
+        # The username is handed back so it does not have to be retyped; the
+        # password never is. Which of the two was wrong is still not disclosed —
+        # the message and the response are identical either way.
+        return render_template('auth/login.html', username=username)
 
     return render_template('auth/login.html')
 

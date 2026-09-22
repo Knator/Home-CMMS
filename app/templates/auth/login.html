@@ -32,11 +32,39 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group" style="margin-bottom:14px;">
         <label for="username">Username</label>
-        <input type="text" id="username" name="username" autocomplete="username" autofocus required>
+        {# Handed back after a failed attempt so it does not have to be retyped.
+           The password deliberately is not. Focus follows: a returning username
+           means the password is the thing to fix. #}
+        <input type="text" id="username" name="username" autocomplete="username"
+               value="{{ username or '' }}" {{ '' if username else 'autofocus' }} required>
       </div>
       <div class="form-group" style="margin-bottom:20px;">
         <label for="password">Password</label>
-        <input type="password" id="password" name="password" autocomplete="current-password" required>
+        <div class="password-row">
+          <input type="password" id="password" name="password"
+                 autocomplete="current-password" {{ 'autofocus' if username }} required>
+          {# Beside the field rather than inside it, so nothing overlaps the text
+             being typed. Hidden until the script below un-hides it: without
+             JavaScript it could not do anything, and a dead control is worse
+             than none. #}
+          <button type="button" class="reveal-toggle" id="reveal-password"
+                  aria-controls="password" aria-pressed="false"
+                  aria-label="Show password" title="Show password" hidden>
+            <svg class="icon-shown" viewBox="0 0 24 24" width="17" height="17"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/>
+              <circle cx="12" cy="12" r="3.2"/>
+            </svg>
+            <svg class="icon-hidden" viewBox="0 0 24 24" width="17" height="17"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/>
+              <circle cx="12" cy="12" r="3.2"/>
+              <path d="M3.5 3.5l17 17"/>
+            </svg>
+          </button>
+        </div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
         <label style="display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-weight:400;font-size:13px;">
@@ -47,5 +75,28 @@
     </form>
   </div>
 </div>
+
+<script>
+  // Small and inline on purpose: this page does not load main.js, and pulling
+  // it in for one toggle would also bring the alert-fading behaviour to a
+  // screen whose only message is a sign-in error worth reading.
+  (function () {
+    var button = document.getElementById('reveal-password');
+    var field = document.getElementById('password');
+    if (!button || !field) return;
+
+    button.hidden = false;              // it can do something now, so show it
+    button.addEventListener('click', function () {
+      var shown = field.type === 'text';
+      field.type = shown ? 'password' : 'text';
+      button.classList.toggle('revealed', !shown);
+      button.setAttribute('aria-pressed', String(!shown));
+      var label = shown ? 'Show password' : 'Hide password';
+      button.setAttribute('aria-label', label);
+      button.title = label;
+      field.focus();
+    });
+  })();
+</script>
 </body>
 </html>

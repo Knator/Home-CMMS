@@ -36,7 +36,9 @@ WORK_ORDER_FIELDS = [
     ('priority', 'string', False, f"One of: {', '.join(WO_PRIORITIES)}. Defaults to `medium`."),
     ('due_date', 'string', False, 'Date as `YYYY-MM-DD`.'),
     ('completed_date', 'string', False,
-     'Date as `YYYY-MM-DD`. Set automatically to today when status is `completed`.'),
+     'Date as `YYYY-MM-DD`. Supplying one marks the work order `completed`, '
+     'whatever status was sent. Set to today when the status is `completed` '
+     'and no date is given.'),
     ('overdue_grace_days', 'integer', False,
      'Days past the due date before it counts as overdue. Defaults to 0.'),
     ('job_plan', 'string', False, 'Job plan name, matched exactly.'),

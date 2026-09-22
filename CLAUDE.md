@@ -485,6 +485,15 @@ distinguishes a **missing** form field (leave the existing value alone, so a POS
 carry the input can't wipe history) from a **present-but-empty** one (clear it). Completing a
 work order with no date falls back to today.
 
+**Entering a completion date on the edit form sets the status to completed**, since recording
+when a job finished while insisting it is still open is a contradiction nobody means. It fires
+on the **transition** — a date appearing where there was none — not on the date being present:
+`_resolve_completed_date()` deliberately keeps the date when a completed work order is
+cancelled, so reacting to mere presence would snap the status back on every save and make
+cancelling impossible. It is applied before the materials roll-up and `sync_pm_schedule()`, so
+completing by date does everything completing by status does. The create form and the API are
+deliberately **not** covered: they take the status they were given.
+
 **SQLite gotcha for future migrations:** never change a column to `Date`/`DateTime` with
 `batch_op.alter_column(type_=...)`. Alembic emits `CAST(col AS DATE)`, and SQLite's DATE has
 NUMERIC affinity, so `CAST('2026-08-30' AS DATE)` silently becomes the integer `2026`. Rebuild

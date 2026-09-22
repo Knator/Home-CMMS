@@ -7,6 +7,7 @@ from app.models.pm import PM
 from app.models.work_order import WorkOrder
 from app.scheduler import run_pm_check
 from app.services import create_work_order, generate_work_order_for_pm
+from app.extensions import db as _db
 from tests.conftest import CSRF
 
 
@@ -179,3 +180,55 @@ def test_dashboard_overdue_count_respects_grace(client, db, user, login):
     body = client.get('/').get_data(as_text=True)
     # One of the two is overdue; the stat card must agree with the row styling.
     assert body.count('overdue-row') == 1
+
+
+def grace_field(client, path):
+    body = client.get(path).get_data(as_text=True)
+    return body[body.index('name="overdue_grace_days"'):][:200]
+
+
+def test_the_create_forms_start_at_the_configured_grace(client, db, user, login):
+    """Ten out of the box: a due date at home is an intention rather than a
+    contract, so a new record gets some slack instead of turning red the
+    morning after."""
+    login()
+    for path in ('/work-orders/new', '/pms/new'):
+        assert 'value="10"' in grace_field(client, path), path
+
+
+def test_changing_the_setting_changes_both_forms(client, db, user, login, app):
+    """The point of making it a setting. Both forms must follow it — one left
+    on a literal would quietly disagree with the other."""
+    from app import settings as app_settings
+
+    with app.app_context():
+        app_settings.set_value('default_grace_days', 3, None)
+        _db.session.commit()
+
+    login()
+    for path in ('/work-orders/new', '/pms/new'):
+        assert 'value="3"' in grace_field(client, path), path
+
+
+def test_a_grace_of_zero_is_honoured_not_treated_as_unset(client, db, user, login, app):
+    """0 is a real choice — flag it overdue the day after. A falsy-check
+    somewhere in the chain would silently restore the default instead."""
+    from app import settings as app_settings
+
+    with app.app_context():
+        app_settings.set_value('default_grace_days', 0, None)
+        _db.session.commit()
+
+    login()
+    assert 'value="0"' in grace_field(client, '/work-orders/new')
+
+
+def test_editing_still_shows_the_stored_grace(client, db, user, login):
+    """The default applies to new records only — an existing one that was
+    deliberately set to zero must not silently become ten when edited."""
+    wo = create_work_order(title='Old record', due_date=date.today(),
+                           overdue_grace_days=0)
+    login()
+    body = client.get(f'/work-orders/{wo.id}/edit').get_data(as_text=True)
+    field = body[body.index('name="overdue_grace_days"'):][:200]
+    assert 'value="0"' in field, field

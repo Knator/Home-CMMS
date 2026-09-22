@@ -368,3 +368,19 @@ def test_work_orders_name_their_asset_and_location(client, db, world, auth):
                          'asset_number': world['asset'].asset_number}, auth).get_json()
     assert body['asset_name'] == 'Furnace'
     assert body['location_name'] == 'Basement'
+
+
+def test_a_completion_date_completes_the_work_order(client, db, world, auth):
+    """Matches the web forms: a work order logged through an integration must
+    not record when it finished while claiming to be open."""
+    body = post(client, {'title': 'Logged by a script',
+                         'status': 'open',
+                         'completed_date': '2026-09-01'}, auth).get_json()
+    assert body['status'] == 'completed'
+    assert body['completed_date'] == '2026-09-01'
+
+
+def test_without_a_date_the_status_sent_is_respected(client, db, world, auth):
+    body = post(client, {'title': 'Still open', 'status': 'open'}, auth).get_json()
+    assert body['status'] == 'open'
+    assert body['completed_date'] is None

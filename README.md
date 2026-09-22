@@ -19,39 +19,45 @@ Home CMMS borrows the parts of industrial maintenance software that actually mat
 ## What's in it
 
 **Assets** — appliances, HVAC, plumbing, whatever you want to track. Each gets a location, make/model, dates, photos, and a running
-list of the parts you've used on it. Assets nest, so a compressor can live inside he HVAC unit it belongs to.
+list of the parts you've used on it. Assets nest, so a compressor can live inside the HVAC unit it belongs to.
 
 **Locations** — rooms, floors, outbuildings, also nested. Both assets and locations carry a status (Active / Inactive / Decommissioned).
 
 **Work orders** — planned and unplanned, with
 priorities, due dates, assignees, and a checklist of tasks. Each carries its own materials and tools list.
 
-**Job plans** — like reusable checklists or job instructions. Tasks can have time estimates, plus the materials and tools the job needs. Attach a job plan to a work order or PMs.
+**Job plans** — like reusable checklists or job instructions. Tasks can have time estimates, plus the materials and tools the job needs. Attach a job plan to a work order or a PM.
 
-**PM schedules** — **P**reventative **M**aintneance schedules generate work orders automatically based on rules that you set, either keeping a fixed calendar rhythm or floating from when you last actually finished the job. Lead times and grace windows give you flexibility to when work should be completed before showing overdue, when still being completed in an acceptable window.
+**PM schedules** — **P**reventive **M**aintenance schedules generate work orders automatically based on rules that you set, either keeping a fixed calendar rhythm or floating from when you last actually finished the job. Lead times and grace windows give you flexibility to when work should be completed before showing overdue, when still being completed in an acceptable window.
 
-**Attachments** — Easily attach manuals, receipts, photos, etc to locations, asseets, job plans, and work orders so that documents can easily be referenced, and pictures of parts or work performed can be easily reviewed later. 
+**Attachments** — Easily attach manuals, receipts, photos, etc to locations, assets, job plans, and work orders so that documents can easily be referenced, and pictures of parts or work performed can be easily reviewed later. 
 
 **Also:** a REST API with per-integration bearer tokens and its own OpenAPI docs at `/api/v1/docs`, an admin area for users and housekeeping, backups and restore from the browser.
 
 ---
 
 ## Quick start
+
+Runs the published image — no clone, no build.
+
 ```bash
-git clone https://github.com/Knator/Home-CMMS.git
-cd Home-CMMS
-cp .env.docker.example .env
-$EDITOR .env                     # at minimum, set TZ
-docker compose up -d --build
+mkdir home-cmms && cd home-cmms
+
+curl -o docker-compose.yml https://raw.githubusercontent.com/Knator/Home-CMMS/master/docker-compose.ghcr.yml
+curl -o .env https://raw.githubusercontent.com/Knator/Home-CMMS/master/.env.docker.example
+nano .env                    # at minimum, set TZ
+
+docker compose pull
+docker compose up -d
 ```
 
-Open `http://<your-host>:8080`. On a fresh instance you land on a setup page that creates the first administrator account.
+Open `http://<your-host>:8080`. The first start creates the database, generates a signing key and applies all migrations — a few seconds — then shows a **setup page** that creates the first administrator.
 
-> **Complete setup straight away.** Until an account exists, anyone who can reach the instance can claim the administrator account. The page closes permanently once one account exists. Don't put a fresh instance on an untrusted network before finishing setup.
+> **Complete setup straight away.** Until an account exists, anyone who can reach the instance can claim the administrator account. The page closes permanently once one account exists.
+>
+> To avoid the window entirely, set `ADMIN_USERNAME`/`ADMIN_PASSWORD` so the account exists before anything listens, or `SETUP_WINDOW_MINUTES=5` to close the page shortly after startup.
 
-> **Pass `--build` whenever the source changes.** This stack builds from the repository rather than pulling a published image, so a plain `docker compose up -d` alone reuses the image it built last time — and re-cloning doesn't help, because the stale image is what runs.
-
-The first start creates the database, generates a signing key, and applies all migrations. [`DOCKER.md`](DOCKER.md) covers every environment variable, reverse proxy setup, backups, restores and the security notes.
+[`DOCKER.md`](DOCKER.md) covers pinning a version, every environment variable, building from source instead, reverse proxies, backups, restores and the security notes.
 
 ### Without Docker
 

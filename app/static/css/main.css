@@ -2091,3 +2091,55 @@ body.embedded { background: var(--card-bg); }
   .support-dialog { padding: 12px; }
   .support-panel { padding: 26px 16px 18px; }
 }
+
+/* ── Password reveal ───────────────────────────────────────────────────────
+   The toggle sits beside the field rather than floating inside it, so it never
+   covers the characters being typed and the input keeps its full width for
+   long passphrases. */
+.password-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.password-row input {
+  flex: 1 1 auto;
+  min-width: 0;          /* lets the input shrink instead of pushing the button out */
+}
+
+.reveal-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: var(--radius);
+  border: 1px solid var(--card-border);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+
+/* Required, not tidiness: the rule above sets `display`, which outranks the
+   user agent's `[hidden] { display: none }`. Without this the button shows even
+   with JavaScript off, where it cannot do anything. */
+.reveal-toggle[hidden] { display: none; }
+
+.reveal-toggle:hover {
+  background: var(--surface-muted-hover);
+  color: var(--text-primary);
+}
+
+.reveal-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* One icon at a time: open eye while hidden, struck-through eye while shown. */
+.reveal-toggle .icon-hidden { display: none; }
+.reveal-toggle.revealed .icon-shown { display: none; }
+.reveal-toggle.revealed .icon-hidden { display: inline; }
+.reveal-toggle.revealed { color: var(--accent); }

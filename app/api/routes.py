@@ -124,6 +124,13 @@ def _validate_payload(data):
         return None, errors
 
     status = data.get('status', 'open')
+    # A completion date says the job is done, so the status follows — the same
+    # rule the web forms apply, so a work order logged through an integration
+    # does not end up recording when it finished while claiming to be open.
+    # No transition test: a work order being created has no earlier date.
+    if completed_date and status != 'completed':
+        status = 'completed'
+
     # An asset knows where it lives, so a caller need not repeat it.
     if location is None and asset is not None:
         location = asset.location

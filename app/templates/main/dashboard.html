@@ -3,11 +3,12 @@
 {% block page_title %}Dashboard{% endblock %}
 
 {% block content %}
+{# Left to right: what is on my plate, what is late, what I got done, what is
+   coming. Each answers a different question — a "due this week" card was
+   considered and dropped, being a subset of the first two. Below 860px these
+   reflow into a narrower grid, so the order is what carries the meaning rather
+   than the position. #}
 <div class="stat-grid">
-  <div class="stat-card">
-    <div class="stat-label">Total Assets</div>
-    <div class="stat-value">{{ asset_count }}</div>
-  </div>
   <div class="stat-card">
     <div class="stat-label">Open Work Orders</div>
     <div class="stat-value">{{ open_wo_count }}</div>
@@ -15,6 +16,13 @@
   <div class="stat-card">
     <div class="stat-label">Overdue Work Orders</div>
     <div class="stat-value {{ 'danger' if overdue_count > 0 }}">{{ overdue_count }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Completed in the Last 30 Days</div>
+    {# Deliberately uncoloured. Red marks overdue and amber marks PMs coming due;
+       a third colour here would leave nothing standing out, and this is the one
+       number that never needs acting on. #}
+    <div class="stat-value">{{ completed_count }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">PMs Due in the Next 30 Days</div>

@@ -148,11 +148,15 @@
   <div class="card-header">
     <span class="card-title">Sign-in Attempts</span>
     <span>
-      {% if failure_count %}
-        <a href="{{ url_for('admin.sign_in_attempts') }}" class="btn btn-secondary btn-sm">
-          View all ({{ failure_count }})
-        </a>
-      {% endif %}
+      {# Always shown, and unconditionally. The log behind it filters on
+         outcome, so it lists successful sign-ins too — hiding the only way in
+         when nothing had failed made the successful half unreachable on a
+         healthy instance, which is most of the time. No count either: it
+         counted failures only, so it read as zero beside a link to a page full
+         of entries. #}
+      <a href="{{ url_for('admin.sign_in_attempts') }}" class="btn btn-secondary btn-sm">
+        View all
+      </a>
       {{ confirm_form(url_for('admin.clear_lockouts'), 'Clear lockouts',
                       'Forget all failed attempts and lift every lockout?') }}
     </span>
@@ -178,11 +182,6 @@
         </tbody>
       </table>
     </div>
-    {% if failure_count > failures | length %}
-     <!-- <p class="field-hint" style="margin-top:8px;">
-        Showing the {{ failures | length }} most recent of {{ failure_count }}.
-      </p>-->
-    {% endif %}
     {% else %}
       <p class="text-muted">No failed sign-in attempts on record.</p>
     {% endif %}

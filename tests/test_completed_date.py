@@ -22,15 +22,22 @@ def test_a_manual_date_is_kept(client, db, user, login):
     assert WorkOrder.query.one().completed_date == date(2026, 3, 1)
 
 
-def test_a_date_can_be_set_without_completing(client, db, user, login):
-    """Recording when work happened shouldn't force the status."""
+def test_a_date_completes_the_work_order_even_if_open_was_sent(client, db, user, login):
+    """Deliberately the reverse of what this once asserted.
+
+    It used to read "recording when work happened shouldn't force the status",
+    which left work orders stating when they finished while claiming to still
+    be open. Entering a date is now taken as the statement that the job is done,
+    on this form, the edit form and the API alike. The date itself is still kept
+    exactly as typed.
+    """
     login()
     client.post('/work-orders/new', data={
         'title': 'Logged later', 'status': 'open', 'completed_date': '2026-02-14',
         'csrf_token': CSRF})
     wo = WorkOrder.query.one()
     assert wo.completed_date == date(2026, 2, 14)
-    assert wo.status == 'open'
+    assert wo.status == 'completed'
 
 
 def test_open_work_orders_have_no_date_by_default(client, db, user, login):

@@ -237,6 +237,12 @@ def settings_page():
         archive_on = bool(request.form.get('auto_archive_enabled'))
         limit = parse_int(request.form.get('max_upload_mb'), minimum=1)
         days = parse_int(request.form.get('auto_archive_days'), minimum=0)
+        # A field that was not submitted at all means "not offered", not
+        # "left blank": rejecting its absence would make the whole page
+        # unsaveable for any form that does not carry it, taking every
+        # unrelated preference down with one field.
+        raw_grace = request.form.get('default_grace_days')
+        grace = parse_int(raw_grace, minimum=0)
 
         # A setting the environment governs renders disabled, so the browser
         # does not submit it — absent here means "not yours to set", not "left
@@ -256,6 +262,8 @@ def settings_page():
         if archive_on and days is None:
             errors.append('Enter how many days a closed work order should wait '
                           'before archiving, or switch auto-archiving off.')
+        if raw_grace is not None and grace is None:
+            errors.append('Enter a default overdue grace of 0 days or more.')
         if errors:
             for message in errors:
                 flash(message, 'error')
@@ -282,6 +290,8 @@ def settings_page():
             app_settings.set_value('max_upload_mb', limit, current_user.id)
         if days is not None:
             app_settings.set_value('auto_archive_days', days, current_user.id)
+        if grace is not None:
+            app_settings.set_value('default_grace_days', grace, current_user.id)
 
         db.session.commit()
         flash('Settings saved.', 'success')

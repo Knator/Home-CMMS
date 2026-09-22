@@ -1,7 +1,10 @@
 import logging
 import os
 
-from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+from flask import (Flask, flash, jsonify, redirect, render_template, request,
+                   session, url_for)
+
+from flask_login import user_loaded_from_cookie
 
 from app.extensions import db, migrate, login_manager
 from app.utils import (
@@ -65,6 +68,28 @@ def create_app(config_class=Config, config_overrides=None):
     migrate.init_app(app, db, render_as_batch=True)
     login_manager.init_app(app)
 
+    # Make "remember me" actually last its thirty days.
+    #
+    # Restoring a user from the remember cookie writes `_user_id` and
+    # `_fresh=False` into a brand-new session, but neither `_id` — the
+    # identifier `session_protection='strong'` compares against — nor
+    # `permanent`. On the *next* request the identifier therefore cannot match,
+    # and strong protection takes its harshest branch: it empties the session
+    # and sets `_remember='clear'`, deleting the remember cookie as well. So the
+    # checkbox bought exactly one request after the eight-hour session lapsed,
+    # and then logged you out for good.
+    #
+    # Stamping both restores the state a fresh sign-in would have left. The
+    # identifier still guards the session afterwards — a remembered session
+    # used from a different browser is still rejected — which is as much as
+    # strong protection can mean for a credential whose whole purpose is to
+    # survive into a new session.
+    @user_loaded_from_cookie.connect_via(app)
+    def _restore_session_identity(sender, user=None, **extra):   # noqa: ARG001
+        session.permanent = True
+        session['_id'] = login_manager._session_identifier_generator()
+
+
     from app.models.user import User
 
     @login_manager.user_loader
@@ -87,8 +112,9 @@ def create_app(config_class=Config, config_overrides=None):
         from app.utils import is_embedded
         return {'layout': 'embedded.html' if is_embedded() else 'base.html'}
 
-    from app.settings import archived_deletion_allowed
+    from app.settings import archived_deletion_allowed, default_grace_days
     app.jinja_env.globals['archived_deletion_allowed'] = archived_deletion_allowed
+    app.jinja_env.globals['default_grace_days'] = default_grace_days
     # So the rules on screen come from the same source that enforces them.
     from app.passwords import MIN_LENGTH, REQUIREMENTS
     app.jinja_env.globals['password_requirements'] = lambda: REQUIREMENTS

@@ -38,8 +38,21 @@ def create_app(config_class=Config, config_overrides=None):
     if app.config.get('TRUST_PROXY_HEADERS'):
         # One hop: the reverse proxy directly in front of us. Trusting more
         # would let a client forge the chain.
+        #
+        # `x_for` and `x_proto` only — and the difference is not fussiness. A
+        # proxy sets `X-Forwarded-For` itself, so the value nearest us is one it
+        # controls and anything a client prepends is ignored. Nothing sets
+        # `X-Forwarded-Host` or `X-Forwarded-Prefix` on the way in: a client's
+        # own header arrives untouched, and trusting it let a request rewrite
+        # the host this application believes it is served from, which is what
+        # every `_external` URL is built from. Verified against the live
+        # deployment, where `X-Forwarded-Host: evil.example` made the published
+        # API specification advertise that as its server.
+        #
+        # Nothing is lost by dropping them: a proxy passes the real `Host`
+        # through, which is where the hostname should come from anyway.
         from werkzeug.middleware.proxy_fix import ProxyFix
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0, x_prefix=0)
 
     logging.basicConfig(
         level=logging.INFO,

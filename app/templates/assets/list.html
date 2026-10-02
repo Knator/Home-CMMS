@@ -3,6 +3,7 @@
 {% block page_title %}Assets{% endblock %}
 
 {% block content %}
+{% from '_pickers.html' import location_option %}
 {% import '_empty_state.html' as empty %}
 {% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
@@ -27,7 +28,7 @@
   <select name="location_id" data-searchable onchange="this.form.submit()">
     <option value="">All Locations</option>
     {% for loc in locations %}
-      <option value="{{ loc.id }}" {{ 'selected' if selected_location == loc.id|string }}>{{ loc.name }}</option>
+      {{ location_option(loc, selected_location == loc.id|string) }}
     {% endfor %}
   </select>
   <label>Show</label>

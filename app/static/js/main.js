@@ -979,6 +979,61 @@ function initCopyButtons() {
 
 document.addEventListener('DOMContentLoaded', initCopyButtons);
 
+/* ── Exclusive <details> groups ────────────────────────────────────────────
+   The work order filter menus share a `name`, which makes them an exclusive
+   accordion in HTML itself — opening one closes the rest. This covers the
+   browsers that do not implement that yet (before Chrome 120, Safari 17.2 or
+   Firefox 130): without it all three could be open at once and their panels,
+   which are absolutely positioned, overlapped each other.
+
+   Feature-detected, so on a current browser this does nothing and the native
+   behaviour stands alone. */
+function initExclusiveDetails() {
+  if ('name' in document.createElement('details')) return;
+
+  document.addEventListener('toggle', (event) => {
+    const panel = event.target;
+    if (!panel.open) return;
+    // `panel.name` is exactly what these browsers lack, so read the attribute.
+    const group = panel.getAttribute && panel.getAttribute('name');
+    if (!group) return;
+    document.querySelectorAll('details[name="' + group + '"]').forEach((other) => {
+      if (other !== panel) other.open = false;
+    });
+  }, true);   // `toggle` does not bubble, so it has to be caught on the way down
+}
+
+document.addEventListener('DOMContentLoaded', initExclusiveDetails);
+
+
+/* Touching any other control in the filter bar closes an open filter menu.
+
+   The shared `name` only groups the <details> menus with each other. Archived
+   is a native <select> — deliberately, being tri-state and orthogonal — and a
+   browser's select popup has no idea a <details> panel is open beside it, so
+   the two could be shown at once, overlapping. There is no HTML mechanism that
+   spans both, so this is the one part of the filter bar that needs script.
+
+   `mousedown` rather than `click`, because the popup opens before a click
+   completes; `focusin` covers reaching the select by keyboard. Controls inside
+   a menu are exempt, or ticking a checkbox would shut the menu it is in. */
+function initFilterMenus() {
+  const form = document.querySelector('form.filters');
+  if (!form) return;
+
+  const closeOpenMenus = (event) => {
+    if (event.target.closest && event.target.closest('details.filter-menu')) return;
+    form.querySelectorAll('details.filter-menu[open]').forEach((menu) => {
+      menu.open = false;
+    });
+  };
+
+  form.addEventListener('mousedown', closeOpenMenus);
+  form.addEventListener('focusin', closeOpenMenus);
+}
+
+document.addEventListener('DOMContentLoaded', initFilterMenus);
+
 /* ── Support dialog ────────────────────────────────────────────────────────
    The trigger is a real link to the real destination, so with JavaScript off
    clicking it simply opens Buy Me a Coffee in a new tab. This upgrades it into

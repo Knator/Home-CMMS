@@ -15,9 +15,18 @@
    both native, so this needs no JavaScript: without it you get an open list of
    checkboxes and an Apply button, which is the same thing less prettily. The
    summary reports the current choice, because a collapsed filter that does not
-   say what it is doing is worse than no filter. #}
+   say what it is doing is worse than no filter.
+
+   The shared `name` makes them an exclusive group: opening one closes the rest,
+   which is HTML's own accordion behaviour and still needs no script. Without it
+   all three could be open together and their panels — absolutely positioned —
+   overlapped each other.
+
+   `name` on <details> is not a form control, so it is never submitted; the
+   value is deliberately not one of the filter fields either, in case that ever
+   stops being true. #}
 {% macro multi_filter(field, label, options, chosen) %}
-  <details class="filter-menu">
+  <details class="filter-menu" name="wo-filter-menu">
     <summary>
       {{ label }}:
       <strong>

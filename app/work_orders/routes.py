@@ -127,36 +127,37 @@ def _form_options(wo=None):
     )
 
 
-def _chosen(param, allowed):
+def _chosen(param, allowed, args=None):
     """The values picked for one filter, ignoring anything not in the vocabulary.
 
     A filter with nothing ticked means "no opinion", not "match nothing" — an
     empty list is how the filter says it should not narrow anything.
+
+    `args` lets the detail page pass the filters it was handed, rather than this
+    reaching into the live request for a list it is not rendering.
     """
-    return [value for value in request.args.getlist(param) if value in allowed]
+    source = request.args if args is None else args
+    return [value for value in source.getlist(param) if value in allowed]
 
 
-def _chosen(param, allowed):
-    """The values picked for one filter, ignoring anything not in the vocabulary.
+def _filtered_work_orders(args):
+    """The work order list exactly as the index page builds it.
 
-    A filter with nothing ticked means "no opinion", not "match nothing" — an
-    empty list is how the filter says it should not narrow anything.
+    Shared with the detail page, which needs the same sequence to work out what
+    the previous and next records are — computing it twice would let the arrows
+    drift from the list the moment either filter changed.
+
+    Returns `(work_orders, problem)`. Reporting is left to the caller: the list
+    page flashes, while the detail page only wants neighbours and must not
+    repeat the list page's error messages on an unrelated screen.
     """
-    return [value for value in request.args.getlist(param) if value in allowed]
+    statuses = _chosen('status', WO_STATUSES, args)
+    types = _chosen('type', WO_TYPES, args)
+    priorities = _chosen('priority', WO_PRIORITIES, args)
+    search = args.get('q', '').strip()
+    use_regex = bool(args.get('regex'))
 
-
-@bp.route('/')
-@login_required
-def index():
-    # Several values per filter: OR within a filter, AND between them. Asking
-    # for open *or* in progress, at low *or* high priority, is one query.
-    statuses = _chosen('status', WO_STATUSES)
-    types = _chosen('type', WO_TYPES)
-    priorities = _chosen('priority', WO_PRIORITIES)
-    search = request.args.get('q', '').strip()
-    use_regex = bool(request.args.get('regex'))
-
-    archived = request.args.get('archived', '')
+    archived = args.get('archived', '')
     if archived not in ARCHIVE_FILTERS:
         archived = 'hide'
 
@@ -171,10 +172,11 @@ def index():
     # ships no REGEXP implementation. Matching in Python instead keeps it to one
     # readable path and lets a bad pattern be reported rather than raised — and
     # the rows have already been narrowed by every other filter by then.
-    regex_error = None
     pattern = None
     if search and use_regex:
         pattern, regex_error = compile_pattern(search)
+        if regex_error:
+            return [], ('invalid', regex_error)
     elif search:
         q = q.filter(like_clause(
             search, WorkOrder.title, WorkOrder.description, WorkOrder.notes))
@@ -194,21 +196,43 @@ def index():
                 pattern, work_orders,
                 lambda wo: (wo.title, wo.description, wo.notes))
         except SearchTooSlow:
+            return [], ('slow', None)
+    return work_orders, None
+
+
+@bp.route('/')
+@login_required
+def index():
+    work_orders, problem = _filtered_work_orders(request.args)
+
+    # Reported here rather than in the helper, which the detail page also uses
+    # and which must not flash a list page's errors onto another screen.
+    if problem:
+        kind, detail_text = problem
+        if kind == 'slow':
             # Not a syntax error, so it must not be reported as one.
-            work_orders = []
             flash(too_slow_message().capitalize(), 'error')
-    if regex_error:
-        flash(f'That is not a valid regular expression: {regex_error}', 'error')
-        work_orders = []
+        else:
+            flash(f'That is not a valid regular expression: {detail_text}', 'error')
+
+    archived = request.args.get('archived', '')
+    if archived not in ARCHIVE_FILTERS:
+        archived = 'hide'
 
     return render_template(
         'work_orders/list.html',
         work_orders=work_orders,
         statuses=WO_STATUSES, priorities=WO_PRIORITIES, wo_types=WO_TYPES,
-        selected_statuses=statuses, selected_types=types,
-        selected_priorities=priorities, search=search, use_regex=use_regex,
+        selected_statuses=_chosen('status', WO_STATUSES),
+        selected_types=_chosen('type', WO_TYPES),
+        selected_priorities=_chosen('priority', WO_PRIORITIES),
+        search=request.args.get('q', '').strip(),
+        use_regex=bool(request.args.get('regex')),
         archive_filters=ARCHIVE_FILTERS, selected_archived=archived,
         today=date.today(),
+        # Carried onto every row link, so opening a work order and coming back
+        # lands on the same filtered list rather than an unfiltered one.
+        list_args=request.args.to_dict(flat=False),
     )
 
 
@@ -269,10 +293,40 @@ def create():
     return render_template('work_orders/form.html', wo=None, **options)
 
 
+def _neighbours(work_order, args):
+    """The records either side of this one in the list it was opened from.
+
+    The query string the list page attached to the row link is replayed here, so
+    the arrows walk the filtered sequence rather than every work order. Nothing
+    is stored: the position lives in the URL, which means it survives a reload,
+    a bookmark and a shared link.
+
+    Returns `(previous, next, position, total)` — all None when this record is
+    not in the list at all, which happens when the filters exclude it (opening
+    an archived work order from a search that hides archived, say). Offering
+    arrows into a sequence the record does not belong to would be worse than
+    offering none.
+    """
+    work_orders, problem = _filtered_work_orders(args)
+    if problem:
+        return None, None, None, None
+
+    ids = [row.id for row in work_orders]
+    try:
+        at = ids.index(work_order.id)
+    except ValueError:
+        return None, None, None, None
+
+    previous = work_orders[at - 1] if at > 0 else None
+    following = work_orders[at + 1] if at + 1 < len(work_orders) else None
+    return previous, following, at + 1, len(work_orders)
+
+
 @bp.route('/<int:id>')
 @login_required
 def detail(id):
     wo = db.get_or_404(WorkOrder, id)
+    previous, following, position, total = _neighbours(wo, request.args)
     attachments = (
         Attachment.query
         .filter_by(entity_type=ENTITY, entity_id=id)
@@ -281,6 +335,9 @@ def detail(id):
     )
     tasks = wo.job_plan.tasks.all() if wo.job_plan else []
     return render_template('work_orders/detail.html', wo=wo, attachments=attachments,
+                           previous_wo=previous, next_wo=following,
+                           position=position, total=total,
+                           list_args=request.args.to_dict(flat=False),
                            related=related_attachments(wo), tasks=tasks,
                            materials=wo.materials, tools=wo.tools, today=date.today())
 

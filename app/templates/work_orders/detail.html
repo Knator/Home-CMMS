@@ -5,14 +5,21 @@
 
 {% block content %}
 <div class="page-header">
-  <div>
-    <h1>{{ wo.title }}</h1>
-    <div class="header-meta">
-      <span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span>
-      {% if wo.is_archived %}<span class="badge status-archived">Archived</span>{% endif %}
-      <span class="badge {{ wo.priority_class }}">{{ wo.priority }}</span>
-      <span class="badge badge-type-{{ wo.wo_type }}">{{ wo.wo_type }}</span>
-      {% if wo.is_overdue %}<span class="badge badge-overdue">Overdue</span>{% endif %}
+  {# Back sits beside the title rather than among the actions on the right:
+     leaving is a different kind of thing from editing or archiving, and it is
+     where the eye starts. #}
+  <div class="page-heading">
+    <a href="{{ url_for('work_orders.index', **list_args) }}"
+       class="btn btn-secondary page-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4l-8 8 8 8"/></svg><span>Back</span></a>
+    <div>
+      <h1>{{ wo.title }}</h1>
+      <div class="header-meta">
+        <span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span>
+        {% if wo.is_archived %}<span class="badge status-archived">Archived</span>{% endif %}
+        <span class="badge {{ wo.priority_class }}">{{ wo.priority }}</span>
+        <span class="badge badge-type-{{ wo.wo_type }}">{{ wo.wo_type }}</span>
+        {% if wo.is_overdue %}<span class="badge badge-overdue">Overdue</span>{% endif %}
+      </div>
     </div>
   </div>
   <div class="page-actions">
@@ -27,7 +34,36 @@
       </form>
       {% endif %}
     {% endif %}
-    <a href="{{ url_for('work_orders.index') }}" class="btn btn-ghost">← Back</a>
+    {# Previous / next through the list this was opened from. Rendered only
+       when the record is actually in that list: arrows into a sequence it does
+       not belong to would be worse than none. At either end the arrow becomes a
+       <span>, which has no href and so cannot be followed or focused as a link
+       — "greyed out" that is genuinely inert rather than merely looking it. #}
+    {% if total and total > 1 %}
+      <span class="wo-steps" role="group" aria-label="Move through the filtered list">
+        {% if previous_wo %}
+          <a href="{{ url_for('work_orders.detail', id=previous_wo.id, **list_args) }}"
+             class="btn btn-secondary wo-step" rel="prev"
+             title="{{ previous_wo.wo_number }} — {{ previous_wo.title }}"
+             aria-label="Previous work order"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4l-8 8 8 8"/></svg></a>
+        {% else %}
+          <span class="btn btn-secondary wo-step is-disabled" aria-disabled="true"
+                title="This is the first in the list"
+                aria-label="Previous work order (none)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4l-8 8 8 8"/></svg></span>
+        {% endif %}
+        <span class="wo-step-count">{{ position }} of {{ total }}</span>
+        {% if next_wo %}
+          <a href="{{ url_for('work_orders.detail', id=next_wo.id, **list_args) }}"
+             class="btn btn-secondary wo-step" rel="next"
+             title="{{ next_wo.wo_number }} — {{ next_wo.title }}"
+             aria-label="Next work order"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4l8 8-8 8"/></svg></a>
+        {% else %}
+          <span class="btn btn-secondary wo-step is-disabled" aria-disabled="true"
+                title="This is the last in the list"
+                aria-label="Next work order (none)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4l8 8-8 8"/></svg></span>
+        {% endif %}
+      </span>
+    {% endif %}
   </div>
 </div>
 

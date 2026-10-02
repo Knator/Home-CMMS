@@ -2143,3 +2143,78 @@ body.embedded { background: var(--card-bg); }
 .reveal-toggle.revealed .icon-shown { display: none; }
 .reveal-toggle.revealed .icon-hidden { display: inline; }
 .reveal-toggle.revealed { color: var(--accent); }
+
+/* ── Stepping through a filtered list ──────────────────────────────────────
+   Previous / next on a work order, with the position between them. The ends
+   render as <span>, so they cannot be clicked or tabbed to at all — the styling
+   below only has to make that visible. */
+.wo-steps {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* The box matches .btn-secondary exactly, so a stepper sits level with Edit
+   beside it — only the horizontal padding is trimmed, since the content is one
+   glyph rather than a word. The arrow's weight is the SVG's stroke width, not a
+   font size, so it can be made chunky without the button growing. */
+.wo-step { padding: 7px 12px; }
+
+.wo-step svg,
+.page-back svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
+.wo-step.is-disabled {
+  opacity: .4;
+  cursor: default;
+  /* Belt and braces: a span is already unclickable, but this also stops the
+     text being selected by a stray double-click on something that looks like
+     a button. */
+  user-select: none;
+}
+
+.wo-step.is-disabled:hover {
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.wo-step-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  /* The count is the first thing to go when the header actions wrap. */
+  .wo-step-count { display: none; }
+}
+
+/* Back beside the title, not among the actions. `align-items:center` keeps it
+   level with the heading rather than the badges under it, and `flex-shrink:0`
+   stops a long work order title squeezing it to nothing. */
+.page-heading {
+  display: flex;
+  align-items: center;
+  /* Wide enough to read as a separate control rather than part of the title. */
+  gap: 18px;
+  min-width: 0;
+}
+
+.page-back {
+  flex-shrink: 0;
+  gap: 7px;
+}
+
+@media (max-width: 700px) {
+  /* The header already stacks here and the actions row is tight, so the
+     chevron carries it alone. The word is hidden rather than removed, so the
+     link keeps an accessible name. */
+  .page-heading { gap: 12px; }
+  .page-back span { display: none; }
+  .page-back { padding: 7px 10px; }
+}

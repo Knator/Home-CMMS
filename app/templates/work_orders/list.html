@@ -76,8 +76,11 @@
       <tbody>
         {% for wo in work_orders %}
         <tr class="{{ 'overdue-row' if wo.is_overdue }}">
-          <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id) }}">{{ wo.wo_number }}</a></td>
-          <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id) }}">{{ wo.title }}</a></td>
+          {# The filters ride along, so the detail page can offer a Back that
+             returns here rather than to an unfiltered list, and arrows that walk
+             this sequence. #}
+          <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id, **list_args) }}">{{ wo.wo_number }}</a></td>
+          <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id, **list_args) }}">{{ wo.title }}</a></td>
           <td class="col-hide-sm"><span class="badge badge-type-{{ wo.wo_type }}">{{ wo.wo_type }}</span></td>
           <td>
             <span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span>

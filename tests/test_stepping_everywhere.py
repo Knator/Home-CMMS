@@ -170,3 +170,22 @@ def test_locations_step_in_the_order_the_tree_displays(signed_in, db):
 
     on_inner = body_of(signed_in, f'/locations/{inner.id}?show=all')
     assert '2 of 3' in on_inner
+
+
+def test_the_sign_in_log_returns_to_maintenance_from_the_same_place(signed_in, db):
+    """Same control, same position as the detail pages — but labelled for where
+    it goes, since this one returns to Maintenance rather than to a list the
+    record came from."""
+    body = body_of(signed_in, '/admin/sign-in-attempts')
+
+    assert 'page-back' in body
+    heading = body.index('class="page-heading"')
+    back = body.index('page-back')
+    title = body.index('<h1>')
+    actions = body.index('class="page-actions"')
+    assert heading < back < title < actions
+
+    chunk = body[:back]
+    href = chunk[chunk.rindex('href="') + 6:].split('"')[0]
+    assert href.rstrip('/').endswith('/admin/maintenance'), href
+    assert 'Maintenance</span>' in body

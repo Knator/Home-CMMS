@@ -33,11 +33,11 @@
       <tbody>
         {% for loc, depth in rows %}
         <tr>
-          <td><a class="mono-cell asset-link" href="{{ url_for('locations.detail', id=loc.id) }}">{{ loc.location_number }}</a></td>
+          <td><a class="mono-cell asset-link" href="{{ url_for('locations.detail', id=loc.id, **list_args) }}">{{ loc.location_number }}</a></td>
           <td>
             <span class="tree-indent" style="--depth: {{ depth }}">
               {% if depth %}<span class="tree-branch" aria-hidden="true">└</span>{% endif %}
-              <a class="row-link" href="{{ url_for('locations.detail', id=loc.id) }}">{{ loc.name }}</a>
+              <a class="row-link" href="{{ url_for('locations.detail', id=loc.id, **list_args) }}">{{ loc.name }}</a>
             </span>
           </td>
           <td><span class="badge {{ loc.status_class }}">{{ loc.status_label }}</span></td>

@@ -33,7 +33,7 @@
       <tbody>
         {% for pm in pms %}
         <tr class="{{ 'overdue-row' if pm.is_overdue }}">
-          <td><a class="row-link" href="{{ url_for('pms.detail', id=pm.id) }}">{{ pm.name }}</a></td>
+          <td><a class="row-link" href="{{ url_for('pms.detail', id=pm.id, **list_args) }}">{{ pm.name }}</a></td>
           <td>{% if pm.asset %}<a class="row-link" href="{{ url_for('assets.detail', id=pm.asset.id) }}">{{ pm.asset.name }}</a> <span class="muted-number">{{ pm.asset.asset_number }}</span>{% else %}—{% endif %}</td>
           <td class="col-hide-sm">Every {{ pm.interval_days }} days</td>
           <td class="col-hide-sm"><span class="badge {{ 'badge-type-planned' if pm.schedule_from_completion else 'badge-inactive' }}">{{ pm.schedule_basis }}</span></td>

@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
+from app.navigation import neighbours
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
@@ -73,20 +74,24 @@ def _form_context(location=None):
     )
 
 
-@bp.route('/')
-@login_required
-def index():
-    show_all = request.args.get('show', 'active') == 'all'
-    search = request.args.get('q', '').strip()
-    use_regex = bool(request.args.get('regex'))
+def _filtered_locations(args):
+    """The location list exactly as the index page builds it, hierarchy pass
+    included, so the sequence is the depth-first order on screen. Returns
+    `(rows, problem)` where each row is `(location, depth)`.
+    """
+    show_all = args.get('show', 'active') == 'all'
+    search = args.get('q', '').strip()
+    use_regex = bool(args.get('regex'))
 
     q = Location.query
     if not show_all:
         q = q.filter(Location.status == STATUS_ACTIVE)
 
-    pattern = regex_error = None
+    pattern = None
     if search and use_regex:
         pattern, regex_error = compile_pattern(search)
+        if regex_error:
+            return [], ('invalid', regex_error)
     elif search:
         q = q.filter(like_clause(
             search, Location.name, Location.description, Location.notes))
@@ -98,18 +103,30 @@ def index():
                 pattern, matched,
                 lambda loc: (loc.name, loc.description, loc.notes))
         except SearchTooSlow:
-            matched = []
-            flash(too_slow_message().capitalize(), 'error')
-    if regex_error:
-        flash(f'That is not a valid regular expression: {regex_error}', 'error')
-        matched = []
+            return [], ('slow', None)
 
     # Filtered first, arranged second: hierarchy_ordered promotes a match whose
     # parent did not match, so searching for a child still finds it rather than
     # hiding it under a branch that was filtered away.
-    rows = hierarchy_ordered(matched)
-    return render_template('locations/list.html', rows=rows, show_all=show_all,
-                           search=search, use_regex=use_regex)
+    return hierarchy_ordered(matched), None
+
+
+@bp.route('/')
+@login_required
+def index():
+    rows, problem = _filtered_locations(request.args)
+    if problem:
+        kind, detail_text = problem
+        if kind == 'slow':
+            flash(too_slow_message().capitalize(), 'error')
+        else:
+            flash(f'That is not a valid regular expression: {detail_text}', 'error')
+
+    return render_template('locations/list.html', rows=rows,
+                           show_all=request.args.get('show', 'active') == 'all',
+                           search=request.args.get('q', '').strip(),
+                           use_regex=bool(request.args.get('regex')),
+                           list_args=request.args.to_dict(flat=False))
 
 
 @bp.route('/new', methods=['GET', 'POST'])
@@ -143,6 +160,8 @@ def create():
 @bp.route('/<int:id>')
 @login_required
 def detail(id):
+    previous, following, position, total = neighbours(
+        [row for row, _depth in _filtered_locations(request.args)[0]], id)
     location = db.get_or_404(Location, id)
     attachments = (
         Attachment.query
@@ -164,6 +183,9 @@ def detail(id):
         work_orders=work_orders,
         blockers=location_delete_blockers(location),
         status_help=STATUS_HELP,
+        previous_location=previous, next_location=following,
+        position=position, total=total,
+        list_args=request.args.to_dict(flat=False),
     )
 
 

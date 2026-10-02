@@ -9,6 +9,7 @@ from app.models.asset import Asset, ASSET_CATEGORIES
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
+from app.navigation import neighbours
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
@@ -90,15 +91,17 @@ def _apply_common_fields(asset):
     asset.notes = request.form.get('notes', '').strip() or None
 
 
-@bp.route('/')
-@login_required
-def index():
-    category = request.args.get('category', '')
-    location_id = parse_int(request.args.get('location_id'))
-    show_all = request.args.get('show', 'active') == 'all'
-
-    search = request.args.get('q', '').strip()
-    use_regex = bool(request.args.get('regex'))
+def _filtered_assets(args):
+    """The asset list exactly as the index page builds it — including the
+    hierarchy pass, so the sequence is the depth-first order actually on screen
+    rather than the raw query. Returns `(rows, problem)` where each row is
+    `(asset, depth)`; see app/navigation.py.
+    """
+    category = args.get('category', '')
+    location_id = parse_int(args.get('location_id'))
+    show_all = args.get('show', 'active') == 'all'
+    search = args.get('q', '').strip()
+    use_regex = bool(args.get('regex'))
 
     q = Asset.query
     if category:
@@ -108,33 +111,48 @@ def index():
     if not show_all:
         q = q.filter(Asset.status == STATUS_ACTIVE)
 
-    pattern = regex_error = None
+    pattern = None
     if search and use_regex:
         pattern, regex_error = compile_pattern(search)
+        if regex_error:
+            return [], ('invalid', regex_error)
     elif search:
         q = q.filter(like_clause(search, Asset.name, Asset.notes))
 
     matched = q.order_by(Asset.name).all()
     if pattern is not None:
         try:
-            matched = regex_filter(pattern, matched,
-                                   lambda a: (a.name, a.notes))
+            matched = regex_filter(pattern, matched, lambda a: (a.name, a.notes))
         except SearchTooSlow:
-            matched = []
-            flash(too_slow_message().capitalize(), 'error')
-    if regex_error:
-        flash(f'That is not a valid regular expression: {regex_error}', 'error')
-        matched = []
+            return [], ('slow', None)
 
     # Filtered first, arranged second: hierarchy_ordered promotes a match whose
     # parent did not match, so a sub-assembly is still found on its own.
-    rows = hierarchy_ordered(matched)
+    return hierarchy_ordered(matched), None
+
+
+@bp.route('/')
+@login_required
+def index():
+    rows, problem = _filtered_assets(request.args)
+    if problem:
+        kind, detail_text = problem
+        if kind == 'slow':
+            flash(too_slow_message().capitalize(), 'error')
+        else:
+            flash(f'That is not a valid regular expression: {detail_text}', 'error')
+
+    location_id = parse_int(request.args.get('location_id'))
     return render_template(
         'assets/list.html', rows=rows,
         locations=Location.query.order_by(Location.name).all(),
-        categories=ASSET_CATEGORIES, selected_category=category,
+        categories=ASSET_CATEGORIES,
+        selected_category=request.args.get('category', ''),
         selected_location=str(location_id) if location_id is not None else '',
-        show_all=show_all, search=search, use_regex=use_regex,
+        show_all=request.args.get('show', 'active') == 'all',
+        search=request.args.get('q', '').strip(),
+        use_regex=bool(request.args.get('regex')),
+        list_args=request.args.to_dict(flat=False),
     )
 
 
@@ -173,6 +191,8 @@ def create():
 @bp.route('/<int:id>')
 @login_required
 def detail(id):
+    previous, following, position, total = neighbours(
+        [row for row, _depth in _filtered_assets(request.args)[0]], id)
     asset = db.get_or_404(Asset, id)
     attachments = (
         Attachment.query
@@ -183,6 +203,9 @@ def detail(id):
     return render_template(
         'assets/detail.html', asset=asset, attachments=attachments,
         blockers=asset_delete_blockers(asset), status_help=STATUS_HELP,
+        previous_asset=previous, next_asset=following,
+        position=position, total=total,
+        list_args=request.args.to_dict(flat=False),
     )
 
 

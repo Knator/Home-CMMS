@@ -10,6 +10,7 @@ from app.models.pm import PM
 from app.models.job_plan import JobPlan
 from app.models.work_order import WorkOrder, WO_PRIORITIES
 from app.models.attachment import Attachment
+from app.navigation import neighbours
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
@@ -62,20 +63,26 @@ def _read_form():
     return name, interval, next_due, from_completion, lead, grace, priority, errors
 
 
-@bp.route('/')
-@login_required
-def index():
-    active_only = request.args.get('show', 'active') != 'all'
-    search = request.args.get('q', '').strip()
-    use_regex = bool(request.args.get('regex'))
+def _filtered_pms(args):
+    """The PM list exactly as the index page builds it.
+
+    Shared with the detail page so its arrows walk the same sequence; see
+    app/navigation.py. Reporting is the caller's job — the detail page must not
+    flash a list page's errors onto another screen.
+    """
+    active_only = args.get('show', 'active') != 'all'
+    search = args.get('q', '').strip()
+    use_regex = bool(args.get('regex'))
 
     q = PM.query
     if active_only:
         q = q.filter_by(is_active=True)
 
-    pattern = regex_error = None
+    pattern = None
     if search and use_regex:
         pattern, regex_error = compile_pattern(search)
+        if regex_error:
+            return [], ('invalid', regex_error)
     elif search:
         q = q.filter(like_clause(search, PM.name, PM.notes))
 
@@ -84,15 +91,26 @@ def index():
         try:
             pms = regex_filter(pattern, pms, lambda pm: (pm.name, pm.notes))
         except SearchTooSlow:
-            pms = []
+            return [], ('slow', None)
+    return pms, None
+
+
+@bp.route('/')
+@login_required
+def index():
+    pms, problem = _filtered_pms(request.args)
+    if problem:
+        kind, detail_text = problem
+        if kind == 'slow':
             flash(too_slow_message().capitalize(), 'error')
-    if regex_error:
-        flash(f'That is not a valid regular expression: {regex_error}', 'error')
-        pms = []
+        else:
+            flash(f'That is not a valid regular expression: {detail_text}', 'error')
 
     return render_template('pms/list.html', pms=pms, today=date.today(),
-                           active_only=active_only,
-                           search=search, use_regex=use_regex)
+                           active_only=request.args.get('show', 'active') != 'all',
+                           search=request.args.get('q', '').strip(),
+                           use_regex=bool(request.args.get('regex')),
+                           list_args=request.args.to_dict(flat=False))
 
 
 @bp.route('/new', methods=['GET', 'POST'])
@@ -134,6 +152,8 @@ def create():
 @bp.route('/<int:id>')
 @login_required
 def detail(id):
+    previous, following, position, total = neighbours(
+        _filtered_pms(request.args)[0], id)
     pm = db.get_or_404(PM, id)
     generated_wos = pm.generated_work_orders.order_by(WorkOrder.created_at.desc()).limit(20).all()
     attachments = (
@@ -146,6 +166,9 @@ def detail(id):
     # leaving an overdue PM looking broken.
     blocker = pm.blocking_work_order() if app_settings.get('pm_stall_on_open') else None
     return render_template('pms/detail.html', pm=pm, generated_wos=generated_wos,
+                           previous_pm=previous, next_pm=following,
+                           position=position, total=total,
+                           list_args=request.args.to_dict(flat=False),
                            stalled_by=blocker,
                            attachments=attachments, today=date.today())
 

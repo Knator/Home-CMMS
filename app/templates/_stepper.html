@@ -1,0 +1,54 @@
+{# Back, and previous/next through the filtered list.
+
+   Shared by every detail page so the five cannot drift. `list_args` is the
+   query string the list page attached to the row link; replaying it is what
+   makes Back return to the same filtered list and the arrows walk that
+   sequence rather than every record.
+
+   The chevrons are drawn rather than typed: the weight is a stroke width, so
+   they stay chunky without the font deciding, and the button keeps the same box
+   as the ordinary buttons beside it. #}
+
+{% macro chevron_left() %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4l-8 8 8 8"/></svg>{% endmacro %}
+{% macro chevron_right() %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4l8 8-8 8"/></svg>{% endmacro %}
+
+{% macro back_link(endpoint, list_args) %}
+  <a href="{{ url_for(endpoint, **list_args) }}"
+     class="btn btn-secondary page-back">{{ chevron_left() }}<span>Back</span></a>
+{% endmacro %}
+
+{% macro stepper(endpoint, previous, next, position, total, list_args, noun,
+                 prev_label='', next_label='') %}
+  {# At either end the control becomes a <span>: no href, so it can be neither
+     clicked nor tabbed to. Greyed out that is genuinely inert, not merely
+     faint.
+
+     The labels are passed in rather than read off the record: a work order is
+     known by its number and title, the others by a name, and guessing which
+     attribute to reach for would break the moment a model gained or lost one. #}
+  {% if total and total > 1 %}
+    <span class="wo-steps" role="group" aria-label="Move through the filtered list">
+      {% if previous %}
+        <a href="{{ url_for(endpoint, id=previous.id, **list_args) }}"
+           class="btn btn-secondary wo-step" rel="prev"
+           title="{{ prev_label }}"
+           aria-label="Previous {{ noun }}">{{ chevron_left() }}</a>
+      {% else %}
+        <span class="btn btn-secondary wo-step is-disabled" aria-disabled="true"
+              title="This is the first in the list"
+              aria-label="Previous {{ noun }} (none)">{{ chevron_left() }}</span>
+      {% endif %}
+      <span class="wo-step-count">{{ position }} of {{ total }}</span>
+      {% if next %}
+        <a href="{{ url_for(endpoint, id=next.id, **list_args) }}"
+           class="btn btn-secondary wo-step" rel="next"
+           title="{{ next_label }}"
+           aria-label="Next {{ noun }}">{{ chevron_right() }}</a>
+      {% else %}
+        <span class="btn btn-secondary wo-step is-disabled" aria-disabled="true"
+              title="This is the last in the list"
+              aria-label="Next {{ noun }} (none)">{{ chevron_right() }}</span>
+      {% endif %}
+    </span>
+  {% endif %}
+{% endmacro %}

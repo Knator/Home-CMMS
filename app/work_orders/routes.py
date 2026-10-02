@@ -24,6 +24,7 @@ from app.services import (
     record_materials_on_asset, related_attachments, selectable_assets,
     selectable_locations, sync_pm_schedule,
 )
+from app.navigation import neighbours
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
@@ -294,32 +295,11 @@ def create():
 
 
 def _neighbours(work_order, args):
-    """The records either side of this one in the list it was opened from.
-
-    The query string the list page attached to the row link is replayed here, so
-    the arrows walk the filtered sequence rather than every work order. Nothing
-    is stored: the position lives in the URL, which means it survives a reload,
-    a bookmark and a shared link.
-
-    Returns `(previous, next, position, total)` — all None when this record is
-    not in the list at all, which happens when the filters exclude it (opening
-    an archived work order from a search that hides archived, say). Offering
-    arrows into a sequence the record does not belong to would be worse than
-    offering none.
-    """
+    """The records either side of this one in the list it was opened from."""
     work_orders, problem = _filtered_work_orders(args)
     if problem:
         return None, None, None, None
-
-    ids = [row.id for row in work_orders]
-    try:
-        at = ids.index(work_order.id)
-    except ValueError:
-        return None, None, None, None
-
-    previous = work_orders[at - 1] if at > 0 else None
-    following = work_orders[at + 1] if at + 1 < len(work_orders) else None
-    return previous, following, at + 1, len(work_orders)
+    return neighbours(work_orders, work_order.id)
 
 
 @bp.route('/<int:id>')

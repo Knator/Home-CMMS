@@ -7,6 +7,7 @@ from app.models.job_plan import (
     JobPlan, JobPlanTask, JobPlanItem, ITEM_MATERIAL, ITEM_TOOL,
 )
 from app.models.attachment import Attachment
+from app.navigation import neighbours
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
@@ -21,17 +22,18 @@ MAX_TASKS = 200
 MAX_ITEMS = 200
 
 
-@bp.route('/')
-@login_required
-def index():
-    search = request.args.get('q', '').strip()
-    use_regex = bool(request.args.get('regex'))
+def _filtered_job_plans(args):
+    """The job plan list exactly as the index page builds it; see
+    app/navigation.py for why the detail page needs the same sequence."""
+    search = args.get('q', '').strip()
+    use_regex = bool(args.get('regex'))
 
     query = JobPlan.query
-    pattern = regex_error = None
-
+    pattern = None
     if search and use_regex:
         pattern, regex_error = compile_pattern(search)
+        if regex_error:
+            return [], ('invalid', regex_error)
     elif search:
         # The task descriptions live in another table, so they are reached with
         # an EXISTS rather than a join — a job plan with three matching tasks
@@ -42,20 +44,30 @@ def index():
         ))
 
     job_plans = query.order_by(JobPlan.name).all()
-
     if pattern is not None:
         try:
             job_plans = regex_filter(pattern, job_plans, _searchable_text)
         except SearchTooSlow:
+            return [], ('slow', None)
+    return job_plans, None
+
+
+@bp.route('/')
+@login_required
+def index():
+    job_plans, problem = _filtered_job_plans(request.args)
+    if problem:
+        kind, detail_text = problem
+        if kind == 'slow':
             # Not a syntax error, so it must not be reported as one.
-            job_plans = []
             flash(too_slow_message().capitalize(), 'error')
-    if regex_error:
-        flash(f'That is not a valid regular expression: {regex_error}', 'error')
-        job_plans = []
+        else:
+            flash(f'That is not a valid regular expression: {detail_text}', 'error')
 
     return render_template('job_plans/list.html', job_plans=job_plans,
-                           search=search, use_regex=use_regex)
+                           search=request.args.get('q', '').strip(),
+                           use_regex=bool(request.args.get('regex')),
+                           list_args=request.args.to_dict(flat=False))
 
 
 def _searchable_text(job_plan):
@@ -102,6 +114,8 @@ def create():
 @bp.route('/<int:id>')
 @login_required
 def detail(id):
+    previous, following, position, total = neighbours(
+        _filtered_job_plans(request.args)[0], id)
     job_plan = db.get_or_404(JobPlan, id)
     tasks = job_plan.tasks.all()
     attachments = (
@@ -111,6 +125,9 @@ def detail(id):
         .all()
     )
     return render_template('job_plans/detail.html', job_plan=job_plan, tasks=tasks,
+                           previous_plan=previous, next_plan=following,
+                           position=position, total=total,
+                           list_args=request.args.to_dict(flat=False),
                            materials=job_plan.materials, tools=job_plan.tools,
                            attachments=attachments)
 

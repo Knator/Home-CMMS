@@ -67,14 +67,17 @@ def test_the_reveal_toggle_is_outside_the_password_input(client, db, user):
     characters being typed."""
     body = client.get('/auth/login').get_data(as_text=True)
     row = body[body.index('class="password-row"'):body.index('</div>', body.index('class="password-row"'))]
-    assert 'id="reveal-password"' in row
-    assert row.index('name="password"') < row.index('id="reveal-password"')
+    # Located by the field it controls rather than by an id: the button used to
+    # carry `id="reveal-password"` only because the old inline script looked it
+    # up that way. The shared password-reveal.js finds it by aria-controls.
+    assert 'aria-controls="password"' in row
+    assert row.index('name="password"') < row.index('class="reveal-toggle"')
 
 
 def test_the_toggle_is_hidden_until_javascript_enables_it(client, db, user):
     """It can only work with script, and a dead control is worse than none."""
     body = client.get('/auth/login').get_data(as_text=True)
-    button = body[body.index('id="reveal-password"'):]
+    button = body[body.index('class="reveal-toggle"'):]
     assert 'hidden' in button[:button.index('>')]
     css = (__import__('pathlib').Path('app/static/css/main.css')).read_text()
     assert '.reveal-toggle[hidden] { display: none; }' in css, (

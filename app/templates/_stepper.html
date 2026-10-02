@@ -56,3 +56,52 @@
     </span>
   {% endif %}
 {% endmacro %}
+
+{# A list's pager, rendered twice per page: compact in the header and full
+   underneath. One macro, because two copies of "which page am I on" drift —
+   the work order list already said "Newer/Older" where every other list said
+   "Previous/Next".
+
+   The count shows even on a single page: "how many are there" is the question
+   being asked, and it does not stop being interesting because they all fit.
+   The arrows only appear when there is somewhere to go, and at either end
+   become a <span> with no href — inert rather than merely faint, same as the
+   record stepper above. #}
+{% macro list_pager(endpoint, page, list_args, noun, compact=False) %}
+  {# `row_total` is the record count; `total` is what the pages are made of,
+     which differs for a tree paged by root. #}
+  {# Flask-SQLAlchemy's own Pagination has no `row_total`, and for a flat list
+     the two are the same anyway. #}
+  {% set shown = page.row_total|default(page.total, true) %}
+  {% set plural = noun if shown == 1 else noun ~ 's' %}
+  <div class="{{ 'list-count' if compact else 'pager' }}">
+    {% if page.pages > 1 %}
+      {% if page.has_prev %}
+        <a href="{{ url_for(endpoint, page=page.prev_num, **list_args) }}"
+           class="btn btn-secondary wo-step" rel="prev"
+           aria-label="Previous page">{{ chevron_left() }}</a>
+      {% else %}
+        <span class="btn btn-secondary wo-step is-disabled" aria-disabled="true"
+              title="This is the first page"
+              aria-label="Previous page (none)">{{ chevron_left() }}</span>
+      {% endif %}
+    {% endif %}
+
+    <span class="pager-position">
+      {% if page.pages > 1 %}Page {{ page.page }} of {{ page.pages }} &middot; {% endif %}
+      {{ shown }} {{ plural }}
+    </span>
+
+    {% if page.pages > 1 %}
+      {% if page.has_next %}
+        <a href="{{ url_for(endpoint, page=page.next_num, **list_args) }}"
+           class="btn btn-secondary wo-step" rel="next"
+           aria-label="Next page">{{ chevron_right() }}</a>
+      {% else %}
+        <span class="btn btn-secondary wo-step is-disabled" aria-disabled="true"
+              title="This is the last page"
+              aria-label="Next page (none)">{{ chevron_right() }}</span>
+      {% endif %}
+    {% endif %}
+  </div>
+{% endmacro %}

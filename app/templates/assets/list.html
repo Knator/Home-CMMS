@@ -3,6 +3,7 @@
 {% block page_title %}Assets{% endblock %}
 
 {% block content %}
+{% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
 <div class="page-header">
   <h1>Assets</h1>
@@ -37,6 +38,10 @@
   {% if search or selected_category or selected_location or show_all %}
     <a href="{{ url_for('assets.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}
+
+  {# Pinned right inside the filter bar: it belongs with the controls that
+     decide what is being counted, not with the New button. #}
+  {{ nav.list_pager('assets.index', page, list_args, 'asset', compact=True) }}
 </form>
 
 <div class="card">
@@ -69,4 +74,7 @@
     {% endif %}
   </div>
 </div>
+
+{{ nav.list_pager('assets.index', page, list_args, 'asset') }}
+
 {% endblock %}

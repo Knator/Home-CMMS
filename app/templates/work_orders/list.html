@@ -3,6 +3,7 @@
 {% block page_title %}Work Orders{% endblock %}
 
 {% block content %}
+{% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
 <div class="page-header">
   <h1>Work Orders</h1>
@@ -70,6 +71,10 @@
         or selected_archived != 'hide' %}
     <a href="{{ url_for('work_orders.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}
+
+  {# Pinned right inside the filter bar: it belongs with the controls that
+     decide what is being counted, not with the New button. #}
+  {{ nav.list_pager('work_orders.index', page, list_args, 'work order', compact=True) }}
 </form>
 
 <div class="card">
@@ -110,4 +115,7 @@
     {% endif %}
   </div>
 </div>
+
+{{ nav.list_pager('work_orders.index', page, list_args, 'work order') }}
+
 {% endblock %}

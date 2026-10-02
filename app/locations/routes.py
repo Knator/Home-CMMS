@@ -6,7 +6,7 @@ from app.extensions import db
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
-from app.navigation import neighbours
+from app.navigation import neighbours, page_number, paginate_tree
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
@@ -111,10 +111,19 @@ def _filtered_locations(args):
     return hierarchy_ordered(matched), None
 
 
+def _list_args():
+    """The filters to carry onto row links — not the page, which the pager owns
+    and which would otherwise pin every link to the page it was clicked from."""
+    args = request.args.to_dict(flat=False)
+    args.pop('page', None)
+    return args
+
+
 @bp.route('/')
 @login_required
 def index():
     rows, problem = _filtered_locations(request.args)
+    page = paginate_tree(rows, page_number(request.args))
     if problem:
         kind, detail_text = problem
         if kind == 'slow':
@@ -122,11 +131,11 @@ def index():
         else:
             flash(f'That is not a valid regular expression: {detail_text}', 'error')
 
-    return render_template('locations/list.html', rows=rows,
+    return render_template('locations/list.html', rows=page.items, page=page,
                            show_all=request.args.get('show', 'active') == 'all',
                            search=request.args.get('q', '').strip(),
                            use_regex=bool(request.args.get('regex')),
-                           list_args=request.args.to_dict(flat=False))
+                           list_args=_list_args())
 
 
 @bp.route('/new', methods=['GET', 'POST'])
@@ -160,8 +169,10 @@ def create():
 @bp.route('/<int:id>')
 @login_required
 def detail(id):
-    previous, following, position, total = neighbours(
-        [row for row, _depth in _filtered_locations(request.args)[0]], id)
+    previous_id, next_id, position, total = neighbours(
+        [row.id for row, _depth in _filtered_locations(request.args)[0]], id)
+    previous = db.session.get(Location, previous_id) if previous_id else None
+    following = db.session.get(Location, next_id) if next_id else None
     location = db.get_or_404(Location, id)
     attachments = (
         Attachment.query
@@ -185,7 +196,7 @@ def detail(id):
         status_help=STATUS_HELP,
         previous_location=previous, next_location=following,
         position=position, total=total,
-        list_args=request.args.to_dict(flat=False),
+        list_args=_list_args(),
     )
 
 

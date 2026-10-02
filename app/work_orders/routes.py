@@ -24,7 +24,10 @@ from app.services import (
     record_materials_on_asset, related_attachments, selectable_assets,
     selectable_locations, sync_pm_schedule,
 )
-from app.navigation import neighbours
+from sqlalchemy.orm import joinedload
+
+from app.navigation import (PAGE_SIZE, empty_page, neighbours,
+                            page_number, paginate_list)
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
@@ -141,16 +144,13 @@ def _chosen(param, allowed, args=None):
     return [value for value in source.getlist(param) if value in allowed]
 
 
-def _filtered_work_orders(args):
-    """The work order list exactly as the index page builds it.
+def _work_order_query(args):
+    """The filtered query, and the regex pattern if one applies.
 
-    Shared with the detail page, which needs the same sequence to work out what
-    the previous and next records are — computing it twice would let the arrows
-    drift from the list the moment either filter changed.
-
-    Returns `(work_orders, problem)`. Reporting is left to the caller: the list
-    page flashes, while the detail page only wants neighbours and must not
-    repeat the list page's error messages on an unrelated screen.
+    Split from paging so the list page can take a LIMIT while the detail page
+    asks the same question for ids alone. Returns `(query, pattern, problem)`;
+    reporting is the caller's job, because the detail page must not flash a list
+    page's errors onto another screen.
     """
     statuses = _chosen('status', WO_STATUSES, args)
     types = _chosen('type', WO_TYPES, args)
@@ -169,15 +169,12 @@ def _filtered_work_orders(args):
         q = q.filter(WorkOrder.wo_type.in_(types))
     if priorities:
         q = q.filter(WorkOrder.priority.in_(priorities))
-    # A plain search runs in SQL; a regular expression cannot, because SQLite
-    # ships no REGEXP implementation. Matching in Python instead keeps it to one
-    # readable path and lets a bad pattern be reported rather than raised — and
-    # the rows have already been narrowed by every other filter by then.
+
     pattern = None
     if search and use_regex:
         pattern, regex_error = compile_pattern(search)
         if regex_error:
-            return [], ('invalid', regex_error)
+            return None, None, ('invalid', regex_error)
     elif search:
         q = q.filter(like_clause(
             search, WorkOrder.title, WorkOrder.description, WorkOrder.notes))
@@ -190,21 +187,69 @@ def _filtered_work_orders(args):
     elif archived == 'only':
         q = q.filter(WorkOrder.archived_at.isnot(None))
 
-    work_orders = q.order_by(WorkOrder.created_at.desc()).all()
+    return q.order_by(WorkOrder.created_at.desc()), pattern, None
+
+
+def _regex_texts(wo):
+    return (wo.title, wo.description, wo.notes)
+
+
+def _filtered_page(args):
+    """One page of the list, and any problem worth reporting."""
+    query, pattern, problem = _work_order_query(args)
+    if problem:
+        return empty_page(page_number(args)), problem
+
+    page = page_number(args)
+    if pattern is not None:
+        # A regular expression cannot be a LIMIT: SQLite ships no REGEXP, so the
+        # rows have to be loaded and matched in Python before anything can be
+        # sliced. Every other filter has already narrowed them by this point.
+        try:
+            rows = regex_filter(pattern, _eager(query).all(), _regex_texts)
+        except SearchTooSlow:
+            return empty_page(page), ('slow', None)
+        return paginate_list(rows, page), None
+
+    return _eager(query).paginate(page=page, per_page=PAGE_SIZE,
+                                  error_out=False), None
+
+
+def _eager(query):
+    """Load the related records the list shows in one go.
+
+    Without this the table issued a query per row for its asset and location —
+    555 of them for a single page at 10,000 records.
+    """
+    return query.options(
+        joinedload(WorkOrder.asset),
+        joinedload(WorkOrder.location),
+        joinedload(WorkOrder.assignee),
+    )
+
+
+def _sequence_ids(args):
+    """Every id in the filtered order, for working out previous and next.
+
+    The id column alone: 99ms against 50,000 rows where loading the objects took
+    1122ms. The regex path still has to load rows, because the match needs the
+    text, but that is the uncommon case.
+    """
+    query, pattern, problem = _work_order_query(args)
+    if problem:
+        return []
     if pattern is not None:
         try:
-            work_orders = regex_filter(
-                pattern, work_orders,
-                lambda wo: (wo.title, wo.description, wo.notes))
+            return [wo.id for wo in regex_filter(pattern, query.all(), _regex_texts)]
         except SearchTooSlow:
-            return [], ('slow', None)
-    return work_orders, None
+            return []
+    return [row[0] for row in query.with_entities(WorkOrder.id).all()]
 
 
 @bp.route('/')
 @login_required
 def index():
-    work_orders, problem = _filtered_work_orders(request.args)
+    page, problem = _filtered_page(request.args)
 
     # Reported here rather than in the helper, which the detail page also uses
     # and which must not flash a list page's errors onto another screen.
@@ -220,9 +265,15 @@ def index():
     if archived not in ARCHIVE_FILTERS:
         archived = 'hide'
 
+    # The page number is not carried onto row links or the pager's other filters
+    # — it is set by the pager itself, and keeping it here would pin every link
+    # to the page you happened to be on.
+    list_args = request.args.to_dict(flat=False)
+    list_args.pop('page', None)
+
     return render_template(
         'work_orders/list.html',
-        work_orders=work_orders,
+        work_orders=page.items, page=page,
         statuses=WO_STATUSES, priorities=WO_PRIORITIES, wo_types=WO_TYPES,
         selected_statuses=_chosen('status', WO_STATUSES),
         selected_types=_chosen('type', WO_TYPES),
@@ -231,9 +282,7 @@ def index():
         use_regex=bool(request.args.get('regex')),
         archive_filters=ARCHIVE_FILTERS, selected_archived=archived,
         today=date.today(),
-        # Carried onto every row link, so opening a work order and coming back
-        # lands on the same filtered list rather than an unfiltered one.
-        list_args=request.args.to_dict(flat=False),
+        list_args=list_args,
     )
 
 
@@ -296,10 +345,13 @@ def create():
 
 def _neighbours(work_order, args):
     """The records either side of this one in the list it was opened from."""
-    work_orders, problem = _filtered_work_orders(args)
-    if problem:
-        return None, None, None, None
-    return neighbours(work_orders, work_order.id)
+    previous_id, next_id, position, total = neighbours(
+        _sequence_ids(args), work_order.id)
+    return (
+        db.session.get(WorkOrder, previous_id) if previous_id else None,
+        db.session.get(WorkOrder, next_id) if next_id else None,
+        position, total,
+    )
 
 
 @bp.route('/<int:id>')

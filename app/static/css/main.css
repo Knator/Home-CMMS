@@ -2218,3 +2218,22 @@ body.embedded { background: var(--card-bg); }
   .page-back span { display: none; }
   .page-back { padding: 7px 10px; }
 }
+
+/* The compact pager that sits in a list's header, beside the New button. */
+.list-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.list-count .pager-position { white-space: nowrap; }
+
+/* Pinned to the right of the filter bar. `margin-left:auto` rather than
+   `justify-content`, so it still sits right on its own line once the filters
+   wrap onto two rows. */
+.filters .list-count { margin-left: auto; }
+
+@media (max-width: 700px) {
+  /* The header already wraps here; the count is what matters, not the page. */
+  .list-count .pager-position { font-size: 11px; }
+}

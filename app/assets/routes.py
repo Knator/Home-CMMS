@@ -9,7 +9,7 @@ from app.models.asset import Asset, ASSET_CATEGORIES
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
-from app.navigation import neighbours
+from app.navigation import neighbours, page_number, paginate_tree
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
@@ -131,10 +131,19 @@ def _filtered_assets(args):
     return hierarchy_ordered(matched), None
 
 
+def _list_args():
+    """The filters to carry onto row links — not the page, which the pager owns
+    and which would otherwise pin every link to the page it was clicked from."""
+    args = request.args.to_dict(flat=False)
+    args.pop('page', None)
+    return args
+
+
 @bp.route('/')
 @login_required
 def index():
     rows, problem = _filtered_assets(request.args)
+    page = paginate_tree(rows, page_number(request.args))
     if problem:
         kind, detail_text = problem
         if kind == 'slow':
@@ -144,7 +153,7 @@ def index():
 
     location_id = parse_int(request.args.get('location_id'))
     return render_template(
-        'assets/list.html', rows=rows,
+        'assets/list.html', rows=page.items, page=page,
         locations=Location.query.order_by(Location.name).all(),
         categories=ASSET_CATEGORIES,
         selected_category=request.args.get('category', ''),
@@ -152,7 +161,7 @@ def index():
         show_all=request.args.get('show', 'active') == 'all',
         search=request.args.get('q', '').strip(),
         use_regex=bool(request.args.get('regex')),
-        list_args=request.args.to_dict(flat=False),
+        list_args=_list_args(),
     )
 
 
@@ -191,8 +200,10 @@ def create():
 @bp.route('/<int:id>')
 @login_required
 def detail(id):
-    previous, following, position, total = neighbours(
-        [row for row, _depth in _filtered_assets(request.args)[0]], id)
+    previous_id, next_id, position, total = neighbours(
+        [row.id for row, _depth in _filtered_assets(request.args)[0]], id)
+    previous = db.session.get(Asset, previous_id) if previous_id else None
+    following = db.session.get(Asset, next_id) if next_id else None
     asset = db.get_or_404(Asset, id)
     attachments = (
         Attachment.query

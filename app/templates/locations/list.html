@@ -3,6 +3,7 @@
 {% block page_title %}Locations{% endblock %}
 
 {% block content %}
+{% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
 <div class="page-header">
   <h1>Locations</h1>
@@ -23,6 +24,10 @@
   {% if search or show_all %}
     <a href="{{ url_for('locations.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}
+
+  {# Pinned right inside the filter bar: it belongs with the controls that
+     decide what is being counted, not with the New button. #}
+  {{ nav.list_pager('locations.index', page, list_args, 'location', compact=True) }}
 </form>
 
 <div class="card">
@@ -56,4 +61,7 @@
     {% endif %}
   </div>
 </div>
+
+{{ nav.list_pager('locations.index', page, list_args, 'location') }}
+
 {% endblock %}

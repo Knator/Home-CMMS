@@ -1,0 +1,23 @@
+{# What a list says when it has nothing to show.
+
+   The two cases read very differently and were previously conflated: "No job
+   plans yet. Create one." appeared when 220 existed and a search simply matched
+   none of them, which invites someone to create a duplicate of something they
+   were looking at a moment ago.
+
+   `any_records` is what separates them, and it has to be a real check rather
+   than "is there a search box filled in": every list defaults to hiding
+   something — inactive assets, archived work orders, retired PMs — so a list
+   can be empty with no query string at all and still not be empty underneath. #}
+{% macro empty_state(noun, create_endpoint, any_records, clear_args={}) %}
+  <div class="card-body text-muted">
+    {% if any_records %}
+      No {{ noun }} match the current filters.
+      <a href="{{ url_for(request.endpoint, **clear_args) }}">Clear them</a>
+      to see all {{ noun }}.
+    {% else %}
+      No {{ noun }} yet.
+      <a href="{{ url_for(create_endpoint) }}">Create one.</a>
+    {% endif %}
+  </div>
+{% endmacro %}

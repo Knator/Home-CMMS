@@ -90,10 +90,14 @@ def index():
     list_args = request.args.to_dict(flat=False)
     list_args.pop('page', None)
 
+    # Only when there is nothing to show: one cheap existence check tells the
+    # empty state whether the list is genuinely empty or merely filtered.
+    any_records = bool(page.items) or JobPlan.query.first() is not None
+
     return render_template('job_plans/list.html', job_plans=page.items, page=page,
                            search=request.args.get('q', '').strip(),
                            use_regex=bool(request.args.get('regex')),
-                           list_args=list_args)
+                           list_args=list_args, any_records=any_records)
 
 
 def _searchable_text(job_plan):

@@ -3,6 +3,7 @@
 {% block page_title %}Job Plans{% endblock %}
 
 {% block content %}
+{% import '_empty_state.html' as empty %}
 {% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
 <div class="page-header">
@@ -45,7 +46,7 @@
       </tbody>
     </table>
     {% else %}
-      <div class="card-body text-muted">No job plans yet. <a href="{{ url_for('job_plans.create') }}">Create one.</a></div>
+      {{ empty.empty_state('job plans', 'job_plans.create', any_records) }}
     {% endif %}
   </div>
 </div>

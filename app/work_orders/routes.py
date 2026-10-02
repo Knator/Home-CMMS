@@ -271,6 +271,10 @@ def index():
     list_args = request.args.to_dict(flat=False)
     list_args.pop('page', None)
 
+    # Only when there is nothing to show: one cheap existence check tells the
+    # empty state whether the list is genuinely empty or merely filtered.
+    any_records = bool(page.items) or WorkOrder.query.first() is not None
+
     return render_template(
         'work_orders/list.html',
         work_orders=page.items, page=page,
@@ -282,7 +286,7 @@ def index():
         use_regex=bool(request.args.get('regex')),
         archive_filters=ARCHIVE_FILTERS, selected_archived=archived,
         today=date.today(),
-        list_args=list_args,
+        list_args=list_args, any_records=any_records,
     )
 
 

@@ -138,12 +138,16 @@ def index():
     list_args = request.args.to_dict(flat=False)
     list_args.pop('page', None)
 
+    # Only when there is nothing to show: one cheap existence check tells the
+    # empty state whether the list is genuinely empty or merely filtered.
+    any_records = bool(page.items) or PM.query.first() is not None
+
     return render_template('pms/list.html', pms=page.items, page=page,
                            today=date.today(),
                            active_only=request.args.get('show', 'active') != 'all',
                            search=request.args.get('q', '').strip(),
                            use_regex=bool(request.args.get('regex')),
-                           list_args=list_args)
+                           list_args=list_args, any_records=any_records)
 
 
 @bp.route('/new', methods=['GET', 'POST'])

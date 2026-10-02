@@ -3,6 +3,7 @@
 {% block page_title %}Locations{% endblock %}
 
 {% block content %}
+{% import '_empty_state.html' as empty %}
 {% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
 <div class="page-header">
@@ -54,10 +55,7 @@
       </tbody>
     </table>
     {% else %}
-      <div class="card-body text-muted">
-        No locations{{ ' with Active status' if not show_all }}.
-        <a href="{{ url_for('locations.create') }}">Create one.</a>
-      </div>
+      {{ empty.empty_state('locations', 'locations.create', any_records) }}
     {% endif %}
   </div>
 </div>

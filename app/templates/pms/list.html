@@ -3,6 +3,7 @@
 {% block page_title %}Preventive Maintenance{% endblock %}
 
 {% block content %}
+{% import '_empty_state.html' as empty %}
 {% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
 <div class="page-header">
@@ -57,7 +58,7 @@
       </tbody>
     </table>
     {% else %}
-      <div class="card-body text-muted">No PM schedules found.</div>
+      {{ empty.empty_state('PM schedules', 'pms.create', any_records) }}
     {% endif %}
   </div>
 </div>

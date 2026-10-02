@@ -144,6 +144,7 @@ def _list_args():
 def index():
     rows, problem = _filtered_assets(request.args)
     page = paginate_tree(rows, page_number(request.args))
+    any_records = bool(page.items) or Asset.query.first() is not None
     if problem:
         kind, detail_text = problem
         if kind == 'slow':
@@ -161,7 +162,7 @@ def index():
         show_all=request.args.get('show', 'active') == 'all',
         search=request.args.get('q', '').strip(),
         use_regex=bool(request.args.get('regex')),
-        list_args=_list_args(),
+        list_args=_list_args(), any_records=any_records,
     )
 
 

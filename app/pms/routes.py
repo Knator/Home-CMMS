@@ -10,6 +10,10 @@ from app.models.pm import PM
 from app.models.job_plan import JobPlan
 from app.models.work_order import WorkOrder, WO_PRIORITIES
 from app.models.attachment import Attachment
+from sqlalchemy.orm import joinedload
+
+from app.navigation import (PAGE_SIZE, empty_page, neighbours,
+                            page_number, paginate_list)
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
@@ -62,37 +66,88 @@ def _read_form():
     return name, interval, next_due, from_completion, lead, grace, priority, errors
 
 
-@bp.route('/')
-@login_required
-def index():
-    active_only = request.args.get('show', 'active') != 'all'
-    search = request.args.get('q', '').strip()
-    use_regex = bool(request.args.get('regex'))
+def _pm_query(args):
+    """The filtered query, and the regex pattern if one applies."""
+    active_only = args.get('show', 'active') != 'all'
+    search = args.get('q', '').strip()
+    use_regex = bool(args.get('regex'))
 
     q = PM.query
     if active_only:
         q = q.filter_by(is_active=True)
 
-    pattern = regex_error = None
+    pattern = None
     if search and use_regex:
         pattern, regex_error = compile_pattern(search)
+        if regex_error:
+            return None, None, ('invalid', regex_error)
     elif search:
         q = q.filter(like_clause(search, PM.name, PM.notes))
 
-    pms = q.order_by(PM.next_due_date).all()
+    return q.order_by(PM.next_due_date), pattern, None
+
+
+def _regex_texts(pm):
+    return (pm.name, pm.notes)
+
+
+def _eager(query):
+    """The list shows each PM's asset and location, which was a query per row."""
+    return query.options(joinedload(PM.asset), joinedload(PM.location))
+
+
+def _filtered_page(args):
+    query, pattern, problem = _pm_query(args)
+    if problem:
+        return empty_page(page_number(args)), problem
+
+    page = page_number(args)
     if pattern is not None:
         try:
-            pms = regex_filter(pattern, pms, lambda pm: (pm.name, pm.notes))
+            rows = regex_filter(pattern, _eager(query).all(), _regex_texts)
         except SearchTooSlow:
-            pms = []
-            flash(too_slow_message().capitalize(), 'error')
-    if regex_error:
-        flash(f'That is not a valid regular expression: {regex_error}', 'error')
-        pms = []
+            return empty_page(page), ('slow', None)
+        return paginate_list(rows, page), None
+    return _eager(query).paginate(page=page, per_page=PAGE_SIZE,
+                                  error_out=False), None
 
-    return render_template('pms/list.html', pms=pms, today=date.today(),
-                           active_only=active_only,
-                           search=search, use_regex=use_regex)
+
+def _sequence_ids(args):
+    query, pattern, problem = _pm_query(args)
+    if problem:
+        return []
+    if pattern is not None:
+        try:
+            return [pm.id for pm in regex_filter(pattern, query.all(), _regex_texts)]
+        except SearchTooSlow:
+            return []
+    return [row[0] for row in query.with_entities(PM.id).all()]
+
+
+@bp.route('/')
+@login_required
+def index():
+    page, problem = _filtered_page(request.args)
+    if problem:
+        kind, detail_text = problem
+        if kind == 'slow':
+            flash(too_slow_message().capitalize(), 'error')
+        else:
+            flash(f'That is not a valid regular expression: {detail_text}', 'error')
+
+    list_args = request.args.to_dict(flat=False)
+    list_args.pop('page', None)
+
+    # Only when there is nothing to show: one cheap existence check tells the
+    # empty state whether the list is genuinely empty or merely filtered.
+    any_records = bool(page.items) or PM.query.first() is not None
+
+    return render_template('pms/list.html', pms=page.items, page=page,
+                           today=date.today(),
+                           active_only=request.args.get('show', 'active') != 'all',
+                           search=request.args.get('q', '').strip(),
+                           use_regex=bool(request.args.get('regex')),
+                           list_args=list_args, any_records=any_records)
 
 
 @bp.route('/new', methods=['GET', 'POST'])
@@ -134,6 +189,9 @@ def create():
 @bp.route('/<int:id>')
 @login_required
 def detail(id):
+    previous_id, next_id, position, total = neighbours(_sequence_ids(request.args), id)
+    previous = db.session.get(PM, previous_id) if previous_id else None
+    following = db.session.get(PM, next_id) if next_id else None
     pm = db.get_or_404(PM, id)
     generated_wos = pm.generated_work_orders.order_by(WorkOrder.created_at.desc()).limit(20).all()
     attachments = (
@@ -146,6 +204,9 @@ def detail(id):
     # leaving an overdue PM looking broken.
     blocker = pm.blocking_work_order() if app_settings.get('pm_stall_on_open') else None
     return render_template('pms/detail.html', pm=pm, generated_wos=generated_wos,
+                           previous_pm=previous, next_pm=following,
+                           position=position, total=total,
+                           list_args=request.args.to_dict(flat=False),
                            stalled_by=blocker,
                            attachments=attachments, today=date.today())
 

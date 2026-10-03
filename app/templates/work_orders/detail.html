@@ -1,18 +1,25 @@
 {% extends 'base.html' %}
 {% import '_attachments.html' as att_ui %}
+{% import '_stepper.html' as nav %}
 {% block title %}{{ wo.wo_number }} — Home CMMS{% endblock %}
 {% block page_title %}{{ wo.wo_number }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <div>
-    <h1>{{ wo.title }}</h1>
-    <div class="header-meta">
-      <span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span>
-      {% if wo.is_archived %}<span class="badge status-archived">Archived</span>{% endif %}
-      <span class="badge {{ wo.priority_class }}">{{ wo.priority }}</span>
-      <span class="badge badge-type-{{ wo.wo_type }}">{{ wo.wo_type }}</span>
-      {% if wo.is_overdue %}<span class="badge badge-overdue">Overdue</span>{% endif %}
+  {# Back sits beside the title rather than among the actions on the right:
+     leaving is a different kind of thing from editing or archiving, and it is
+     where the eye starts. #}
+  <div class="page-heading">
+    {{ nav.back_link('work_orders.index', list_args) }}
+    <div>
+      <h1>{{ wo.title }}</h1>
+      <div class="header-meta">
+        <span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span>
+        {% if wo.is_archived %}<span class="badge status-archived">Archived</span>{% endif %}
+        <span class="badge {{ wo.priority_class }}">{{ wo.priority }}</span>
+        <span class="badge badge-type-{{ wo.wo_type }}">{{ wo.wo_type }}</span>
+        {% if wo.is_overdue %}<span class="badge badge-overdue">Overdue</span>{% endif %}
+      </div>
     </div>
   </div>
   <div class="page-actions">
@@ -27,7 +34,10 @@
       </form>
       {% endif %}
     {% endif %}
-    <a href="{{ url_for('work_orders.index') }}" class="btn btn-ghost">← Back</a>
+    {{ nav.stepper('work_orders.detail', previous_wo, next_wo, position, total,
+                   list_args, 'work order',
+                   (previous_wo.wo_number ~ ' — ' ~ previous_wo.title) if previous_wo else '',
+                   (next_wo.wo_number ~ ' — ' ~ next_wo.title) if next_wo else '') }}
   </div>
 </div>
 

@@ -148,11 +148,27 @@ def test_clear_appears_only_when_something_is_filtered(signed_in, orders):
 
 
 def test_the_filters_work_without_javascript(signed_in, orders):
-    """<details> and checkboxes are native; only the appearance is CSS."""
+    """<details> and checkboxes are native; only the appearance is CSS.
+
+    Matched loosely: the tag also carries the `name` that makes the menus an
+    exclusive group, which is itself native. Pinning the exact string made this
+    fail for an addition that strengthened the very property being tested.
+    """
+    import re
+
     html = signed_in.get('/work-orders/').get_data(as_text=True)
-    assert '<details class="filter-menu">' in html
+    assert re.search(r'<details[^>]*class="filter-menu"', html)
     assert 'type="checkbox" name="status"' in html
-    assert 'onchange="this.form.submit()"' not in html.split('archived')[0]
+
+    # The multi-value menus must not submit on change: several boxes get ticked
+    # and then applied. This used to be checked as "nothing before the word
+    # 'archived' auto-submits", a proxy that broke the moment a single-choice
+    # select (Due) joined Archived in auto-submitting — which is right for a
+    # single choice, and the Search button still covers no-JavaScript use.
+    menus = re.findall(r'<details[^>]*class="filter-menu".*?</details>', html, re.S)
+    assert len(menus) == 3, len(menus)
+    for menu in menus:
+        assert 'onchange' not in menu, 'a checkbox menu submits on change'
 
 
 # ── regex search ───────────────────────────────────────────────────────────

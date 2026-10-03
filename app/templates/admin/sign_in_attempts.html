@@ -1,10 +1,13 @@
 {% extends 'base.html' %}
+{% import '_stepper.html' as nav %}
 {% block title %}Sign-in Attempts — Home CMMS{% endblock %}
 {% block page_title %}Sign-in Attempts{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <div>
+  <div class="page-heading">
+    {{ nav.back_link('admin.maintenance_page', label='Maintenance') }}
+    <div>
     <h1>Sign-in Attempts</h1>
     <div class="header-meta">
       <span class="breadcrumb-path">
@@ -15,6 +18,7 @@
       </span>
     </div>
   </div>
+  </div>
   <div class="page-actions">
     <form method="post" action="{{ url_for('admin.clear_lockouts') }}" style="display:inline;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -23,7 +27,6 @@
         Clear lockouts
       </button>
     </form>
-    <a href="{{ url_for('admin.maintenance_page') }}" class="btn btn-ghost">← Maintenance</a>
   </div>
 </div>
 

@@ -3,6 +3,8 @@
 {% block page_title %}Preventive Maintenance{% endblock %}
 
 {% block content %}
+{% import '_empty_state.html' as empty %}
+{% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
 <div class="page-header">
   <h1>Preventive Maintenance</h1>
@@ -23,6 +25,10 @@
   {% if search or not active_only %}
     <a href="{{ url_for('pms.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}
+
+  {# Pinned right inside the filter bar: it belongs with the controls that
+     decide what is being counted, not with the New button. #}
+  {{ nav.list_pager('pms.index', page, list_args, 'PM', compact=True) }}
 </form>
 
 <div class="card">
@@ -33,7 +39,7 @@
       <tbody>
         {% for pm in pms %}
         <tr class="{{ 'overdue-row' if pm.is_overdue }}">
-          <td><a class="row-link" href="{{ url_for('pms.detail', id=pm.id) }}">{{ pm.name }}</a></td>
+          <td><a class="row-link" href="{{ url_for('pms.detail', id=pm.id, **list_args) }}">{{ pm.name }}</a></td>
           <td>{% if pm.asset %}<a class="row-link" href="{{ url_for('assets.detail', id=pm.asset.id) }}">{{ pm.asset.name }}</a> <span class="muted-number">{{ pm.asset.asset_number }}</span>{% else %}—{% endif %}</td>
           <td class="col-hide-sm">Every {{ pm.interval_days }} days</td>
           <td class="col-hide-sm"><span class="badge {{ 'badge-type-planned' if pm.schedule_from_completion else 'badge-inactive' }}">{{ pm.schedule_basis }}</span></td>
@@ -52,8 +58,11 @@
       </tbody>
     </table>
     {% else %}
-      <div class="card-body text-muted">No PM schedules found.</div>
+      {{ empty.empty_state('PM schedules', 'pms.create', any_records) }}
     {% endif %}
   </div>
 </div>
+
+{{ nav.list_pager('pms.index', page, list_args, 'PM') }}
+
 {% endblock %}

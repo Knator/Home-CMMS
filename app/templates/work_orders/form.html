@@ -1,5 +1,5 @@
 {% extends layout %}
-{% from '_pickers.html' import add_new %}
+{% from '_pickers.html' import add_new, asset_option, job_plan_option, location_option %}
 {% set is_edit = wo is not none %}
 {% block title %}{{ 'Edit' if is_edit else 'New' }} Work Order — Home CMMS{% endblock %}
 {% block page_title %}{{ 'Edit WO ' + wo.wo_number if is_edit else 'New Work Order' }}{% endblock %}
@@ -62,7 +62,7 @@
                     data-summary-url="{{ url_for('assets.summary', id=0) }}">
               <option value="">— None —</option>
               {% for a in assets %}
-                <option value="{{ a.id }}" {{ 'selected' if is_edit and wo.asset_id == a.id }}>{{ a.name }} ({{ a.asset_number }}){% if a.location %} — {{ a.location.path_label }}{% endif %}</option>
+                {{ asset_option(a, is_edit and wo.asset_id == a.id) }}
               {% endfor %}
             </select>
               {{ add_new('asset', url_for('assets.create'), 'asset_id', 'asset') }}
@@ -74,7 +74,7 @@
               <select name="location_id" data-searchable id="location_id">
               <option value="">— None —</option>
               {% for loc in locations %}
-                <option value="{{ loc.id }}" {{ 'selected' if is_edit and wo.location_id == loc.id }}>{{ loc.name }} ({{ loc.location_number }})</option>
+                {{ location_option(loc, is_edit and wo.location_id == loc.id) }}
               {% endfor %}
             </select>
               {{ add_new('location', url_for('locations.create'), 'location_id', 'location') }}
@@ -87,7 +87,7 @@
               <select name="job_plan_id" id="job_plan_id" data-searchable>
               <option value="">— None —</option>
               {% for jp in job_plans %}
-                <option value="{{ jp.id }}" {{ 'selected' if is_edit and wo.job_plan_id == jp.id }}>{{ jp.name }}</option>
+                {{ job_plan_option(jp, is_edit and wo.job_plan_id == jp.id) }}
               {% endfor %}
             </select>
               {{ add_new('job_plan', url_for('job_plans.create'), 'job_plan_id', 'job plan') }}

@@ -1,11 +1,14 @@
 {% extends 'base.html' %}
+{% import '_stepper.html' as nav %}
 {% import '_attachments.html' as att_ui %}
 {% block title %}{{ asset.name }} — Home CMMS{% endblock %}
 {% block page_title %}{{ asset.name }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <div>
+  <div class="page-heading">
+    {{ nav.back_link('assets.index', list_args) }}
+    <div>
     <h1>{{ asset.name }}</h1>
     <div class="header-meta">
       <span class="asset-number">{{ asset.asset_number }}</span>
@@ -14,9 +17,13 @@
       {% if asset.location %}<span class="breadcrumb-path">at {{ asset.location.path_label }}</span>{% endif %}
     </div>
   </div>
+  </div>
   <div class="page-actions">
     <a href="{{ url_for('assets.edit', id=asset.id) }}" class="btn btn-secondary">Edit</a>
-    <a href="{{ url_for('assets.index') }}" class="btn btn-ghost">← Back</a>
+    {{ nav.stepper('assets.detail', previous_asset, next_asset, position, total,
+                   list_args, 'asset',
+                   previous_asset.name if previous_asset else '',
+                   next_asset.name if next_asset else '') }}
   </div>
 </div>
 

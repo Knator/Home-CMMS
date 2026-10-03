@@ -7,6 +7,8 @@ from app.models.job_plan import (
     JobPlan, JobPlanTask, JobPlanItem, ITEM_MATERIAL, ITEM_TOOL,
 )
 from app.models.attachment import Attachment
+from app.navigation import (PAGE_SIZE, empty_page, neighbours,
+                            page_number, paginate_list)
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
@@ -21,17 +23,17 @@ MAX_TASKS = 200
 MAX_ITEMS = 200
 
 
-@bp.route('/')
-@login_required
-def index():
-    search = request.args.get('q', '').strip()
-    use_regex = bool(request.args.get('regex'))
+def _job_plan_query(args):
+    """The filtered query, and the regex pattern if one applies."""
+    search = args.get('q', '').strip()
+    use_regex = bool(args.get('regex'))
 
     query = JobPlan.query
-    pattern = regex_error = None
-
+    pattern = None
     if search and use_regex:
         pattern, regex_error = compile_pattern(search)
+        if regex_error:
+            return None, None, ('invalid', regex_error)
     elif search:
         # The task descriptions live in another table, so they are reached with
         # an EXISTS rather than a join — a job plan with three matching tasks
@@ -41,21 +43,61 @@ def index():
             JobPlan.tasks.any(like_clause(search, JobPlanTask.description)),
         ))
 
-    job_plans = query.order_by(JobPlan.name).all()
+    return query.order_by(JobPlan.name), pattern, None
 
+
+def _filtered_page(args):
+    query, pattern, problem = _job_plan_query(args)
+    if problem:
+        return empty_page(page_number(args)), problem
+
+    page = page_number(args)
+    if pattern is not None:
+        # The regex reads task descriptions too, so the rows have to be loaded
+        # either way; this is the one list where that was never avoidable.
+        try:
+            rows = regex_filter(pattern, query.all(), _searchable_text)
+        except SearchTooSlow:
+            return empty_page(page), ('slow', None)
+        return paginate_list(rows, page), None
+    return query.paginate(page=page, per_page=PAGE_SIZE, error_out=False), None
+
+
+def _sequence_ids(args):
+    query, pattern, problem = _job_plan_query(args)
+    if problem:
+        return []
     if pattern is not None:
         try:
-            job_plans = regex_filter(pattern, job_plans, _searchable_text)
+            return [plan.id for plan in regex_filter(pattern, query.all(), _searchable_text)]
         except SearchTooSlow:
-            # Not a syntax error, so it must not be reported as one.
-            job_plans = []
-            flash(too_slow_message().capitalize(), 'error')
-    if regex_error:
-        flash(f'That is not a valid regular expression: {regex_error}', 'error')
-        job_plans = []
+            return []
+    return [row[0] for row in query.with_entities(JobPlan.id).all()]
 
-    return render_template('job_plans/list.html', job_plans=job_plans,
-                           search=search, use_regex=use_regex)
+
+@bp.route('/')
+@login_required
+def index():
+    page, problem = _filtered_page(request.args)
+    if problem:
+        kind, detail_text = problem
+        if kind == 'slow':
+            # Not a syntax error, so it must not be reported as one.
+            flash(too_slow_message().capitalize(), 'error')
+        else:
+            flash(f'That is not a valid regular expression: {detail_text}', 'error')
+
+    list_args = request.args.to_dict(flat=False)
+    list_args.pop('page', None)
+
+    # Only when there is nothing to show: one cheap existence check tells the
+    # empty state whether the list is genuinely empty or merely filtered.
+    any_records = bool(page.items) or JobPlan.query.first() is not None
+
+    return render_template('job_plans/list.html', job_plans=page.items, page=page,
+                           search=request.args.get('q', '').strip(),
+                           use_regex=bool(request.args.get('regex')),
+                           list_args=list_args, any_records=any_records)
 
 
 def _searchable_text(job_plan):
@@ -102,6 +144,9 @@ def create():
 @bp.route('/<int:id>')
 @login_required
 def detail(id):
+    previous_id, next_id, position, total = neighbours(_sequence_ids(request.args), id)
+    previous = db.session.get(JobPlan, previous_id) if previous_id else None
+    following = db.session.get(JobPlan, next_id) if next_id else None
     job_plan = db.get_or_404(JobPlan, id)
     tasks = job_plan.tasks.all()
     attachments = (
@@ -111,6 +156,9 @@ def detail(id):
         .all()
     )
     return render_template('job_plans/detail.html', job_plan=job_plan, tasks=tasks,
+                           previous_plan=previous, next_plan=following,
+                           position=position, total=total,
+                           list_args=request.args.to_dict(flat=False),
                            materials=job_plan.materials, tools=job_plan.tools,
                            attachments=attachments)
 

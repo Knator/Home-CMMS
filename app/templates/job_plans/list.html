@@ -3,6 +3,8 @@
 {% block page_title %}Job Plans{% endblock %}
 
 {% block content %}
+{% import '_empty_state.html' as empty %}
+{% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
 <div class="page-header">
   <h1>Job Plans</h1>
@@ -18,6 +20,10 @@
   {% if search %}
     <a href="{{ url_for('job_plans.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}
+
+  {# Pinned right inside the filter bar: it belongs with the controls that
+     decide what is being counted, not with the New button. #}
+  {{ nav.list_pager('job_plans.index', page, list_args, 'job plan', compact=True) }}
 </form>
 
 <div class="card">
@@ -28,7 +34,7 @@
       <tbody>
         {% for jp in job_plans %}
         <tr>
-          <td><a class="row-link" href="{{ url_for('job_plans.detail', id=jp.id) }}">{{ jp.name }}</a></td>
+          <td><a class="row-link" href="{{ url_for('job_plans.detail', id=jp.id, **list_args) }}">{{ jp.name }}</a></td>
           <td>{{ jp.tasks.count() }}</td>
           <td>{{ format_duration(jp.total_minutes) }}</td>
           <td class="col-hide-sm">{{ jp.materials | length or '—' }}</td>
@@ -40,8 +46,11 @@
       </tbody>
     </table>
     {% else %}
-      <div class="card-body text-muted">No job plans yet. <a href="{{ url_for('job_plans.create') }}">Create one.</a></div>
+      {{ empty.empty_state('job plans', 'job_plans.create', any_records) }}
     {% endif %}
   </div>
 </div>
+
+{{ nav.list_pager('job_plans.index', page, list_args, 'job plan') }}
+
 {% endblock %}

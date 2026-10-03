@@ -12,7 +12,7 @@ from app.models.work_order import WorkOrder, WO_PRIORITIES
 from app.models.attachment import Attachment
 from sqlalchemy.orm import joinedload
 
-from app.navigation import (PAGE_SIZE, empty_page, neighbours,
+from app.navigation import (carried_list_args, PAGE_SIZE, empty_page, neighbours,
                             page_number, paginate_list)
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
@@ -135,8 +135,6 @@ def index():
         else:
             flash(f'That is not a valid regular expression: {detail_text}', 'error')
 
-    list_args = request.args.to_dict(flat=False)
-    list_args.pop('page', None)
 
     # Only when there is nothing to show: one cheap existence check tells the
     # empty state whether the list is genuinely empty or merely filtered.
@@ -146,8 +144,7 @@ def index():
                            today=date.today(),
                            active_only=request.args.get('show', 'active') != 'all',
                            search=request.args.get('q', '').strip(),
-                           use_regex=bool(request.args.get('regex')),
-                           list_args=list_args, any_records=any_records)
+                           use_regex=bool(request.args.get('regex')), any_records=any_records)
 
 
 @bp.route('/new', methods=['GET', 'POST'])
@@ -181,7 +178,10 @@ def create():
         db.session.add(pm)
         db.session.commit()
         flash('PM schedule created.', 'success')
-        return redirect(url_for('pms.detail', id=pm.id))
+        # The create form posted to its own URL, so the list's filters
+        # came with it; Back from the new record returns to that list.
+        return redirect(url_for('pms.detail', id=pm.id,
+                                **carried_list_args(request.args)))
 
     return render_template('pms/form.html', pm=None, **options)
 
@@ -206,7 +206,6 @@ def detail(id):
     return render_template('pms/detail.html', pm=pm, generated_wos=generated_wos,
                            previous_pm=previous, next_pm=following,
                            position=position, total=total,
-                           list_args=request.args.to_dict(flat=False),
                            stalled_by=blocker,
                            attachments=attachments, today=date.today())
 
@@ -242,7 +241,10 @@ def edit(id):
         pm.reschedule_from_completion()
         db.session.commit()
         flash('PM schedule updated.', 'success')
-        return redirect(url_for('pms.detail', id=id))
+        # Back to the record with the list's filters still attached — the edit
+        # form posted to its own URL, query string and all, so they are here.
+        return redirect(url_for('pms.detail', id=id,
+                                **carried_list_args(request.args)))
 
     return render_template('pms/form.html', pm=pm, **options)
 
@@ -256,7 +258,7 @@ def delete(id):
     db.session.delete(pm)
     db.session.commit()
     flash('PM schedule deleted.', 'success')
-    return redirect(url_for('pms.index'))
+    return redirect(url_for('pms.index', **carried_list_args(request.args)))
 
 
 @bp.route('/<int:id>/generate', methods=['POST'])

@@ -9,7 +9,7 @@
 <div class="page-header">
   <h1>Preventive Maintenance</h1>
   <div class="page-actions">
-    <a href="{{ url_for('pms.create') }}" class="btn btn-primary">+ New PM</a>
+    <a href="{{ url_for('pms.create', **list_args) }}" class="btn btn-primary">+ New PM</a>
   </div>
 </div>
 
@@ -52,13 +52,13 @@
               <span class="badge badge-inactive">Inactive</span>
             {% endif %}
           </td>
-          <td><a href="{{ url_for('pms.edit', id=pm.id) }}" class="btn btn-ghost btn-sm">Edit</a></td>
+          <td><a href="{{ url_for('pms.edit', id=pm.id, **list_args) }}" class="btn btn-ghost btn-sm">Edit</a></td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     {% else %}
-      {{ empty.empty_state('PM schedules', 'pms.create', any_records) }}
+      {{ empty.empty_state('PM schedules', 'pms.create', any_records, list_args) }}
     {% endif %}
   </div>
 </div>

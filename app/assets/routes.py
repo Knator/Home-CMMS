@@ -9,7 +9,7 @@ from app.models.asset import Asset, ASSET_CATEGORIES
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
-from app.navigation import neighbours, page_number, paginate_tree
+from app.navigation import carried_list_args, neighbours, page_number, paginate_tree
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
@@ -131,14 +131,6 @@ def _filtered_assets(args):
     return hierarchy_ordered(matched), None
 
 
-def _list_args():
-    """The filters to carry onto row links — not the page, which the pager owns
-    and which would otherwise pin every link to the page it was clicked from."""
-    args = request.args.to_dict(flat=False)
-    args.pop('page', None)
-    return args
-
-
 @bp.route('/')
 @login_required
 def index():
@@ -161,8 +153,7 @@ def index():
         selected_location=str(location_id) if location_id is not None else '',
         show_all=request.args.get('show', 'active') == 'all',
         search=request.args.get('q', '').strip(),
-        use_regex=bool(request.args.get('regex')),
-        list_args=_list_args(), any_records=any_records,
+        use_regex=bool(request.args.get('regex')), any_records=any_records,
     )
 
 
@@ -193,7 +184,10 @@ def create():
                 'asset', asset.id, f'{asset.name} ({asset.asset_number})',
                 location_id=asset.location_id)
         flash(f'Asset {asset.asset_number} created.', 'success')
-        return redirect(url_for('assets.detail', id=asset.id))
+        # The create form posted to its own URL, so the list's filters
+        # came with it; Back from the new record returns to that list.
+        return redirect(url_for('assets.detail', id=asset.id,
+                                **carried_list_args(request.args)))
 
     return render_template('assets/form.html', **_form_context())
 
@@ -217,7 +211,6 @@ def detail(id):
         blockers=asset_delete_blockers(asset), status_help=STATUS_HELP,
         previous_asset=previous, next_asset=following,
         position=position, total=total,
-        list_args=request.args.to_dict(flat=False),
     )
 
 
@@ -258,7 +251,10 @@ def edit(id):
             return render_template('assets/form.html', **_form_context(asset))
         db.session.commit()
         flash('Asset updated.', 'success')
-        return redirect(url_for('assets.detail', id=id))
+        # Back to the record with the list's filters still attached — the edit
+        # form posted to its own URL, query string and all, so they are here.
+        return redirect(url_for('assets.detail', id=id,
+                                **carried_list_args(request.args)))
 
     return render_template('assets/form.html', **_form_context(asset))
 
@@ -277,13 +273,13 @@ def delete(id):
             "retire it while keeping the history.",
             'error',
         )
-        return redirect(url_for('assets.detail', id=id))
+        return redirect(url_for('assets.detail', id=id, **carried_list_args(request.args)))
 
     purge_entity_attachments(ENTITY, id)
     db.session.delete(asset)
     db.session.commit()
     flash('Asset deleted.', 'success')
-    return redirect(url_for('assets.index'))
+    return redirect(url_for('assets.index', **carried_list_args(request.args)))
 
 
 def _discard_image(asset):

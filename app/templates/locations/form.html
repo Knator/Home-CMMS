@@ -49,7 +49,7 @@
       </div>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">{{ 'Save Changes' if location else 'Create Location' }}</button>
-        <a href="{{ url_for('locations.detail', id=location.id) if location else url_for('locations.index') }}"
+        <a href="{{ url_for('locations.detail', id=location.id, **list_args) if location else url_for('locations.index', **list_args) }}"
            class="btn btn-ghost">Cancel</a>
       </div>
     </form>

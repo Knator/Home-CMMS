@@ -29,7 +29,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-secondary">{{ 'Deactivate' if pm.is_active else 'Activate' }}</button>
     </form>
-    <a href="{{ url_for('pms.edit', id=pm.id) }}" class="btn btn-secondary">Edit</a>
+    <a href="{{ url_for('pms.edit', id=pm.id, **list_args) }}" class="btn btn-secondary">Edit</a>
     {{ nav.stepper('pms.detail', previous_pm, next_pm, position, total,
                    list_args, 'PM',
                    previous_pm.name if previous_pm else '',
@@ -165,7 +165,7 @@
 
 <div class="danger-zone">
   <h3>Delete PM Schedule</h3>
-  <form method="post" action="{{ url_for('pms.delete', id=pm.id) }}">
+  <form method="post" action="{{ url_for('pms.delete', id=pm.id, **list_args) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this PM schedule?')">Delete PM Schedule</button>
   </form>

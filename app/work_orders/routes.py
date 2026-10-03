@@ -26,7 +26,7 @@ from app.services import (
 )
 from sqlalchemy.orm import joinedload
 
-from app.navigation import (PAGE_SIZE, empty_page, neighbours,
+from app.navigation import (carried_list_args, PAGE_SIZE, empty_page, neighbours,
                             page_number, paginate_list)
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
@@ -276,8 +276,6 @@ def index():
     # The page number is not carried onto row links or the pager's other filters
     # — it is set by the pager itself, and keeping it here would pin every link
     # to the page you happened to be on.
-    list_args = request.args.to_dict(flat=False)
-    list_args.pop('page', None)
 
     # Only when there is nothing to show: one cheap existence check tells the
     # empty state whether the list is genuinely empty or merely filtered.
@@ -295,8 +293,7 @@ def index():
         archive_filters=ARCHIVE_FILTERS, selected_archived=archived,
         selected_due=request.args.get('due', '') if request.args.get('due') in DUE_FILTERS else '',
         soon_days=OVERDUE_SOON_DAYS,
-        today=date.today(),
-        list_args=list_args, any_records=any_records,
+        today=date.today(), any_records=any_records,
     )
 
 
@@ -352,7 +349,10 @@ def create():
         if sync_pm_schedule(wo):
             db.session.commit()
         flash(f'Work order {wo.wo_number} created.', 'success')
-        return redirect(url_for('work_orders.detail', id=wo.id))
+        # The create form posted to its own URL, so the list's filters
+        # came with it; Back from the new record returns to that list.
+        return redirect(url_for('work_orders.detail', id=wo.id,
+                                **carried_list_args(request.args)))
 
     return render_template('work_orders/form.html', wo=None, **options)
 
@@ -383,7 +383,6 @@ def detail(id):
     return render_template('work_orders/detail.html', wo=wo, attachments=attachments,
                            previous_wo=previous, next_wo=following,
                            position=position, total=total,
-                           list_args=request.args.to_dict(flat=False),
                            related=related_attachments(wo), tasks=tasks,
                            materials=wo.materials, tools=wo.tools, today=date.today())
 
@@ -449,7 +448,10 @@ def edit(id):
         sync_pm_schedule(wo)
         db.session.commit()
         flash('Work order updated.', 'success')
-        return redirect(url_for('work_orders.detail', id=id))
+        # Back to the record with the list's filters still attached — the edit
+        # form posted to its own URL, query string and all, so they are here.
+        return redirect(url_for('work_orders.detail', id=id,
+                                **carried_list_args(request.args)))
 
     return render_template('work_orders/form.html', wo=wo, **options)
 
@@ -465,12 +467,12 @@ def delete(id):
     if wo.is_archived and not archived_deletion_allowed():
         flash('Deleting archived work orders is switched off in Settings.',
               'error')
-        return redirect(url_for('work_orders.detail', id=id))
+        return redirect(url_for('work_orders.detail', id=id, **carried_list_args(request.args)))
     purge_entity_attachments(ENTITY, id)
     db.session.delete(wo)
     db.session.commit()
     flash('Work order deleted.', 'success')
-    return redirect(url_for('work_orders.index'))
+    return redirect(url_for('work_orders.index', **carried_list_args(request.args)))
 
 
 @bp.route('/<int:id>/archive', methods=['POST'])

@@ -24,7 +24,7 @@
   </div>
   <div class="page-actions">
     {% if not wo.is_archived %}
-      <a href="{{ url_for('work_orders.edit', id=wo.id) }}" class="btn btn-secondary">Edit</a>
+      <a href="{{ url_for('work_orders.edit', id=wo.id, **list_args) }}" class="btn btn-secondary">Edit</a>
       {% if wo.can_be_archived %}
       <form method="post" action="{{ url_for('work_orders.archive', id=wo.id) }}"
             style="display:inline;">
@@ -187,7 +187,7 @@
 <div class="card">
   <div class="card-header">
     <span class="card-title">Materials &amp; Tools</span>
-    {% if not wo.is_archived %}<a href="{{ url_for('work_orders.edit', id=wo.id) }}" class="btn btn-ghost btn-sm">Edit</a>{% endif %}
+    {% if not wo.is_archived %}<a href="{{ url_for('work_orders.edit', id=wo.id, **list_args) }}" class="btn btn-ghost btn-sm">Edit</a>{% endif %}
   </div>
   <div class="card-body">
     {% if materials %}
@@ -243,7 +243,7 @@
 {% if not wo.is_archived or archived_deletion_allowed() %}
 <div class="danger-zone">
   <h3>Delete Work Order</h3>
-  <form method="post" action="{{ url_for('work_orders.delete', id=wo.id) }}">
+  <form method="post" action="{{ url_for('work_orders.delete', id=wo.id, **list_args) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this work order?')">Delete Work Order</button>
   </form>

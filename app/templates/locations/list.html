@@ -9,7 +9,7 @@
 <div class="page-header">
   <h1>Locations</h1>
   <div class="page-actions">
-    <a href="{{ url_for('locations.create') }}" class="btn btn-primary">+ New Location</a>
+    <a href="{{ url_for('locations.create', **list_args) }}" class="btn btn-primary">+ New Location</a>
   </div>
 </div>
 
@@ -49,13 +49,13 @@
           <td><span class="badge {{ loc.status_class }}">{{ loc.status_label }}</span></td>
           <td class="col-hide-sm">{{ loc.description or '—' }}</td>
           <td>{{ loc.assets.count() }}</td>
-          <td><a href="{{ url_for('locations.edit', id=loc.id) }}" class="btn btn-ghost btn-sm">Edit</a></td>
+          <td><a href="{{ url_for('locations.edit', id=loc.id, **list_args) }}" class="btn btn-ghost btn-sm">Edit</a></td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     {% else %}
-      {{ empty.empty_state('locations', 'locations.create', any_records) }}
+      {{ empty.empty_state('locations', 'locations.create', any_records, list_args) }}
     {% endif %}
   </div>
 </div>

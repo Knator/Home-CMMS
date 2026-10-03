@@ -112,6 +112,16 @@ def create_app(config_class=Config, config_overrides=None):
         from app.utils import is_embedded
         return {'layout': 'embedded.html' if is_embedded() else 'base.html'}
 
+    # The filters of the list the person is working through, on every page —
+    # so the list, the record, its edit form and every error re-render of that
+    # form all carry them without a route having to remember to. A forgotten
+    # route is how editing a record used to drop them.
+    @app.context_processor
+    def inject_list_args():
+        from flask import request
+        from app.navigation import carried_list_args
+        return {'list_args': carried_list_args(request.args)}
+
     from app.settings import archived_deletion_allowed, default_grace_days
     app.jinja_env.globals['archived_deletion_allowed'] = archived_deletion_allowed
     app.jinja_env.globals['default_grace_days'] = default_grace_days

@@ -7,7 +7,7 @@ from app.models.job_plan import (
     JobPlan, JobPlanTask, JobPlanItem, ITEM_MATERIAL, ITEM_TOOL,
 )
 from app.models.attachment import Attachment
-from app.navigation import (PAGE_SIZE, empty_page, neighbours,
+from app.navigation import (carried_list_args, PAGE_SIZE, empty_page, neighbours,
                             page_number, paginate_list)
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
@@ -87,8 +87,6 @@ def index():
         else:
             flash(f'That is not a valid regular expression: {detail_text}', 'error')
 
-    list_args = request.args.to_dict(flat=False)
-    list_args.pop('page', None)
 
     # Only when there is nothing to show: one cheap existence check tells the
     # empty state whether the list is genuinely empty or merely filtered.
@@ -96,8 +94,7 @@ def index():
 
     return render_template('job_plans/list.html', job_plans=page.items, page=page,
                            search=request.args.get('q', '').strip(),
-                           use_regex=bool(request.args.get('regex')),
-                           list_args=list_args, any_records=any_records)
+                           use_regex=bool(request.args.get('regex')), any_records=any_records)
 
 
 def _searchable_text(job_plan):
@@ -136,7 +133,10 @@ def create():
         if is_embedded():
             return embedded_created('job_plan', job_plan.id, job_plan.name)
         flash('Job plan created.', 'success')
-        return redirect(url_for('job_plans.detail', id=job_plan.id))
+        # The create form posted to its own URL, so the list's filters
+        # came with it; Back from the new record returns to that list.
+        return redirect(url_for('job_plans.detail', id=job_plan.id,
+                                **carried_list_args(request.args)))
 
     return render_template('job_plans/form.html', job_plan=None)
 
@@ -158,7 +158,6 @@ def detail(id):
     return render_template('job_plans/detail.html', job_plan=job_plan, tasks=tasks,
                            previous_plan=previous, next_plan=following,
                            position=position, total=total,
-                           list_args=request.args.to_dict(flat=False),
                            materials=job_plan.materials, tools=job_plan.tools,
                            attachments=attachments)
 
@@ -190,7 +189,10 @@ def edit(id):
         _store_form_uploads(job_plan.id)
         db.session.commit()
         flash('Job plan updated.', 'success')
-        return redirect(url_for('job_plans.detail', id=id))
+        # Back to the record with the list's filters still attached — the edit
+        # form posted to its own URL, query string and all, so they are here.
+        return redirect(url_for('job_plans.detail', id=id,
+                                **carried_list_args(request.args)))
 
     return render_template('job_plans/form.html', job_plan=job_plan)
 
@@ -263,7 +265,7 @@ def delete(id):
     db.session.delete(job_plan)
     db.session.commit()
     flash('Job plan deleted.', 'success')
-    return redirect(url_for('job_plans.index'))
+    return redirect(url_for('job_plans.index', **carried_list_args(request.args)))
 
 
 @bp.route('/<int:id>/attachments', methods=['POST'])

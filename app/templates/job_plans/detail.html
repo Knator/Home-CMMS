@@ -11,7 +11,7 @@
     <h1>{{ job_plan.name }}</h1>
   </div>
   <div class="page-actions">
-    <a href="{{ url_for('job_plans.edit', id=job_plan.id) }}" class="btn btn-secondary">Edit</a>
+    <a href="{{ url_for('job_plans.edit', id=job_plan.id, **list_args) }}" class="btn btn-secondary">Edit</a>
     {{ nav.stepper('job_plans.detail', previous_plan, next_plan, position, total,
                    list_args, 'job plan',
                    previous_plan.name if previous_plan else '',
@@ -53,7 +53,7 @@
 <div class="card">
   <div class="card-header">
     <span class="card-title">Tasks ({{ tasks | length }}) · {{ format_duration(job_plan.total_minutes) }} total</span>
-    <a href="{{ url_for('job_plans.edit', id=job_plan.id) }}" class="btn btn-secondary btn-sm">Edit Tasks</a>
+    <a href="{{ url_for('job_plans.edit', id=job_plan.id, **list_args) }}" class="btn btn-secondary btn-sm">Edit Tasks</a>
   </div>
   <div class="card-body">
     {% if tasks %}
@@ -115,7 +115,7 @@
 <!-- Attachments -->
 <div class="card">
   <div class="card-header"><span class="card-title">Attachments</span>
-    <a href="{{ url_for('job_plans.edit', id=job_plan.id) }}" class="btn btn-ghost btn-sm">Add files</a></div>
+    <a href="{{ url_for('job_plans.edit', id=job_plan.id, **list_args) }}" class="btn btn-ghost btn-sm">Add files</a></div>
   <div class="card-body">
     {{ att_ui.attachment_list(attachments) }}
   </div>
@@ -123,7 +123,7 @@
 
 <div class="danger-zone">
   <h3>Delete Job Plan</h3>
-  <form method="post" action="{{ url_for('job_plans.delete', id=job_plan.id) }}">
+  <form method="post" action="{{ url_for('job_plans.delete', id=job_plan.id, **list_args) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this job plan?')">Delete Job Plan</button>
   </form>

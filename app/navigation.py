@@ -134,3 +134,24 @@ def paginate_tree(rows, page, per_page=PAGE_SIZE):
     chosen = groups[start:start + per_page]
     return Page([row for group in chosen for row in group],
                 page, per_page, len(groups), row_total=len(rows))
+
+
+# Query parameters that belong to one page view rather than to the list the
+# person is working through, and so are never carried onward. `page` is owned by
+# the pager — carrying it would pin every link to whichever page it was clicked
+# from. `embedded` marks the picker modal's framed copy of a form.
+NOT_CARRIED = ('page', 'embedded')
+
+
+def carried_list_args(args):
+    """The list's filters, as they should ride along to the next page.
+
+    Every route used to build this itself, three slightly different ways, and
+    the edit pages not at all — which is how editing a record and going back
+    landed on an unfiltered list. It is now provided to every template by a
+    context processor, and used directly only where a redirect needs it.
+    """
+    carried = args.to_dict(flat=False)
+    for key in NOT_CARRIED:
+        carried.pop(key, None)
+    return carried

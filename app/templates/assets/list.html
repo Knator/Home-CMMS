@@ -10,7 +10,7 @@
 <div class="page-header">
   <h1>Assets</h1>
   <div class="page-actions">
-    <a href="{{ url_for('assets.create') }}" class="btn btn-primary">+ New Asset</a>
+    <a href="{{ url_for('assets.create', **list_args) }}" class="btn btn-primary">+ New Asset</a>
   </div>
 </div>
 
@@ -66,13 +66,13 @@
           <td>{{ a.location.name if a.location else '—' }}</td>
           <td class="col-hide-sm">{{ ((a.make or '') + ' ' + (a.model or '')) | trim or '—' }}</td>
           <td class="col-hide-sm">{{ a.install_date.strftime('%Y-%m-%d') if a.install_date else '—' }}</td>
-          <td><a href="{{ url_for('assets.edit', id=a.id) }}" class="btn btn-ghost btn-sm">Edit</a></td>
+          <td><a href="{{ url_for('assets.edit', id=a.id, **list_args) }}" class="btn btn-ghost btn-sm">Edit</a></td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     {% else %}
-      {{ empty.empty_state('assets', 'assets.create', any_records) }}
+      {{ empty.empty_state('assets', 'assets.create', any_records, list_args) }}
     {% endif %}
   </div>
 </div>

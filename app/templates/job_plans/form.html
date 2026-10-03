@@ -134,9 +134,9 @@
         <div class="form-actions mt-1">
           <button type="submit" class="btn btn-primary">{{ 'Save Changes' if is_edit else 'Create Job Plan' }}</button>
           {% if is_edit %}
-            <a href="{{ url_for('job_plans.detail', id=job_plan.id) }}" class="btn btn-secondary">Cancel</a>
+            <a href="{{ url_for('job_plans.detail', id=job_plan.id, **list_args) }}" class="btn btn-secondary">Cancel</a>
           {% else %}
-            <a href="{{ url_for('job_plans.index') }}" class="btn btn-secondary">Cancel</a>
+            <a href="{{ url_for('job_plans.index', **list_args) }}" class="btn btn-secondary">Cancel</a>
           {% endif %}
         </div>
       </form>

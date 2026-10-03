@@ -9,7 +9,9 @@
    than "is there a search box filled in": every list defaults to hiding
    something — inactive assets, archived work orders, retired PMs — so a list
    can be empty with no query string at all and still not be empty underneath. #}
-{% macro empty_state(noun, create_endpoint, any_records, clear_args={}) %}
+{# `list_args` rides on Create one, like every other link to a page of the
+   same kind of record. Not on Clear them, whose whole job is to drop it. #}
+{% macro empty_state(noun, create_endpoint, any_records, list_args={}, clear_args={}) %}
   <div class="card-body text-muted">
     {% if any_records %}
       No {{ noun }} match the current filters.
@@ -17,7 +19,7 @@
       to see all {{ noun }}.
     {% else %}
       No {{ noun }} yet.
-      <a href="{{ url_for(create_endpoint) }}">Create one.</a>
+      <a href="{{ url_for(create_endpoint, **list_args) }}">Create one.</a>
     {% endif %}
   </div>
 {% endmacro %}

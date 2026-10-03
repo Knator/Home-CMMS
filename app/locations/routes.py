@@ -6,7 +6,7 @@ from app.extensions import db
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
-from app.navigation import neighbours, page_number, paginate_tree
+from app.navigation import carried_list_args, neighbours, page_number, paginate_tree
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
@@ -111,14 +111,6 @@ def _filtered_locations(args):
     return hierarchy_ordered(matched), None
 
 
-def _list_args():
-    """The filters to carry onto row links — not the page, which the pager owns
-    and which would otherwise pin every link to the page it was clicked from."""
-    args = request.args.to_dict(flat=False)
-    args.pop('page', None)
-    return args
-
-
 @bp.route('/')
 @login_required
 def index():
@@ -135,8 +127,7 @@ def index():
     return render_template('locations/list.html', rows=page.items, page=page,
                            show_all=request.args.get('show', 'active') == 'all',
                            search=request.args.get('q', '').strip(),
-                           use_regex=bool(request.args.get('regex')),
-                           list_args=_list_args(), any_records=any_records)
+                           use_regex=bool(request.args.get('regex')), any_records=any_records)
 
 
 @bp.route('/new', methods=['GET', 'POST'])
@@ -162,7 +153,10 @@ def create():
                 'location', location.id,
                 f'{location.name} ({location.location_number})')
         flash(f'Location {location.location_number} created.', 'success')
-        return redirect(url_for('locations.detail', id=location.id))
+        # The create form posted to its own URL, so the list's filters
+        # came with it; Back from the new record returns to that list.
+        return redirect(url_for('locations.detail', id=location.id,
+                                **carried_list_args(request.args)))
 
     return render_template('locations/form.html', **_form_context())
 
@@ -197,7 +191,6 @@ def detail(id):
         status_help=STATUS_HELP,
         previous_location=previous, next_location=following,
         position=position, total=total,
-        list_args=_list_args(),
     )
 
 
@@ -220,7 +213,10 @@ def edit(id):
         location.notes = request.form.get('notes', '').strip() or None
         db.session.commit()
         flash('Location updated.', 'success')
-        return redirect(url_for('locations.detail', id=id))
+        # Back to the record with the list's filters still attached — the edit
+        # form posted to its own URL, query string and all, so they are here.
+        return redirect(url_for('locations.detail', id=id,
+                                **carried_list_args(request.args)))
 
     return render_template('locations/form.html', **_form_context(location))
 
@@ -239,13 +235,13 @@ def delete(id):
             "retire it while keeping the history.",
             'error',
         )
-        return redirect(url_for('locations.detail', id=id))
+        return redirect(url_for('locations.detail', id=id, **carried_list_args(request.args)))
 
     purge_entity_attachments(ENTITY, id)
     db.session.delete(location)
     db.session.commit()
     flash('Location deleted.', 'success')
-    return redirect(url_for('locations.index'))
+    return redirect(url_for('locations.index', **carried_list_args(request.args)))
 
 
 @bp.route('/<int:id>/attachments', methods=['POST'])

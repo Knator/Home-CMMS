@@ -61,6 +61,16 @@
   {# Its own box rather than a value in the Status list: archiving is
      orthogonal to outcome, so filtering for completed work should not have to
      decide about archived work at the same time. #}
+  {# Where the dashboard's Overdue and "going overdue" cards land. A visible
+     control rather than a hidden parameter, so a list opened from a card shows
+     why it is short — and can be put back to Any in one move. #}
+  <label for="due">Due</label>
+  <select name="due" id="due" onchange="this.form.submit()">
+    <option value="" {{ 'selected' if not selected_due }}>Any</option>
+    <option value="overdue" {{ 'selected' if selected_due == 'overdue' }}>Overdue</option>
+    <option value="soon" {{ 'selected' if selected_due == 'soon' }}>Overdue within {{ soon_days }} days</option>
+  </select>
+
   <label for="archived">Archived</label>
   <select name="archived" id="archived" onchange="this.form.submit()">
     <option value="hide" {{ 'selected' if selected_archived == 'hide' }}>Hidden</option>
@@ -69,7 +79,7 @@
   </select>
   <button type="submit" class="btn btn-secondary btn-sm">Search</button>
   {% if selected_statuses or selected_types or selected_priorities or search
-        or selected_archived != 'hide' %}
+        or selected_archived != 'hide' or selected_due %}
     <a href="{{ url_for('work_orders.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}
 

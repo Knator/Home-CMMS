@@ -2313,3 +2313,23 @@ body.embedded { background: var(--card-bg); }
   color: var(--text-secondary);
   line-height: 1.4;
 }
+
+/* A stat card that opens the list behind its number. Looks like the card it
+   replaced, plus a hover and focus state so it reads as somewhere to go. */
+a.stat-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+
+a.stat-link:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+a.stat-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

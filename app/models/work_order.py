@@ -1,11 +1,20 @@
 from datetime import date, timedelta
 
+from sqlalchemy import String, and_, cast, func, literal
 from sqlalchemy.orm import validates
 
 from app.utils import to_local, utcnow
 from app.extensions import db
 
 WO_STATUSES = ['open', 'in_progress', 'on_hold', 'completed', 'cancelled']
+
+# How far ahead "going overdue soon" looks — the dashboard card and the work
+# order list's Due filter both read this, so the two cannot drift.
+OVERDUE_SOON_DAYS = 7
+
+# The work order list's Due filter: '' (any) / overdue now / going overdue
+# within OVERDUE_SOON_DAYS.
+DUE_FILTERS = ('', 'overdue', 'soon')
 WO_PRIORITIES = ['low', 'medium', 'high', 'critical']
 WO_TYPES = ['planned', 'unplanned']
 
@@ -116,6 +125,54 @@ class WorkOrder(db.Model):
         from app.models.mixins import ITEM_TOOL
         return self.items.filter_by(kind=ITEM_TOOL).all()
 
+    # ── overdue, as SQL ─────────────────────────────────────────────────────
+    #
+    # The same rule as `overdue_from` / `is_overdue` below, expressed so a query
+    # can filter and count by it. Both exist because the dashboard counts and the
+    # work order list filters by it, and those have to agree with each other and
+    # with the red rows — the dashboard once counted only open and in-progress
+    # work while every row on the list counted on hold too, so clicking a card
+    # showed a different number of rows than the card said.
+    #
+    # Grace is per record, which is why this is not a plain date comparison:
+    # SQLite's date() adds each row's own grace to its own due date.
+
+    UNFINISHED_EXCLUDES = ('completed', 'cancelled')
+
+    @classmethod
+    def _last_day_of_grace(cls):
+        """SQL for due_date + grace: the final day before it goes overdue.
+
+        Comparable with an ISO date string, which is how SQLite stores and
+        returns dates."""
+        offset = literal('+').concat(
+            cast(func.coalesce(cls.overdue_grace_days, 0), String)).concat(' days')
+        return func.date(cls.due_date, offset)
+
+    @classmethod
+    def overdue_clause(cls, today):
+        """Overdue now — `is_overdue`, in SQL."""
+        return and_(
+            cls.due_date.isnot(None),
+            cls.status.notin_(cls.UNFINISHED_EXCLUDES),
+            cls._last_day_of_grace() < today.isoformat(),
+        )
+
+    @classmethod
+    def overdue_soon_clause(cls, today, days=OVERDUE_SOON_DAYS):
+        """Not overdue yet, but will be within `days`.
+
+        `overdue_from` falls on one of the next `days` days: tomorrow at the
+        earliest, since anything going overdue today already is. In terms of the
+        last day of grace that is today through today + days - 1."""
+        last = cls._last_day_of_grace()
+        return and_(
+            cls.due_date.isnot(None),
+            cls.status.notin_(cls.UNFINISHED_EXCLUDES),
+            last >= today.isoformat(),
+            last <= (today + timedelta(days=days - 1)).isoformat(),
+        )
+
     @property
     def overdue_from(self):
         """First day this work order counts as overdue, or None if never."""
@@ -123,11 +180,20 @@ class WorkOrder(db.Model):
             return None
         return self.due_date + timedelta(days=(self.overdue_grace_days or 0) + 1)
 
+    def is_overdue_soon(self, today=None, days=OVERDUE_SOON_DAYS):
+        """`overdue_soon_clause`, for one record already in hand."""
+        today = today or date.today()
+        return (
+            self.overdue_from is not None and
+            self.status not in self.UNFINISHED_EXCLUDES and
+            today < self.overdue_from <= today + timedelta(days=days)
+        )
+
     @property
     def is_overdue(self):
         return (
             self.overdue_from is not None and
-            self.status not in ('completed', 'cancelled') and
+            self.status not in self.UNFINISHED_EXCLUDES and
             date.today() >= self.overdue_from
         )
 

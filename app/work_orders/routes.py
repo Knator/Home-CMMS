@@ -6,7 +6,7 @@ from flask_login import login_required, current_user
 from app.work_orders import bp
 from app.extensions import db
 from app.models.work_order import (
-    WorkOrder, WO_STATUSES, WO_PRIORITIES, WO_TYPES,
+    DUE_FILTERS, OVERDUE_SOON_DAYS, WorkOrder, WO_STATUSES, WO_PRIORITIES, WO_TYPES,
 )
 
 # How the list treats archived work. Its own filter box rather than a value in
@@ -179,6 +179,14 @@ def _work_order_query(args):
         q = q.filter(like_clause(
             search, WorkOrder.title, WorkOrder.description, WorkOrder.notes))
 
+    # What the dashboard's Overdue and "going overdue" cards link to. Built from
+    # the same clauses as their counts, so a card that says 3 opens a list of 3.
+    due = args.get('due', '')
+    if due == 'overdue':
+        q = q.filter(WorkOrder.overdue_clause(date.today()))
+    elif due == 'soon':
+        q = q.filter(WorkOrder.overdue_soon_clause(date.today()))
+
     # Independent of status: archived work is history, not a working list, so it
     # is out of the way by default and stays that way even when you filter for
     # completed work.
@@ -285,6 +293,8 @@ def index():
         search=request.args.get('q', '').strip(),
         use_regex=bool(request.args.get('regex')),
         archive_filters=ARCHIVE_FILTERS, selected_archived=archived,
+        selected_due=request.args.get('due', '') if request.args.get('due') in DUE_FILTERS else '',
+        soon_days=OVERDUE_SOON_DAYS,
         today=date.today(),
         list_args=list_args, any_records=any_records,
     )

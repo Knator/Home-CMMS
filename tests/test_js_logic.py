@@ -226,3 +226,73 @@ def test_a_value_that_merely_looks_like_another_field_is_not_confused():
     assert dirty_after('''
         form.elements[0].value = 'Furnace' + '\\u0001' + 'x';
     ''') is True
+
+
+# ── picker filtering ───────────────────────────────────────────────────────
+
+LABEL = 'Kitchen (LOC-00042) — Guest Annexe › First Floor'
+
+
+@pytest.mark.parametrize('typed,expected', [
+    ('', True),                          # nothing typed matches everything
+    ('kitchen', True),                   # one word: the old behaviour
+    ('KITCHEN', True),                   # case does not matter
+    ('loc-00042', True),                 # the number is searchable
+    ('guest first', True),               # words from the context
+    ('first kitchen guest', True),       # in any order
+    ('kitchen ground', False),           # every word must appear
+    ('  kitchen   annexe  ', True),      # stray whitespace is not a word
+])
+def test_every_typed_word_must_appear_somewhere(typed, expected):
+    """"kitchen guest first" narrows nineteen Kitchens to one. A contiguous
+    substring match could not, because those words are in different parts of
+    the label."""
+    assert run(f'comboMatches({LABEL!r}, {typed!r})') is expected
+
+
+def test_a_missing_label_does_not_throw():
+    assert run("comboMatches(undefined, 'x')") is False
+
+
+# ── where a picker's list sits ─────────────────────────────────────────────
+
+def list_box(field_left, list_width, viewport, edge=8):
+    offset = run(f'comboListLeft({field_left}, {list_width}, {viewport}, {edge})')
+    left = field_left + offset
+    return left, left + list_width
+
+
+def test_the_reported_phone_case_stays_on_screen():
+    """The bug as reported: a 375px phone in portrait, the asset field running
+    from 30px to 303px beside the + button, and a 343px list. Choosing between
+    two alignments put it at -40px; sliding puts it fully on screen."""
+    left, right = list_box(30, 343, 375)
+    assert left >= 8, f'list starts off the left at {left}px'
+    assert right <= 367, f'list runs off the right to {right}px'
+
+
+def test_a_list_that_fits_stays_aligned_with_its_field():
+    """No movement unless it is needed: the list should read as belonging to
+    the field above it."""
+    assert run('comboListLeft(200, 300, 1400, 8)') == 0
+
+
+def test_it_slides_only_as_far_as_it_must():
+    # field at 1000, 300 wide, on a 1200 screen: needs 108px, not a full flip
+    assert run('comboListLeft(1000, 300, 1200, 8)') == -108
+
+
+def test_a_list_as_wide_as_the_screen_is_pinned_to_the_left_edge():
+    """When it cannot fit at all, the start of the text wins: names are read
+    from the left."""
+    left, _right = list_box(30, 500, 375)
+    assert left == 8
+
+
+@pytest.mark.parametrize('viewport', [320, 360, 375, 390, 414, 430])
+def test_common_phone_widths_with_a_capped_list(viewport):
+    """The CSS caps the list at the screen less 8px each side, so this is the
+    widest it can ever be on each of these phones."""
+    width = viewport - 16
+    left, right = list_box(30, width, viewport)
+    assert left >= 8 and right <= viewport - 8, (viewport, left, right)

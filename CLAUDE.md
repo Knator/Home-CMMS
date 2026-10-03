@@ -688,6 +688,26 @@ misses everything still in `home_cmms.db-wal` and silently yields a stale snapsh
   `initAsyncActions`, and would otherwise ask twice. A static message or a server-generated
   identifier (`wo_number`) in an inline handler is fine; anything a user can type is not, and
   `test_confirm_escaping.py` fails the build if one appears.
+- **Record pickers label by context, from one place.** `asset_option`, `location_option` and
+  `job_plan_option` in `_pickers.html` build every asset, location and job plan `<option>` —
+  eight pickers used to format their own, so a location showed its path in one form and only
+  its name in another, and a large house can hold nineteen Kitchens. Each option carries
+  `data-primary` (name), `data-code` (number) and `data-context`: a location's **ancestors**
+  (not itself), an asset's **parent first, then location** — the parent is what the old
+  location-only label could never say — and a job plan's description, which is a column and
+  so costs no query where a task count would. The option *text* still holds all three on one
+  line: it is what a native select shows without JavaScript, and what the combobox filters.
+  `enhanceSearchableSelect()` draws the data as two lines, puts only `name (number)` in the
+  field, and writes the context into a `.picker-context` line beneath any picker inside a
+  `.picker-row`, so what was chosen stays visible after the list closes. The list is
+  `width: max-content` up to 640px rather than pinned to the field — pinned, the ellipsis
+  cut off the path, which was the distinguishing part — and `place()` flips it to grow
+  leftwards if it would run off the screen. `comboMatches()` requires **every typed word**,
+  in any order, so "kitchen annexe first" narrows nineteen Kitchens to one. The ancestor
+  walks cost almost nothing because the pickers have already loaded those rows and `.parent`
+  resolves from the identity map; `test_the_context_does_not_cost_a_query_per_option` pins
+  that, and `test_no_template_hand_writes_a_record_label` stops a new picker bypassing the
+  macros.
 - `initFieldTooltips()` mirrors each text field's value into its `title`, so hovering shows
   content too long for the box. It skips password fields and leaves an author-supplied
   `title` alone, and is re-run for dynamically added rows.

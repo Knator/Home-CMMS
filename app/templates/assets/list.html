@@ -3,6 +3,9 @@
 {% block page_title %}Assets{% endblock %}
 
 {% block content %}
+{% from '_pickers.html' import location_option %}
+{% import '_empty_state.html' as empty %}
+{% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
 <div class="page-header">
   <h1>Assets</h1>
@@ -25,7 +28,7 @@
   <select name="location_id" data-searchable onchange="this.form.submit()">
     <option value="">All Locations</option>
     {% for loc in locations %}
-      <option value="{{ loc.id }}" {{ 'selected' if selected_location == loc.id|string }}>{{ loc.name }}</option>
+      {{ location_option(loc, selected_location == loc.id|string) }}
     {% endfor %}
   </select>
   <label>Show</label>
@@ -37,6 +40,10 @@
   {% if search or selected_category or selected_location or show_all %}
     <a href="{{ url_for('assets.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}
+
+  {# Pinned right inside the filter bar: it belongs with the controls that
+     decide what is being counted, not with the New button. #}
+  {{ nav.list_pager('assets.index', page, list_args, 'asset', compact=True) }}
 </form>
 
 <div class="card">
@@ -47,11 +54,11 @@
       <tbody>
         {% for a, depth in rows %}
         <tr>
-          <td><a class="mono-cell asset-link" href="{{ url_for('assets.detail', id=a.id) }}">{{ a.asset_number }}</a></td>
+          <td><a class="mono-cell asset-link" href="{{ url_for('assets.detail', id=a.id, **list_args) }}">{{ a.asset_number }}</a></td>
           <td>
             <span class="tree-indent" style="--depth: {{ depth }}">
               {% if depth %}<span class="tree-branch" aria-hidden="true">└</span>{% endif %}
-              <a class="row-link" href="{{ url_for('assets.detail', id=a.id) }}">{{ a.name }}</a>
+              <a class="row-link" href="{{ url_for('assets.detail', id=a.id, **list_args) }}">{{ a.name }}</a>
             </span>
           </td>
           <td><span class="badge {{ a.status_class }}">{{ a.status_label }}</span></td>
@@ -65,8 +72,11 @@
       </tbody>
     </table>
     {% else %}
-      <div class="card-body text-muted">No assets found{{ ' with Active status' if not show_all }}.</div>
+      {{ empty.empty_state('assets', 'assets.create', any_records) }}
     {% endif %}
   </div>
 </div>
+
+{{ nav.list_pager('assets.index', page, list_args, 'asset') }}
+
 {% endblock %}

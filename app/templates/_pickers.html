@@ -16,3 +16,49 @@
     <span aria-hidden="true">+</span>
   </a>
 {% endmacro %}
+
+
+{# ── Picker options ─────────────────────────────────────────────────────────
+   One definition per kind of record, used by every picker that lists them.
+   Eight pickers previously formatted their own labels, so a location showed
+   its path in one form and only its name in another — and "Kitchen" exists
+   nineteen times in a three-storey, five-building house.
+
+   Each option carries three parts as data attributes, which the searchable
+   combobox draws as two lines: the name and number on top, the context that
+   tells apart two records of the same name underneath.
+
+   The option's *text* still holds all three on one line. That is what a native
+   <select> shows with JavaScript off, and what the combobox filters against —
+   so typing "utility" finds everything in the Utility Room, and typing a parent
+   asset's name finds its sub-assemblies. #}
+
+{# Where a location sits: its ancestors, root first, not including itself. #}
+{% macro location_option(loc, selected=False) -%}
+  {%- set context = loc.ancestors | reverse | map(attribute='name') | join(' › ') -%}
+  <option value="{{ loc.id }}" {{ 'selected' if selected }}
+          data-primary="{{ loc.name }}" data-code="{{ loc.location_number }}"
+          data-context="{{ context }}">{{ loc.name }} ({{ loc.location_number }}){% if context %} — {{ context }}{% endif %}</option>
+{%- endmacro %}
+
+{# What an asset is part of, then where it is. The parent comes first because
+   it is the thing the location label could never say: a blower motor in the
+   utility room is ambiguous; a blower motor that is part of the furnace is
+   not. #}
+{% macro asset_option(a, selected=False) -%}
+  {%- set parent_part = ('part of ' ~ a.parent.name ~ ' (' ~ a.parent.asset_number ~ ')') if a.parent else '' -%}
+  {%- set place_part = a.location.path_label if a.location else '' -%}
+  {%- set context = [parent_part, place_part] | select | join(' · ') -%}
+  <option value="{{ a.id }}" {{ 'selected' if selected }}
+          data-primary="{{ a.name }}" data-code="{{ a.asset_number }}"
+          data-context="{{ context }}">{{ a.name }} ({{ a.asset_number }}){% if context %} — {{ context }}{% endif %}</option>
+{%- endmacro %}
+
+{# Job plans have no hierarchy, so the context is the description — a column on
+   the row, so it costs no query, unlike a task count would. #}
+{% macro job_plan_option(jp, selected=False) -%}
+  {%- set context = (jp.description or '') | trim -%}
+  <option value="{{ jp.id }}" {{ 'selected' if selected }}
+          data-primary="{{ jp.name }}"
+          data-context="{{ context }}">{{ jp.name }}{% if context %} — {{ context }}{% endif %}</option>
+{%- endmacro %}

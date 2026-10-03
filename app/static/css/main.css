@@ -953,8 +953,16 @@ textarea { resize: vertical; min-height: 90px; }
   z-index: 30;
   top: calc(100% + 2px);
   left: 0;
-  right: 0;
-  max-height: 260px;
+  /* At least as wide as the field, wider when the labels need it. Pinned to
+     the field's width, a 74-character asset label lost its end — the path —
+     which was the part that told two records apart. place() in main.js flips
+     it to grow leftwards if it would run off the right of the screen. */
+  min-width: 100%;
+  width: max-content;
+  /* The screen less COMBO_EDGE on each side — on a phone the list may use
+     nearly all of it, which wraps fewer contexts onto a third line. */
+  max-width: min(640px, calc(100vw - 16px));
+  max-height: 320px;
   overflow-y: auto;
   margin: 0;
   padding: 4px;
@@ -2143,3 +2151,185 @@ body.embedded { background: var(--card-bg); }
 .reveal-toggle.revealed .icon-shown { display: none; }
 .reveal-toggle.revealed .icon-hidden { display: inline; }
 .reveal-toggle.revealed { color: var(--accent); }
+
+/* ── Stepping through a filtered list ──────────────────────────────────────
+   Previous / next on a work order, with the position between them. The ends
+   render as <span>, so they cannot be clicked or tabbed to at all — the styling
+   below only has to make that visible. */
+.wo-steps {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* The box matches .btn-secondary exactly, so a stepper sits level with Edit
+   beside it — only the horizontal padding is trimmed, since the content is one
+   glyph rather than a word. The arrow's weight is the SVG's stroke width, not a
+   font size, so it can be made chunky without the button growing. */
+.wo-step { padding: 7px 12px; }
+
+.wo-step svg,
+.page-back svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
+.wo-step.is-disabled {
+  opacity: .4;
+  cursor: default;
+  /* Belt and braces: a span is already unclickable, but this also stops the
+     text being selected by a stray double-click on something that looks like
+     a button. */
+  user-select: none;
+}
+
+.wo-step.is-disabled:hover {
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.wo-step-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  /* The count is the first thing to go when the header actions wrap. */
+  .wo-step-count { display: none; }
+}
+
+/* Back beside the title, not among the actions. `align-items:center` keeps it
+   level with the heading rather than the badges under it, and `flex-shrink:0`
+   stops a long work order title squeezing it to nothing. */
+.page-heading {
+  display: flex;
+  align-items: center;
+  /* Wide enough to read as a separate control rather than part of the title. */
+  gap: 18px;
+  min-width: 0;
+}
+
+.page-back {
+  flex-shrink: 0;
+  gap: 7px;
+}
+
+@media (max-width: 700px) {
+  /* The header already stacks here and the actions row is tight, so the
+     chevron carries it alone. The word is hidden rather than removed, so the
+     link keeps an accessible name. */
+  .page-heading { gap: 12px; }
+  .page-back span { display: none; }
+  .page-back { padding: 7px 10px; }
+}
+
+/* The compact pager that sits in a list's header, beside the New button. */
+.list-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.list-count .pager-position { white-space: nowrap; }
+
+/* Pinned to the right of the filter bar. `margin-left:auto` rather than
+   `justify-content`, so it still sits right on its own line once the filters
+   wrap onto two rows. */
+.filters .list-count { margin-left: auto; }
+
+@media (max-width: 700px) {
+  /* The header already wraps here; the count is what matters, not the page. */
+  .list-count .pager-position { font-size: 11px; }
+}
+
+
+/* ── Two-line picker options ───────────────────────────────────────────────
+   Name and number on top, what distinguishes it underneath. The top line keeps
+   the ellipsis, since a name is read from its start; the context wraps,
+   because its end — the room — is the most specific part of a path. */
+.combo-option-rich {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
+  overflow: visible;
+}
+
+.combo-option-top {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.combo-primary {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.combo-code {
+  flex: 0 0 auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.combo-context {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+  /* Two lines at most: a job plan's description could otherwise be a
+     paragraph. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* The plain options mark the chosen one with a ::after on the row. On a column
+   flex item that would land on a line of its own beneath the context, so the
+   tick moves onto the name instead. */
+.combo-option-rich[aria-selected="true"]::after { content: none; }
+.combo-option-rich[aria-selected="true"] .combo-primary::after { content: ' ✓'; }
+
+/* The active row is filled with the accent, so the muted colours have to
+   follow it or they disappear into it. */
+.combo-option.active .combo-code,
+.combo-option.active .combo-context { color: inherit; opacity: .8; }
+
+/* What was picked, under the field — set and hidden from script. No `display`
+   of its own, so the `hidden` attribute keeps working. */
+.picker-context {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* A stat card that opens the list behind its number. Looks like the card it
+   replaced, plus a hover and focus state so it reads as somewhere to go. */
+a.stat-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+
+a.stat-link:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+a.stat-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

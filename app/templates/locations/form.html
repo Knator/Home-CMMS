@@ -1,5 +1,5 @@
 {% extends layout %}
-{% from '_pickers.html' import add_new %}
+{% from '_pickers.html' import add_new, location_option %}
 {% block title %}{{ 'Edit' if location else 'New' }} Location — Home CMMS{% endblock %}
 {% block page_title %}{{ 'Edit Location' if location else 'New Location' }}{% endblock %}
 
@@ -20,8 +20,7 @@
             <select id="parent_id" name="parent_id" data-searchable>
             <option value="">— None (top level) —</option>
             {% for p in parents %}
-              <option value="{{ p.id }}"
-                {{ 'selected' if location and location.parent_id == p.id }}>{{ p.path_label }} ({{ p.location_number }})</option>
+              {{ location_option(p, location and location.parent_id == p.id) }}
             {% endfor %}
           </select>
             {{ add_new('location', url_for('locations.create'), 'parent_id', 'parent location') }}

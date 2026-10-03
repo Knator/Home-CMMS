@@ -325,6 +325,47 @@ document.addEventListener('DOMContentLoaded', initAssetLocationLink);
    stays in the DOM, enabled and named, so it still submits and remains the
    single source of truth; this only adds a text input that filters the options
    on a substring match. Without JS you get the plain select. */
+/* Does a picker option match what has been typed?
+
+   Every word has to appear, in any order: "kitchen guest first" narrows
+   nineteen Kitchens to one, where a single contiguous match could not, because
+   those words sit in different parts of the label. A single word behaves exactly
+   as the old substring match did, and an empty filter matches everything.
+
+   Top-level and pure so tests/test_js_logic.py can run it without a DOM. */
+function comboMatches(label, filter) {
+  const words = (filter || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const haystack = (label || '').toLowerCase();
+  return words.every((word) => haystack.indexOf(word) !== -1);
+}
+
+/* Gap kept between a picker's list and the edge of the screen. */
+const COMBO_EDGE = 8;
+
+/* Where to put a picker's list, as an offset from the field's left edge.
+
+   The list can be wider than its field, so it starts aligned with the field and
+   is slid left only as far as it has to go to stay on screen — and never past
+   the left edge. The first version chose between two fixed alignments, the
+   field's left edge or its right, and on a phone neither fits: a 343px list
+   under a field running from 30px to 303px overflows the right when aligned
+   left, and when aligned right starts at -40px, off the screen. That was the
+   asset picker in portrait. Sliding instead puts it at 24px to 367px.
+
+   Pure and top-level so tests/test_js_logic.py can run it without a DOM. */
+function comboListLeft(fieldLeft, listWidth, viewportWidth, edge) {
+  const furthestRight = viewportWidth - edge;
+  let offset = 0;
+  if (fieldLeft + listWidth > furthestRight) {
+    offset = furthestRight - (fieldLeft + listWidth);
+  }
+  if (fieldLeft + offset < edge) {
+    offset = edge - fieldLeft;
+  }
+  return offset;
+}
+
 function enhanceSearchableSelect(select) {
   if (select.dataset.comboReady) return;
   select.dataset.comboReady = 'true';
@@ -365,17 +406,53 @@ function enhanceSearchableSelect(select) {
   function readOptions() {
     options = Array.from(select.options).map((o) => ({
       value: o.value,
+      // The full one-line text: what a native select shows, and what the filter
+      // searches, so a word from the context finds the record too.
       label: o.textContent.trim(),
+      // Set by the option macros in _pickers.html; absent on plain selects,
+      // which keep rendering exactly as they did.
+      primary: o.dataset.primary || '',
+      code: o.dataset.code || '',
+      context: o.dataset.context || '',
     }));
   }
 
+  function selectedOption() {
+    return options.find((o) => o.value === select.value);
+  }
+
+  // The field holds the name and number only. The full label is up to 74
+  // characters, which a form field truncates — and it truncated the end, which
+  // was the path, which was the part that told two records apart.
   function selectedLabel() {
-    const found = options.find((o) => o.value === select.value);
-    return found ? found.label : '';
+    const found = selectedOption();
+    if (!found) return '';
+    if (!found.primary) return found.label;
+    return found.code ? `${found.primary} (${found.code})` : found.primary;
+  }
+
+  // A muted line under the field saying what was picked: "part of Furnace
+  // (AST-00012) · Main House › Utility Room". It answers "did I get the right
+  // one?" after the list has closed, which the field alone never could.
+  // Only on form pickers (inside .picker-row) — a filter bar has no room for it.
+  let note = null;
+  function showContext() {
+    const found = selectedOption();
+    const text = found && found.primary ? found.context : '';
+    if (!note) {
+      const row = wrapper.closest('.picker-row');
+      if (!row || !options.some((o) => o.context)) return;
+      note = document.createElement('div');
+      note.className = 'picker-context';
+      row.after(note);
+    }
+    note.textContent = text;
+    note.hidden = !text;
   }
 
   function showSelected() {
     input.value = selectedLabel();
+    showContext();
   }
 
   function close() {
@@ -385,12 +462,7 @@ function enhanceSearchableSelect(select) {
   }
 
   function render(filter) {
-    const needle = (filter || '').trim().toLowerCase();
-    // "contains", not "starts with" — the point is finding an asset by any word
-    // in its name, number or location.
-    matches = needle
-      ? options.filter((o) => o.label.toLowerCase().includes(needle))
-      : options.slice();
+    matches = options.filter((o) => comboMatches(o.label, filter));
 
     list.innerHTML = '';
     if (!matches.length) {
@@ -404,7 +476,31 @@ function enhanceSearchableSelect(select) {
         li.className = 'combo-option';
         li.setAttribute('role', 'option');
         li.setAttribute('aria-selected', option.value === select.value ? 'true' : 'false');
-        li.textContent = option.label;
+        if (option.primary) {
+          // textContent throughout: these are record names people typed.
+          li.classList.add('combo-option-rich');
+          const top = document.createElement('span');
+          top.className = 'combo-option-top';
+          const name = document.createElement('span');
+          name.className = 'combo-primary';
+          name.textContent = option.primary;
+          top.appendChild(name);
+          if (option.code) {
+            const code = document.createElement('span');
+            code.className = 'combo-code';
+            code.textContent = option.code;
+            top.appendChild(code);
+          }
+          li.appendChild(top);
+          if (option.context) {
+            const context = document.createElement('span');
+            context.className = 'combo-context';
+            context.textContent = option.context;
+            li.appendChild(context);
+          }
+        } else {
+          li.textContent = option.label;
+        }
         li.addEventListener('mousedown', (e) => {
           e.preventDefault();          // keep focus so blur doesn't fire first
           commit(option.value);
@@ -415,7 +511,20 @@ function enhanceSearchableSelect(select) {
     }
     list.hidden = false;
     input.setAttribute('aria-expanded', 'true');
+    place();
     setActive(matches.length ? 0 : -1);
+  }
+
+  // The list may be wider than the field, so it is slid along until it fits
+  // the screen — see comboListLeft(). clientWidth rather than innerWidth, which
+  // counts the vertical scrollbar and would let the list sit underneath it.
+  function place() {
+    list.style.right = 'auto';
+    list.style.left = '0px';
+    const field = wrapper.getBoundingClientRect();
+    const width = list.getBoundingClientRect().width;
+    const viewport = document.documentElement.clientWidth || window.innerWidth;
+    list.style.left = comboListLeft(field.left, width, viewport, COMBO_EDGE) + 'px';
   }
 
   function setActive(i) {
@@ -460,6 +569,9 @@ function enhanceSearchableSelect(select) {
 
   // Another script may set select.value or add an option; stay in step.
   select.addEventListener('change', () => { readOptions(); showSelected(); });
+
+  // A phone rotated with the list open changes the room it has.
+  window.addEventListener('resize', () => { if (!list.hidden) place(); });
 
   readOptions();
   showSelected();
@@ -978,6 +1090,61 @@ function initCopyButtons() {
 }
 
 document.addEventListener('DOMContentLoaded', initCopyButtons);
+
+/* ── Exclusive <details> groups ────────────────────────────────────────────
+   The work order filter menus share a `name`, which makes them an exclusive
+   accordion in HTML itself — opening one closes the rest. This covers the
+   browsers that do not implement that yet (before Chrome 120, Safari 17.2 or
+   Firefox 130): without it all three could be open at once and their panels,
+   which are absolutely positioned, overlapped each other.
+
+   Feature-detected, so on a current browser this does nothing and the native
+   behaviour stands alone. */
+function initExclusiveDetails() {
+  if ('name' in document.createElement('details')) return;
+
+  document.addEventListener('toggle', (event) => {
+    const panel = event.target;
+    if (!panel.open) return;
+    // `panel.name` is exactly what these browsers lack, so read the attribute.
+    const group = panel.getAttribute && panel.getAttribute('name');
+    if (!group) return;
+    document.querySelectorAll('details[name="' + group + '"]').forEach((other) => {
+      if (other !== panel) other.open = false;
+    });
+  }, true);   // `toggle` does not bubble, so it has to be caught on the way down
+}
+
+document.addEventListener('DOMContentLoaded', initExclusiveDetails);
+
+
+/* Touching any other control in the filter bar closes an open filter menu.
+
+   The shared `name` only groups the <details> menus with each other. Archived
+   is a native <select> — deliberately, being tri-state and orthogonal — and a
+   browser's select popup has no idea a <details> panel is open beside it, so
+   the two could be shown at once, overlapping. There is no HTML mechanism that
+   spans both, so this is the one part of the filter bar that needs script.
+
+   `mousedown` rather than `click`, because the popup opens before a click
+   completes; `focusin` covers reaching the select by keyboard. Controls inside
+   a menu are exempt, or ticking a checkbox would shut the menu it is in. */
+function initFilterMenus() {
+  const form = document.querySelector('form.filters');
+  if (!form) return;
+
+  const closeOpenMenus = (event) => {
+    if (event.target.closest && event.target.closest('details.filter-menu')) return;
+    form.querySelectorAll('details.filter-menu[open]').forEach((menu) => {
+      menu.open = false;
+    });
+  };
+
+  form.addEventListener('mousedown', closeOpenMenus);
+  form.addEventListener('focusin', closeOpenMenus);
+}
+
+document.addEventListener('DOMContentLoaded', initFilterMenus);
 
 /* ── Support dialog ────────────────────────────────────────────────────────
    The trigger is a real link to the real destination, so with JavaScript off

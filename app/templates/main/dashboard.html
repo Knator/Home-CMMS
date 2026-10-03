@@ -9,21 +9,24 @@
    reflow into a narrower grid, so the order is what carries the meaning rather
    than the position. #}
 <div class="stat-grid">
-  <div class="stat-card">
+  {# The first three open the work order list with the filters that produce the
+     same number — built from the same clauses on the model, so a card that says
+     3 lands on a list of 3. #}
+  <a class="stat-card stat-link"
+     href="{{ url_for('work_orders.index', status=['open', 'in_progress', 'on_hold']) }}">
     <div class="stat-label">Open Work Orders</div>
     <div class="stat-value">{{ open_wo_count }}</div>
-  </div>
-  <div class="stat-card">
+  </a>
+  <a class="stat-card stat-link" href="{{ url_for('work_orders.index', due='overdue') }}">
     <div class="stat-label">Overdue Work Orders</div>
     <div class="stat-value {{ 'danger' if overdue_count > 0 }}">{{ overdue_count }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Completed in the Last 30 Days</div>
-    {# Deliberately uncoloured. Red marks overdue and amber marks PMs coming due;
-       a third colour here would leave nothing standing out, and this is the one
-       number that never needs acting on. #}
-    <div class="stat-value">{{ completed_count }}</div>
-  </div>
+  </a>
+  {# By the day each goes overdue, not the day it is due: with grace periods
+     those differ, and this is about what turns red next. #}
+  <a class="stat-card stat-link" href="{{ url_for('work_orders.index', due='soon') }}">
+    <div class="stat-label">Overdue in the Next {{ soon_days }} Days</div>
+    <div class="stat-value {{ 'warning' if overdue_soon_count > 0 }}">{{ overdue_soon_count }}</div>
+  </a>
   <div class="stat-card">
     <div class="stat-label">PMs Due in the Next 30 Days</div>
     <div class="stat-value {{ 'warning' if pms_due_count > 0 }}">{{ pms_due_count }}</div>

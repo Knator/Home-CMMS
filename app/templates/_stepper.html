@@ -1,0 +1,107 @@
+{# Back, and previous/next through the filtered list.
+
+   Shared by every detail page so the five cannot drift. `list_args` is the
+   query string the list page attached to the row link; replaying it is what
+   makes Back return to the same filtered list and the arrows walk that
+   sequence rather than every record.
+
+   The chevrons are drawn rather than typed: the weight is a stroke width, so
+   they stay chunky without the font deciding, and the button keeps the same box
+   as the ordinary buttons beside it. #}
+
+{% macro chevron_left() %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4l-8 8 8 8"/></svg>{% endmacro %}
+{% macro chevron_right() %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4l8 8-8 8"/></svg>{% endmacro %}
+
+{# `label` because not every back link goes to a list this record came from:
+   the sign-in log returns to Maintenance, and naming the destination is more
+   use than a generic "Back". `list_args` defaults to empty for the same
+   reason — those pages were not opened from a filtered list. #}
+{% macro back_link(endpoint, list_args={}, label='Back') %}
+  <a href="{{ url_for(endpoint, **list_args) }}"
+     class="btn btn-secondary page-back">{{ chevron_left() }}<span>{{ label }}</span></a>
+{% endmacro %}
+
+{% macro stepper(endpoint, previous, next, position, total, list_args, noun,
+                 prev_label='', next_label='') %}
+  {# At either end the control becomes a <span>: no href, so it can be neither
+     clicked nor tabbed to. Greyed out that is genuinely inert, not merely
+     faint.
+
+     The labels are passed in rather than read off the record: a work order is
+     known by its number and title, the others by a name, and guessing which
+     attribute to reach for would break the moment a model gained or lost one. #}
+  {% if total and total > 1 %}
+    <span class="wo-steps" role="group" aria-label="Move through the filtered list">
+      {% if previous %}
+        <a href="{{ url_for(endpoint, id=previous.id, **list_args) }}"
+           class="btn btn-secondary wo-step" rel="prev"
+           title="{{ prev_label }}"
+           aria-label="Previous {{ noun }}">{{ chevron_left() }}</a>
+      {% else %}
+        <span class="btn btn-secondary wo-step is-disabled" aria-disabled="true"
+              title="This is the first in the list"
+              aria-label="Previous {{ noun }} (none)">{{ chevron_left() }}</span>
+      {% endif %}
+      <span class="wo-step-count">{{ position }} of {{ total }}</span>
+      {% if next %}
+        <a href="{{ url_for(endpoint, id=next.id, **list_args) }}"
+           class="btn btn-secondary wo-step" rel="next"
+           title="{{ next_label }}"
+           aria-label="Next {{ noun }}">{{ chevron_right() }}</a>
+      {% else %}
+        <span class="btn btn-secondary wo-step is-disabled" aria-disabled="true"
+              title="This is the last in the list"
+              aria-label="Next {{ noun }} (none)">{{ chevron_right() }}</span>
+      {% endif %}
+    </span>
+  {% endif %}
+{% endmacro %}
+
+{# A list's pager, rendered twice per page: compact in the header and full
+   underneath. One macro, because two copies of "which page am I on" drift —
+   the work order list already said "Newer/Older" where every other list said
+   "Previous/Next".
+
+   The count shows even on a single page: "how many are there" is the question
+   being asked, and it does not stop being interesting because they all fit.
+   The arrows only appear when there is somewhere to go, and at either end
+   become a <span> with no href — inert rather than merely faint, same as the
+   record stepper above. #}
+{% macro list_pager(endpoint, page, list_args, noun, compact=False) %}
+  {# `row_total` is the record count; `total` is what the pages are made of,
+     which differs for a tree paged by root. #}
+  {# Flask-SQLAlchemy's own Pagination has no `row_total`, and for a flat list
+     the two are the same anyway. #}
+  {% set shown = page.row_total|default(page.total, true) %}
+  {% set plural = noun if shown == 1 else noun ~ 's' %}
+  <div class="{{ 'list-count' if compact else 'pager' }}">
+    {% if page.pages > 1 %}
+      {% if page.has_prev %}
+        <a href="{{ url_for(endpoint, page=page.prev_num, **list_args) }}"
+           class="btn btn-secondary wo-step" rel="prev"
+           aria-label="Previous page">{{ chevron_left() }}</a>
+      {% else %}
+        <span class="btn btn-secondary wo-step is-disabled" aria-disabled="true"
+              title="This is the first page"
+              aria-label="Previous page (none)">{{ chevron_left() }}</span>
+      {% endif %}
+    {% endif %}
+
+    <span class="pager-position">
+      {% if page.pages > 1 %}Page {{ page.page }} of {{ page.pages }} &middot; {% endif %}
+      {{ shown }} {{ plural }}
+    </span>
+
+    {% if page.pages > 1 %}
+      {% if page.has_next %}
+        <a href="{{ url_for(endpoint, page=page.next_num, **list_args) }}"
+           class="btn btn-secondary wo-step" rel="next"
+           aria-label="Next page">{{ chevron_right() }}</a>
+      {% else %}
+        <span class="btn btn-secondary wo-step is-disabled" aria-disabled="true"
+              title="This is the last page"
+              aria-label="Next page (none)">{{ chevron_right() }}</span>
+      {% endif %}
+    {% endif %}
+  </div>
+{% endmacro %}

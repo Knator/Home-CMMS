@@ -3,6 +3,8 @@
 {% block page_title %}Work Orders{% endblock %}
 
 {% block content %}
+{% import '_empty_state.html' as empty %}
+{% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
 <div class="page-header">
   <h1>Work Orders</h1>
@@ -15,9 +17,18 @@
    both native, so this needs no JavaScript: without it you get an open list of
    checkboxes and an Apply button, which is the same thing less prettily. The
    summary reports the current choice, because a collapsed filter that does not
-   say what it is doing is worse than no filter. #}
+   say what it is doing is worse than no filter.
+
+   The shared `name` makes them an exclusive group: opening one closes the rest,
+   which is HTML's own accordion behaviour and still needs no script. Without it
+   all three could be open together and their panels — absolutely positioned —
+   overlapped each other.
+
+   `name` on <details> is not a form control, so it is never submitted; the
+   value is deliberately not one of the filter fields either, in case that ever
+   stops being true. #}
 {% macro multi_filter(field, label, options, chosen) %}
-  <details class="filter-menu">
+  <details class="filter-menu" name="wo-filter-menu">
     <summary>
       {{ label }}:
       <strong>
@@ -50,6 +61,16 @@
   {# Its own box rather than a value in the Status list: archiving is
      orthogonal to outcome, so filtering for completed work should not have to
      decide about archived work at the same time. #}
+  {# Where the dashboard's Overdue and "going overdue" cards land. A visible
+     control rather than a hidden parameter, so a list opened from a card shows
+     why it is short — and can be put back to Any in one move. #}
+  <label for="due">Due</label>
+  <select name="due" id="due" onchange="this.form.submit()">
+    <option value="" {{ 'selected' if not selected_due }}>Any</option>
+    <option value="overdue" {{ 'selected' if selected_due == 'overdue' }}>Overdue</option>
+    <option value="soon" {{ 'selected' if selected_due == 'soon' }}>Overdue within {{ soon_days }} days</option>
+  </select>
+
   <label for="archived">Archived</label>
   <select name="archived" id="archived" onchange="this.form.submit()">
     <option value="hide" {{ 'selected' if selected_archived == 'hide' }}>Hidden</option>
@@ -58,9 +79,13 @@
   </select>
   <button type="submit" class="btn btn-secondary btn-sm">Search</button>
   {% if selected_statuses or selected_types or selected_priorities or search
-        or selected_archived != 'hide' %}
+        or selected_archived != 'hide' or selected_due %}
     <a href="{{ url_for('work_orders.index') }}" class="btn btn-ghost btn-sm">Clear</a>
   {% endif %}
+
+  {# Pinned right inside the filter bar: it belongs with the controls that
+     decide what is being counted, not with the New button. #}
+  {{ nav.list_pager('work_orders.index', page, list_args, 'work order', compact=True) }}
 </form>
 
 <div class="card">
@@ -76,8 +101,11 @@
       <tbody>
         {% for wo in work_orders %}
         <tr class="{{ 'overdue-row' if wo.is_overdue }}">
-          <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id) }}">{{ wo.wo_number }}</a></td>
-          <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id) }}">{{ wo.title }}</a></td>
+          {# The filters ride along, so the detail page can offer a Back that
+             returns here rather than to an unfiltered list, and arrows that walk
+             this sequence. #}
+          <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id, **list_args) }}">{{ wo.wo_number }}</a></td>
+          <td><a class="row-link" href="{{ url_for('work_orders.detail', id=wo.id, **list_args) }}">{{ wo.title }}</a></td>
           <td class="col-hide-sm"><span class="badge badge-type-{{ wo.wo_type }}">{{ wo.wo_type }}</span></td>
           <td>
             <span class="badge {{ wo.status_class }}">{{ wo.status | replace('_',' ') }}</span>
@@ -94,8 +122,11 @@
       </tbody>
     </table>
     {% else %}
-      <div class="card-body text-muted">No work orders found.</div>
+      {{ empty.empty_state('work orders', 'work_orders.create', any_records) }}
     {% endif %}
   </div>
 </div>
+
+{{ nav.list_pager('work_orders.index', page, list_args, 'work order') }}
+
 {% endblock %}

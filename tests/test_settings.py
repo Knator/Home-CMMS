@@ -1,9 +1,11 @@
-"""In-app preferences: a settings page separate from Maintenance.
+"""In-app configuration, on two pages separate from Maintenance.
 
-Maintenance is about keeping the instance running. Settings is about how the
-application behaves. Preferences live in the database rather than .env, because
-.env is a deployment artifact the operator owns — often mounted read-only, and
-needing a restart to take effect.
+Preferences (admins) is how work orders and PMs behave. Settings (super admins)
+is server performance and security — what the server accepts and what it
+reaches out to. Maintenance is about keeping the instance running. All of it
+lives in the database rather than .env, because .env is a deployment artifact
+the operator owns — often mounted read-only, and needing a restart to take
+effect.
 """
 import io
 
@@ -19,7 +21,17 @@ from tests.conftest import CSRF, make_user, prime_csrf
 
 @pytest.fixture
 def admin_client(client, db, admin, login):
+    """An admin: Preferences, not Settings."""
     login('admin')
+    prime_csrf(client)
+    return client
+
+
+@pytest.fixture
+def owner_client(client, db, login):
+    """A super admin: Settings as well."""
+    make_user('owner', role='super_admin')
+    login('owner')
     prime_csrf(client)
     return client
 
@@ -31,29 +43,80 @@ def archived(db):
     return wo
 
 
-# ── the page ───────────────────────────────────────────────────────────────
+# ── the pages ──────────────────────────────────────────────────────────────
 
-def test_settings_is_admin_only(client, db, user, login):
+def test_a_user_gets_neither(client, db, user, login):
     login()
-    assert client.get('/admin/settings').status_code in (302, 403)
+    assert client.get('/admin/preferences').status_code == 302
+    assert client.get('/admin/settings').status_code == 302
 
 
-def test_an_admin_can_open_it(admin_client):
+def test_an_admin_gets_preferences_but_not_settings(admin_client):
+    assert admin_client.get('/admin/preferences').status_code == 200
     response = admin_client.get('/admin/settings')
-    assert response.status_code == 200
-    assert b'Settings' in response.data
+    assert response.status_code == 302 and response.headers['Location'] == '/'
 
 
-def test_it_is_separate_from_maintenance(client, db, login):
-    """Two pages, two jobs — and each links to the other. Maintenance is for
-    super admins, so one is signed in here."""
-    make_user('owner', role='super_admin')
-    login('owner')
-    settings = client.get('/admin/settings').get_data(as_text=True)
-    maintenance = client.get('/admin/maintenance').get_data(as_text=True)
+def test_a_refused_save_changes_nothing(admin_client, app):
+    """Refused before anything runs, not merely redirected afterwards."""
+    admin_client.post('/admin/settings', data={'csrf_token': CSRF})   # all unticked
+    with app.test_request_context():
+        assert app_settings.get('update_check_enabled') is True
+        assert app_settings.get('upload_limit_enabled') is True
+    assert Setting.query.count() == 0
+
+
+def test_a_super_admin_gets_both(owner_client):
+    assert owner_client.get('/admin/preferences').status_code == 200
+    assert owner_client.get('/admin/settings').status_code == 200
+
+
+def card_titles(body):
+    import re
+    return re.findall(r'<span class="card-title">([^<]+)</span>', body)
+
+
+def test_each_page_holds_its_own_cards(owner_client):
+    assert card_titles(owner_client.get('/admin/preferences').get_data(as_text=True)) \
+        == ['Work Orders', 'Preventive Maintenance']
+    assert card_titles(owner_client.get('/admin/settings').get_data(as_text=True)) \
+        == ['Updates', 'Attachments']
+
+
+def test_it_is_separate_from_maintenance(owner_client):
+    """Two pages, two jobs. Maintenance is for super admins."""
+    settings = owner_client.get('/admin/settings').get_data(as_text=True)
+    maintenance = owner_client.get('/admin/maintenance').get_data(as_text=True)
     assert '/admin/maintenance' in settings
     # Maintenance keeps its own concerns; settings does not duplicate them.
     assert 'Backups' in maintenance and 'Backups' not in settings
+
+
+# ── neither page touches the other's ──────────────────────────────────────
+
+def test_saving_settings_leaves_preferences_alone(owner_client, app):
+    """An unticked checkbox is absent from the form, so a handler that wrote
+    every key would switch off whatever the other page owns."""
+    owner_client.post('/admin/settings', data={
+        'csrf_token': CSRF, 'upload_limit_enabled': '1', 'max_upload_mb': '250',
+    })
+    with app.test_request_context():
+        assert app_settings.get('max_upload_mb') == 250
+        assert app_settings.get('update_check_enabled') is False      # unticked here
+        assert app_settings.get('allow_archived_deletion') is True    # not this page's
+        assert app_settings.get('pm_stall_on_open') is True
+        assert app_settings.get('default_grace_days') == 10
+
+
+def test_saving_preferences_leaves_settings_alone(admin_client, app):
+    admin_client.post('/admin/preferences', data={
+        'csrf_token': CSRF, 'default_grace_days': '3',
+    })
+    with app.test_request_context():
+        assert app_settings.get('default_grace_days') == 3
+        assert app_settings.get('allow_archived_deletion') is False   # unticked here
+        assert app_settings.get('update_check_enabled') is True       # not this page's
+        assert app_settings.get('upload_limit_enabled') is True
 
 
 # ── defaults ───────────────────────────────────────────────────────────────
@@ -66,17 +129,8 @@ def test_defaults_apply_with_nothing_stored(app):
         assert Setting.query.count() == 0
 
 
-def test_saving_stores_only_what_changed(admin_client, app):
-    admin_client.post('/admin/settings', data={
-        'csrf_token': CSRF, 'upload_limit_enabled': '1', 'max_upload_mb': '250',
-    })
-    with app.test_request_context():
-        assert app_settings.get('allow_archived_deletion') is False   # unchecked
-        assert app_settings.get('max_upload_mb') == 250
-
-
-def test_an_unparseable_size_is_refused_rather_than_stored(admin_client, app):
-    response = admin_client.post('/admin/settings', data={
+def test_an_unparseable_size_is_refused_rather_than_stored(owner_client, app):
+    response = owner_client.post('/admin/settings', data={
         'csrf_token': CSRF, 'upload_limit_enabled': '1', 'max_upload_mb': 'big',
     })
     assert b'at least 1 MB' in response.data
@@ -93,26 +147,23 @@ def test_archived_work_orders_are_deletable_by_default(admin_client, db, archive
 
 
 def test_switching_it_off_stops_deletion(admin_client, db, archived):
-    admin_client.post('/admin/settings', data={'csrf_token': CSRF,
-                                               'upload_limit_enabled': '1',
-                                               'max_upload_mb': '100'})
+    # Unticked: the form posts nothing for it.
+    admin_client.post('/admin/preferences', data={'csrf_token': CSRF})
     wo_id = archived.id
     admin_client.post(f'/work-orders/{wo_id}/delete', data={'csrf_token': CSRF})
     assert _db.session.get(WorkOrder, wo_id) is not None
 
 
 def test_the_button_goes_away_too(admin_client, db, archived):
-    admin_client.post('/admin/settings', data={'csrf_token': CSRF,
-                                               'upload_limit_enabled': '1',
-                                               'max_upload_mb': '100'})
+    # Unticked: the form posts nothing for it.
+    admin_client.post('/admin/preferences', data={'csrf_token': CSRF})
     html = admin_client.get(f'/work-orders/{archived.id}').get_data(as_text=True)
     assert 'Delete Work Order' not in html
 
 
 def test_live_work_orders_are_unaffected(admin_client, db):
-    admin_client.post('/admin/settings', data={'csrf_token': CSRF,
-                                               'upload_limit_enabled': '1',
-                                               'max_upload_mb': '100'})
+    # Unticked: the form posts nothing for it.
+    admin_client.post('/admin/preferences', data={'csrf_token': CSRF})
     wo = create_work_order(title='Still going', wo_type='unplanned')
     wo_id = wo.id
     admin_client.post(f'/work-orders/{wo_id}/delete', data={'csrf_token': CSRF})
@@ -127,70 +178,70 @@ def upload(client, wo_id, size):
     }, content_type='multipart/form-data', follow_redirects=True)
 
 
-def test_the_stored_limit_is_what_gets_enforced(admin_client, db, app):
+def test_the_stored_limit_is_what_gets_enforced(owner_client, db, app):
     """The point of storing it: no restart, no .env edit."""
     from app.models.attachment import Attachment
     wo = create_work_order(title='Noise', wo_type='unplanned')
 
-    admin_client.post('/admin/settings', data={
+    owner_client.post('/admin/settings', data={
         'csrf_token': CSRF, 'upload_limit_enabled': '1', 'max_upload_mb': '1',
     })
-    upload(admin_client, wo.id, 2 * 1024 * 1024)
+    upload(owner_client, wo.id, 2 * 1024 * 1024)
     assert Attachment.query.count() == 0
 
-    admin_client.post('/admin/settings', data={
+    owner_client.post('/admin/settings', data={
         'csrf_token': CSRF, 'upload_limit_enabled': '1', 'max_upload_mb': '50',
     })
-    upload(admin_client, wo.id, 2 * 1024 * 1024)
+    upload(owner_client, wo.id, 2 * 1024 * 1024)
     assert Attachment.query.count() == 1
 
 
-def test_switching_the_limit_off_accepts_anything(admin_client, db):
+def test_switching_the_limit_off_accepts_anything(owner_client, db):
     from app.models.attachment import Attachment
     wo = create_work_order(title='Noise', wo_type='unplanned')
-    admin_client.post('/admin/settings', data={
+    owner_client.post('/admin/settings', data={
         'csrf_token': CSRF, 'max_upload_mb': '1',        # limit box unchecked
     })
-    upload(admin_client, wo.id, 3 * 1024 * 1024)
+    upload(owner_client, wo.id, 3 * 1024 * 1024)
     assert Attachment.query.count() == 1
 
 
-def test_the_error_message_quotes_the_limit_in_force(admin_client, db):
+def test_the_error_message_quotes_the_limit_in_force(owner_client, db):
     wo = create_work_order(title='Noise', wo_type='unplanned')
-    admin_client.post('/admin/settings', data={
+    owner_client.post('/admin/settings', data={
         'csrf_token': CSRF, 'upload_limit_enabled': '1', 'max_upload_mb': '2',
     })
-    response = upload(admin_client, wo.id, 4 * 1024 * 1024)
+    response = upload(owner_client, wo.id, 4 * 1024 * 1024)
     assert b'2 MB' in response.data
 
 
 # ── the environment still wins ─────────────────────────────────────────────
 
-def test_an_env_var_overrides_the_stored_value_and_locks_the_field(admin_client, app):
+def test_an_env_var_overrides_the_stored_value_and_locks_the_field(owner_client, app):
     """Setting a variable is a deliberate act by whoever runs the server; a web
     form should not quietly override it."""
     app.config['ENV_SETTING_OVERRIDES'] = {'MAX_UPLOAD_MB': '7'}
-    admin_client.post('/admin/settings', data={
+    owner_client.post('/admin/settings', data={
         'csrf_token': CSRF, 'upload_limit_enabled': '1', 'max_upload_mb': '500',
     })
     with app.test_request_context():
         assert app_settings.get('max_upload_mb') == 7      # not 500
 
-    html = admin_client.get('/admin/settings').get_data(as_text=True)
+    html = owner_client.get('/admin/settings').get_data(as_text=True)
     assert 'disabled' in html
     assert 'Set by the environment' in html
 
 
-def test_without_the_env_var_the_field_is_editable(admin_client, app):
+def test_without_the_env_var_the_field_is_editable(owner_client, app):
     app.config['ENV_SETTING_OVERRIDES'] = {}
-    html = admin_client.get('/admin/settings').get_data(as_text=True)
+    html = owner_client.get('/admin/settings').get_data(as_text=True)
     assert 'Set by the environment' not in html
 
 
 def test_a_blank_grace_is_refused_rather_than_stored(admin_client, app):
     """Cleared on purpose is a mistake worth reporting; absent is not. The
     difference is what keeps one field from making the page unsaveable."""
-    admin_client.post('/admin/settings', data={
+    admin_client.post('/admin/preferences', data={
         'csrf_token': CSRF, 'default_grace_days': '',
     }, follow_redirects=True)
     with app.test_request_context():
@@ -199,12 +250,12 @@ def test_a_blank_grace_is_refused_rather_than_stored(admin_client, app):
 
 def test_omitting_the_grace_leaves_it_alone(admin_client, app):
     """A POST that does not carry the field must still save everything else."""
-    admin_client.post('/admin/settings', data={
+    admin_client.post('/admin/preferences', data={
         'csrf_token': CSRF, 'default_grace_days': '4',
     }, follow_redirects=True)
-    admin_client.post('/admin/settings', data={
-        'csrf_token': CSRF, 'upload_limit_enabled': '1', 'max_upload_mb': '250',
+    admin_client.post('/admin/preferences', data={
+        'csrf_token': CSRF, 'auto_archive_days': '45',
     }, follow_redirects=True)
     with app.test_request_context():
         assert app_settings.get('default_grace_days') == 4     # untouched
-        assert app_settings.get('max_upload_mb') == 250        # and the rest saved
+        assert app_settings.get('auto_archive_days') == 45     # and the rest saved

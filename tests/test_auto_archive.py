@@ -24,9 +24,8 @@ def admin_client(client, db, admin, login):
 
 
 def enable(client, days):
-    client.post('/admin/settings', data={
+    client.post('/admin/preferences', data={
         'csrf_token': CSRF,
-        'upload_limit_enabled': '1', 'max_upload_mb': '100',
         'allow_archived_deletion': '1',
         'auto_archive_enabled': '1', 'auto_archive_days': str(days),
     })
@@ -190,7 +189,7 @@ def test_auto_archived_work_is_frozen_like_any_other(admin_client, app, db):
 def test_run_now_archives_immediately(admin_client, db):
     old = closed_days_ago(100)
     enable(admin_client, 90)
-    response = admin_client.post('/admin/settings/auto-archive/run',
+    response = admin_client.post('/admin/preferences/auto-archive/run',
                                  data={'csrf_token': CSRF}, follow_redirects=True)
     assert b'Archived 1' in response.data
     assert old.is_archived
@@ -198,7 +197,7 @@ def test_run_now_archives_immediately(admin_client, db):
 
 def test_run_now_is_refused_while_the_feature_is_off(admin_client, db):
     old = closed_days_ago(100)
-    response = admin_client.post('/admin/settings/auto-archive/run',
+    response = admin_client.post('/admin/preferences/auto-archive/run',
                                  data={'csrf_token': CSRF}, follow_redirects=True)
     assert b'switched off' in response.data
     assert not old.is_archived
@@ -207,13 +206,13 @@ def test_run_now_is_refused_while_the_feature_is_off(admin_client, db):
 def test_run_now_is_admin_only(client, db, user, login):
     login()
     prime_csrf(client)
-    assert client.post('/admin/settings/auto-archive/run',
+    assert client.post('/admin/preferences/auto-archive/run',
                        data={'csrf_token': CSRF}).status_code in (302, 403)
 
 
 def test_enabling_without_a_day_count_is_refused(admin_client, app):
-    response = admin_client.post('/admin/settings', data={
-        'csrf_token': CSRF, 'upload_limit_enabled': '1', 'max_upload_mb': '100',
+    response = admin_client.post('/admin/preferences', data={
+        'csrf_token': CSRF,
         'auto_archive_enabled': '1', 'auto_archive_days': 'soon',
     })
     assert b'how many days' in response.data

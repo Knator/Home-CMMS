@@ -224,10 +224,12 @@ This guide takes you from a fresh clone to a running, testable app.
      - Sidebar > Admin > Users > "+ New User"
      - Create a standard "user" role account. Log out, log back in as them,
        and confirm the Admin menu is hidden for non-admins.
-     - Roles: User works with records. Admin also manages users and Settings.
-       Super Admin also has Maintenance, and only a super admin can make (or
-       unmake) another one — an admin is never offered the role, and cannot
-       edit, deactivate or issue tokens for a super admin's account.
+     - Roles: User works with records. Admin also manages users and
+       Preferences (work order and PM behaviour). Super Admin also has
+       Settings (attachment limit, update check) and Maintenance.
+       Only a super admin can make (or unmake) another one — an admin is
+       never offered the role, and cannot edit, deactivate or issue tokens
+       for a super admin's account.
      - Deleting: open the user and use Delete Account at the bottom. Only an
        account that has never created, been assigned or uploaded anything can
        be deleted; anyone else is deactivated instead, so their name stays on
@@ -665,7 +667,8 @@ This guide takes you from a fresh clone to a running, testable app.
   - There is no login rate limiting; if you expose this publicly, add it at the
     proxy (nginx limit_req, Caddy rate_limit) or with Flask-Limiter.
   - Every signed-in user can view and edit every record. Roles only gate the
-    admin area: Admin for users and Settings, Super Admin for Maintenance too.
+    admin area: Admin for users and Preferences, Super Admin for Settings and
+    Maintenance too.
     Only give accounts to people you trust with all of the data.
 
 ================================================================================

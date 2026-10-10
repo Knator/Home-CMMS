@@ -115,9 +115,17 @@ def test_a_refused_action_does_nothing(app, as_role):
     assert maintenance.list_backups() == []
 
 
-@pytest.mark.parametrize('url', ['/admin/users', '/admin/users/new', '/admin/settings'])
-def test_admins_keep_users_and_settings(as_role, url):
+@pytest.mark.parametrize('url', ['/admin/users', '/admin/users/new', '/admin/preferences'])
+def test_admins_keep_users_and_preferences(as_role, url):
     assert as_role('admin').get(url).status_code == 200
+
+
+@pytest.mark.parametrize('role', ['admin', 'user'])
+def test_settings_is_for_super_admins(as_role, role):
+    """Server performance and security: the attachment limit, the update check."""
+    client = as_role(role)
+    assert client.get('/admin/settings').headers['Location'] == '/'
+    assert client.post('/admin/settings', data={'csrf_token': CSRF}).headers['Location'] == '/'
 
 
 def sidebar(body):
@@ -125,14 +133,15 @@ def sidebar(body):
     return body[start:body.index('</nav>', start)]
 
 
-def test_only_a_super_admin_is_shown_maintenance(as_role, client):
+def test_only_a_super_admin_is_shown_settings_and_maintenance(as_role, client):
     nav = sidebar(as_role('super_admin').get('/').get_data(as_text=True))
-    assert '/admin/maintenance' in nav and '/admin/users' in nav
+    for link in ('/admin/users', '/admin/preferences', '/admin/settings', '/admin/maintenance'):
+        assert link in nav, link
 
     client.get('/auth/logout')
     nav = sidebar(as_role('admin').get('/').get_data(as_text=True))
-    assert '/admin/maintenance' not in nav
-    assert '/admin/users' in nav and '/admin/settings' in nav
+    assert '/admin/users' in nav and '/admin/preferences' in nav
+    assert '/admin/settings' not in nav and '/admin/maintenance' not in nav
 
 
 # ── granting the role ─────────────────────────────────────────────────────

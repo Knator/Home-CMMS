@@ -421,22 +421,21 @@ def _maintenance_result(scan=False):
     return redirect(url_for('admin.maintenance_page', **({'scan': 1} if scan else {})))
 
 
-@bp.route('/settings', methods=['GET', 'POST'])
+@bp.route('/preferences', methods=['GET', 'POST'])
 @login_required
 @admin_required
-def settings_page():
-    """In-app preferences.
+def preferences_page():
+    """How the application behaves for the people using it — work orders and
+    PMs. Admins. Server performance and security live in Settings instead.
 
-    Deliberately separate from Maintenance, which is about keeping the instance
-    running — backups, storage, the database, the scheduler. This is about how
-    the application behaves for the people using it.
+    Saves only its own fields. The two pages share one settings table, and an
+    unticked checkbox is simply absent from a form, so a handler that wrote
+    every preference would switch off whatever the other page owns.
     """
     if request.method == 'POST':
         validate_csrf()
 
-        limit_on = bool(request.form.get('upload_limit_enabled'))
         archive_on = bool(request.form.get('auto_archive_enabled'))
-        limit = parse_int(request.form.get('max_upload_mb'), minimum=1)
         days = parse_int(request.form.get('auto_archive_days'), minimum=0)
         # A field that was not submitted at all means "not offered", not
         # "left blank": rejecting its absence would make the whole page
@@ -445,21 +444,11 @@ def settings_page():
         raw_grace = request.form.get('default_grace_days')
         grace = parse_int(raw_grace, minimum=0)
 
-        # A setting the environment governs renders disabled, so the browser
-        # does not submit it — absent here means "not yours to set", not "left
-        # blank". Validating it anyway made the page impossible to save while
-        # MAX_UPLOAD_MB was set, and took every unrelated preference on it down
-        # with the one field.
-        limit_locked = app_settings.env_override('max_upload_mb') is not None
-
         # Everything is checked before anything is written. Staging a value and
         # then bailing out leaves it pending in the session, where it reads back
         # as though it had been saved — and might be committed by whatever runs
         # next.
         errors = []
-        if limit_on and limit is None and not limit_locked:
-            errors.append('Enter a maximum attachment size of at least 1 MB, '
-                          'or switch the limit off.')
         if archive_on and days is None:
             errors.append('Enter how many days a closed work order should wait '
                           'before archiving, or switch auto-archiving off.')
@@ -468,41 +457,27 @@ def settings_page():
         if errors:
             for message in errors:
                 flash(message, 'error')
-            return render_template('admin/settings.html',
+            return render_template('admin/preferences.html',
                                    settings=app_settings.all_settings())
 
-        app_settings.set_value('allow_archived_deletion',
-                               bool(request.form.get('allow_archived_deletion')),
-                               current_user.id)
-        app_settings.set_value('upload_limit_enabled', limit_on, current_user.id)
+        for key in ('allow_archived_deletion', 'pm_stall_on_open',
+                    'pm_cancel_restarts_clock'):
+            app_settings.set_value(key, bool(request.form.get(key)), current_user.id)
         app_settings.set_value('auto_archive_enabled', archive_on, current_user.id)
-        app_settings.set_value('update_check_enabled',
-                               bool(request.form.get('update_check_enabled')),
-                               current_user.id)
-        app_settings.set_value('pm_stall_on_open',
-                               bool(request.form.get('pm_stall_on_open')),
-                               current_user.id)
-        app_settings.set_value('pm_cancel_restarts_clock',
-                               bool(request.form.get('pm_cancel_restarts_clock')),
-                               current_user.id)
-        # Not written while locked: a stored value would sit there looking
-        # authoritative and take effect the day the variable is removed.
-        if limit is not None and not limit_locked:
-            app_settings.set_value('max_upload_mb', limit, current_user.id)
         if days is not None:
             app_settings.set_value('auto_archive_days', days, current_user.id)
         if grace is not None:
             app_settings.set_value('default_grace_days', grace, current_user.id)
 
         db.session.commit()
-        flash('Settings saved.', 'success')
-        return redirect(url_for('admin.settings_page'))
+        flash('Preferences saved.', 'success')
+        return redirect(url_for('admin.preferences_page'))
 
-    return render_template('admin/settings.html',
+    return render_template('admin/preferences.html',
                            settings=app_settings.all_settings())
 
 
-@bp.route('/settings/auto-archive/run', methods=['POST'])
+@bp.route('/preferences/auto-archive/run', methods=['POST'])
 @login_required
 @admin_required
 def run_auto_archive_now():
@@ -514,14 +489,65 @@ def run_auto_archive_now():
     validate_csrf()
     if app_settings.auto_archive_after_days() is None:
         flash('Auto-archiving is switched off.', 'error')
-        return redirect(url_for('admin.settings_page'))
+        return redirect(url_for('admin.preferences_page'))
 
     count = auto_archive_closed_work_orders()
     if count:
         flash(f'Archived {count} work order(s).', 'success')
     else:
         flash('Nothing was old enough to archive.', 'info')
-    return redirect(url_for('admin.settings_page'))
+    return redirect(url_for('admin.preferences_page'))
+
+
+@bp.route('/settings', methods=['GET', 'POST'])
+@login_required
+@super_admin_required
+def settings_page():
+    """Server performance and security — the attachment size limit and the
+    update check. Super admins.
+
+    The line between this and Preferences: anything that bears on what the
+    server accepts, what it reaches out to, or how hard it can be made to work
+    belongs here; how work orders and PMs behave belongs in Preferences.
+    Deliberately separate from Maintenance too, which is about keeping the
+    instance running — backups, storage, the database, the scheduler.
+
+    Saves only its own fields, for the reason preferences_page() gives.
+    """
+    if request.method == 'POST':
+        validate_csrf()
+
+        limit_on = bool(request.form.get('upload_limit_enabled'))
+        limit = parse_int(request.form.get('max_upload_mb'), minimum=1)
+
+        # A setting the environment governs renders disabled, so the browser
+        # does not submit it — absent here means "not yours to set", not "left
+        # blank". Validating it anyway made the page impossible to save while
+        # MAX_UPLOAD_MB was set, and took every unrelated setting on it down
+        # with the one field.
+        limit_locked = app_settings.env_override('max_upload_mb') is not None
+
+        if limit_on and limit is None and not limit_locked:
+            flash('Enter a maximum attachment size of at least 1 MB, '
+                  'or switch the limit off.', 'error')
+            return render_template('admin/settings.html',
+                                   settings=app_settings.all_settings())
+
+        app_settings.set_value('upload_limit_enabled', limit_on, current_user.id)
+        app_settings.set_value('update_check_enabled',
+                               bool(request.form.get('update_check_enabled')),
+                               current_user.id)
+        # Not written while locked: a stored value would sit there looking
+        # authoritative and take effect the day the variable is removed.
+        if limit is not None and not limit_locked:
+            app_settings.set_value('max_upload_mb', limit, current_user.id)
+
+        db.session.commit()
+        flash('Settings saved.', 'success')
+        return redirect(url_for('admin.settings_page'))
+
+    return render_template('admin/settings.html',
+                           settings=app_settings.all_settings())
 
 
 @bp.route('/maintenance')

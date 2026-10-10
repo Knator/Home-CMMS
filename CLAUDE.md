@@ -430,8 +430,8 @@ create the account before anything listens and close the window entirely.
 
 ### Roles
 Three, each including the one below: `user` works with records, `admin` also has users and
-Settings (`@admin_required`), `super_admin` also has **Maintenance** — backups, restore, the
-database, the sign-in log (`@super_admin_required`). `ROLES` in `app/models/user.py` is
+Preferences (`@admin_required`), `super_admin` also has **Settings** and **Maintenance** —
+backups, restore, the database, the sign-in log (`@super_admin_required`). `ROLES` in `app/models/user.py` is
 ordered most privileged first, which is also how they sort and are offered. `is_admin` is
 true for both admin roles; `is_super_admin` for the top one only.
 
@@ -864,10 +864,25 @@ LAN box, where that renders blank. **When adding an endpoint, add an entry to `E
 `test_api_docs.py` fails if a route is undocumented *or* documented but missing, which is
 what stops the reference drifting from the code.
 
-### Settings (`app/settings.py`, `app/models/setting.py`, `/admin/settings`)
-Admin-only **in-app preferences**, deliberately separate from Maintenance: Maintenance is
-about keeping the instance running (backups, storage, database, scheduler), Settings is about
-how the application behaves for the people using it.
+### Preferences and Settings (`app/settings.py`, `app/models/setting.py`)
+In-app configuration on **two pages, split by who may change it**, both separate from
+Maintenance (which is about keeping the instance running — backups, storage, database,
+scheduler):
+
+- **Preferences** (`/admin/preferences`, admins) — how work orders and PMs behave: default
+  overdue grace, archived deletion, auto-archiving, PM stalling and cancellation.
+- **Settings** (`/admin/settings`, **super admins only**) — server performance and security:
+  the attachment size limit and the update check.
+
+**Where a new option goes:** anything bearing on what the server accepts, what it reaches
+out to, how hard it can be made to work, or who can get in belongs in **Settings**; how the
+application behaves for the people using it belongs in **Preferences**. When unsure, Settings —
+moving something down to admins later is easy, taking it away is not.
+
+Both pages share the one `settings` table, and **each handler saves only its own keys**. An
+unticked checkbox is simply absent from a form, so a handler that wrote every key would
+switch off whatever the other page owns; `test_saving_settings_leaves_preferences_alone` and
+its twin pin that.
 
 Preferences live in a key/value `settings` table, **not in `.env`**. The environment
 describes the deployment — where the database is, what port to listen on — and is needed
@@ -880,8 +895,8 @@ bootstrap from the environment and keep runtime preferences in their own storage
 Precedence is **env → stored → config default**. A variable that is actually set wins and
 the field renders disabled with "Set by the environment", because setting one is a deliberate
 act by whoever runs the server. `ENV_SETTING_OVERRIDES` in `config.py` records which were
-genuinely set (empty means unset). Adding a preference means one entry in `DEFAULTS` and no
-migration.
+genuinely set (empty means unset). Adding a preference means one entry in `DEFAULTS`, a
+field on the right page and a line in that page's handler — no migration.
 
 `upload_limit_bytes()` is the subtle one: a *chosen* value is whole MB, but with nothing
 chosen it returns `MAX_CONTENT_LENGTH` **in bytes** rather than converting to MB and back —

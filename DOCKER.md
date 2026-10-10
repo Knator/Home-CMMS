@@ -329,8 +329,9 @@ hijacking and `<base>` injection regardless.
 Worth knowing before exposing it to the internet:
 
 - **Everyone signed in can see and edit everything.** Roles only gate the admin
-  area: an **Admin** manages users and Settings, a **Super Admin** also has
-  Maintenance — backups, restore, the database and the sign-in log. Hand out
+  area: an **Admin** manages users and Preferences, a **Super Admin** also has
+  Settings (attachment limit, update check) and Maintenance — backups, restore,
+  the database and the sign-in log. Hand out
   accounts only to people you trust with all of the data.
 - **If nobody who can sign in is a super admin any more**, promote someone from
   the host: `docker compose exec cmms python create_admin.py --promote <username>`.

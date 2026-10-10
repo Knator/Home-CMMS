@@ -31,7 +31,8 @@ def test_an_admin_can_be_created_without_a_terminal(app, db):
     result = run_create_admin(app, '--username', 'boss', '--email', 'boss@example.com',
                               '--password', 'A-long-enough-password1')
     assert result.returncode == 0, result.stderr
-    assert User.query.filter_by(username='boss').one().role == 'admin'
+    # A super admin: whoever runs this already holds the whole instance.
+    assert User.query.filter_by(username='boss').one().role == 'super_admin'
 
 
 def test_environment_variables_work_too(app, db):

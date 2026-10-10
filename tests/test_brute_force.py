@@ -127,7 +127,7 @@ def test_lockouts_survive_a_restart(client, db, user, app):
 
 
 def test_an_admin_can_clear_lockouts(client, db, app, login):
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     for _ in range(security.MAX_IDENTIFIER_FAILURES):
         try_login(client, username='someone')
 
@@ -158,7 +158,7 @@ def test_old_attempts_are_pruned(client, db, user, app):
 
 
 def test_failures_are_visible_to_an_admin(client, db, app, login):
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     try_login(client, username='intruder')
 
     login('boss')
@@ -248,7 +248,7 @@ def _pile_up_failures(client, count, ip='198.51.100.7'):
 
 
 def test_the_card_shows_only_a_handful(client, db, app, login):
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     _pile_up_failures(client, 40)
 
     login('boss')
@@ -265,7 +265,7 @@ def test_more_failures_than_fit_are_still_reachable(client, db, app, login):
     reached the response and the test kept passing against something no one
     could see.
     """
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     _pile_up_failures(client, 40)
 
     login('boss')
@@ -278,7 +278,7 @@ def test_more_failures_than_fit_are_still_reachable(client, db, app, login):
 def test_backups_remain_reachable_under_a_flood(client, db, app, login):
     """The reason for the limit: a busy day of failures must not bury the
     controls underneath it."""
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     _pile_up_failures(client, 200)
 
     login('boss')
@@ -289,7 +289,7 @@ def test_backups_remain_reachable_under_a_flood(client, db, app, login):
 
 
 def test_the_full_log_has_its_own_page(client, db, app, login):
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     _pile_up_failures(client, 3)
 
     login('boss')
@@ -303,7 +303,7 @@ def test_the_log_is_paginated(client, db, app, login):
     page could be filled by real attempts."""
     from app.models.auth_attempt import AuthAttempt as Attempt
 
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     for i in range(security.PAGE_SIZE + 10):
         db.session.add(Attempt(identifier=f'intruder{i}', ip_address='198.51.100.7',
                                successful=False))
@@ -320,7 +320,7 @@ def test_the_log_is_paginated(client, db, app, login):
 
 
 def test_the_log_can_show_successes_too(client, db, user, app, login):
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     # A separate client, because signing in as tester here would leave this one
     # authenticated as a non-admin.
     other = app.test_client()
@@ -341,7 +341,7 @@ def test_the_log_can_show_successes_too(client, db, user, app, login):
 
 
 def test_a_junk_page_number_does_not_break_it(client, db, app, login):
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     login('boss')
     for query in ('?page=abc', '?page=-5', '?page=99999', '?page=0'):
         assert client.get(f'/admin/sign-in-attempts{query}').status_code == 200, query
@@ -359,7 +359,7 @@ def test_the_log_is_reachable_when_nothing_has_failed(client, db, app, login):
     log out of reach on exactly the instances where nothing is wrong. The page
     behind it filters on outcome and lists successful sign-ins too, so the way
     in must not depend on there being failures to look at."""
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     login('boss')
 
     body = client.get('/admin/maintenance').get_data(as_text=True)
@@ -371,7 +371,7 @@ def test_the_log_is_reachable_when_nothing_has_failed(client, db, app, login):
 def test_the_link_carries_no_count(client, db, app, login):
     """It only ever counted failures, so it read '(0)' beside a link to a page
     listing every successful sign-in."""
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     _pile_up_failures(client, 3)
     login('boss')
 

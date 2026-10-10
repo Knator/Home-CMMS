@@ -42,13 +42,22 @@
             <input type="email" name="email" required
                    value="{{ sent.get('email', user.email if is_edit else '') }}">
           </div>
-          <div class="form-group">
-            <label>Role</label>
+          <div class="form-group full">
+            <label for="role">Role</label>
             {% set role = sent.get('role', user.role if is_edit else 'user') %}
-            <select name="role">
-              <option value="user" {{ 'selected' if role == 'user' }}>User</option>
-              <option value="admin" {{ 'selected' if role == 'admin' }}>Admin</option>
+            {# Only roles the signed-in user may give: an admin is never offered
+               Super Admin, and the route refuses it if posted anyway. Least
+               privileged first, so the default reads first. #}
+            <select name="role" id="role">
+              {% for option in current_user.assignable_roles | reverse %}
+                <option value="{{ option }}" {{ 'selected' if role == option }}>{{ role_labels[option] }}</option>
+              {% endfor %}
             </select>
+            <span class="field-hint">
+              Admins manage users and settings. Super admins can also use
+              Maintenance — backups, restore, the database and the sign-in log —
+              and are the only ones who can make another super admin.
+            </span>
           </div>
           <div class="form-group full">
             <label>{{ 'New Password' if is_edit else 'Password *' }} {{ requirements_hint() }}</label>

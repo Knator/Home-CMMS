@@ -82,8 +82,8 @@ This guide takes you from a fresh clone to a running, testable app.
   SIGN-IN PROTECTION
   Five failed sign-ins for an account, or twenty from one address, blocks
   further attempts for 15 minutes. If you lock yourself out, either wait or use
-  Admin > Maintenance > Sign-in Attempts > Clear lockouts. Failed attempts are
-  listed there too.
+  Admin > Maintenance > Sign-in Attempts > Clear lockouts (super admins only).
+  Failed attempts are listed there too.
 
   DEBUG MODE
   FLASK_DEBUG=1 only works with HOST=127.0.0.1. The debugger runs arbitrary
@@ -130,8 +130,13 @@ This guide takes you from a fresh clone to a running, testable app.
 
   The setup page is open to anyone who can reach the app until an account
   exists, so complete it before putting the app on an untrusted network. Set
-  SETUP_WINDOW_MINUTES to close it automatically a few minutes after startup. This account has the 'admin' role and can
-  manage other users. Safe to re-run — it refuses duplicate usernames/emails.
+  SETUP_WINDOW_MINUTES to close it automatically a few minutes after startup. This account is a Super Admin: it
+  manages other users and is the one that can use Maintenance. To make an
+  existing account a super admin from the command line:
+
+      python create_admin.py --promote <username>
+
+  Safe to re-run — it refuses duplicate usernames/emails.
 
 
 --------------------------------------------------------------------------------
@@ -219,6 +224,10 @@ This guide takes you from a fresh clone to a running, testable app.
      - Sidebar > Admin > Users > "+ New User"
      - Create a standard "user" role account. Log out, log back in as them,
        and confirm the Admin menu is hidden for non-admins.
+     - Roles: User works with records. Admin also manages users and Settings.
+       Super Admin also has Maintenance, and only a super admin can make (or
+       unmake) another one — an admin is never offered the role, and cannot
+       edit, deactivate or issue tokens for a super admin's account.
 
   h) REMEMBER ME
      - Ticking it on the login page keeps you signed in for 30 days, even
@@ -236,7 +245,7 @@ This guide takes you from a fresh clone to a running, testable app.
  7b. MAINTENANCE (ADMIN)
 --------------------------------------------------------------------------------
 
-  Sidebar > Admin > Maintenance, for admins only. It covers:
+  Sidebar > Admin > Maintenance, for super admins only. It covers:
 
   SYSTEM       Database, attachment and thumbnail sizes, free disk, record
                counts, versions, and whether image previews are working.
@@ -651,9 +660,9 @@ This guide takes you from a fresh clone to a running, testable app.
   - Use a strong, unique SECRET_KEY.
   - There is no login rate limiting; if you expose this publicly, add it at the
     proxy (nginx limit_req, Caddy rate_limit) or with Flask-Limiter.
-  - Every signed-in user can view and edit every record. The 'admin' role only
-    gates user management. Only give accounts to people you trust with all of
-    the data.
+  - Every signed-in user can view and edit every record. Roles only gate the
+    admin area: Admin for users and Settings, Super Admin for Maintenance too.
+    Only give accounts to people you trust with all of the data.
 
 ================================================================================
  You're ready. Start at step 1 and work down.

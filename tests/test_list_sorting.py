@@ -29,7 +29,7 @@ TODAY = date.today()
 
 @pytest.fixture
 def signed_in(client, db, login):
-    make_user('boss', role='admin', password='Password123!')
+    make_user('boss', role='super_admin', password='Password123!')
     login('boss', 'Password123!')
     return client
 
@@ -308,8 +308,9 @@ def usernames(client, url):
     ('sort=name', ['zed', 'bob', 'boss']),
     ('sort=name&dir=desc', ['boss', 'bob', 'zed']),
     ('sort=email', ['bob', 'boss', 'zed']),
-    # Admins first; the two admins fall back to name order.
-    ('sort=role', ['bob', 'boss', 'zed']),
+    # By rank, not alphabetically: super admin, admin, user.
+    ('sort=role', ['boss', 'bob', 'zed']),
+    ('sort=role&dir=desc', ['zed', 'bob', 'boss']),
     ('sort=status', ['zed', 'boss', 'bob']),
     # Most recent first, never signed in last — and first the other way round.
     ('sort=last_login', ['boss', 'zed', 'bob']),

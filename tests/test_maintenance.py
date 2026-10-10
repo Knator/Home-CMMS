@@ -14,7 +14,7 @@ from tests.conftest import CSRF, make_user
 
 @pytest.fixture
 def admin_login(client, app, login):
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     login('boss')
     return client
 

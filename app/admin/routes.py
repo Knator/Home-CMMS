@@ -10,18 +10,18 @@ from sqlalchemy import func
 
 from app.admin import bp
 from app.extensions import db
-from app.models.user import User
+from app.models.user import ADMIN_ROLES, ROLE_SUPER_ADMIN, ROLES, ROLE_USER, User
 from app.models.api_token import ApiToken
 from datetime import timedelta
 
 from app.utils import (
-    validate_csrf, admin_required, parse_date, parse_int, utcnow,
+    validate_csrf, admin_required, super_admin_required, parse_date, parse_int, utcnow,
     allow_large_upload, local_day_start_utc,
 )
 from app.navigation import carried_list_args, empty_page, page_number, paginate_list
 from app.search import (SearchTooSlow, compile_pattern, like_clause, regex_filter,
                         too_slow_message)
-from app.sorting import SortKey, apply_sort, chosen_sort
+from app.sorting import SortKey, apply_sort, chosen_sort, rank
 from app import maintenance
 from app import security
 from app import settings as app_settings
@@ -31,12 +31,41 @@ from app.services import auto_archive_closed_work_orders
 
 
 def _other_active_admins(user_id):
+    """Active admins of either kind besides `user_id`."""
     return User.query.filter(
-        User.role == 'admin', User.is_active.is_(True), User.id != user_id
+        User.role.in_(ADMIN_ROLES), User.is_active.is_(True), User.id != user_id
     ).count()
 
 
-USER_ROLES = ('admin', 'user')
+def _other_active_super_admins(user_id):
+    return User.query.filter(
+        User.role == ROLE_SUPER_ADMIN, User.is_active.is_(True), User.id != user_id
+    ).count()
+
+
+def _refuse_if_outranked(user, back=None):
+    """A redirect when the signed-in admin may not touch `user`, else None.
+
+    An admin cannot edit, deactivate or issue tokens for a super admin: each is
+    a way into that account — set its password, or hold a token that acts as
+    it — and so into Maintenance, which is what the role exists to keep them
+    out of. The controls are hidden too; this is what makes hiding them true.
+    """
+    if not current_user.outranks(user):
+        return None
+    flash('Only a super admin can change a super admin account.', 'error')
+    return redirect(back or url_for('admin.users', **carried_list_args(request.args)))
+
+
+def _read_role(fallback):
+    """The posted role, or `fallback` for one that does not exist. A real role
+    above the signed-in user's own is returned as is, for the caller to refuse:
+    quietly substituting another would save something they did not ask for."""
+    role = request.form.get('role', fallback)
+    return role if role in ROLES else fallback
+
+
+USER_ROLES = ROLES
 USER_STATUSES = ('active', 'inactive')
 
 
@@ -55,7 +84,7 @@ def _user_label():
 USER_SORTS = {
     'name':       SortKey(_user_label),
     'email':      SortKey(lambda: func.lower(User.email)),
-    'role':       SortKey(lambda: User.role),                       # admin first
+    'role':       SortKey(lambda: rank(User.role, ROLES)),          # super admins first
     'status':     SortKey(lambda: User.is_active, 'desc'),          # active first
     'last_login': SortKey(lambda: User.last_login, 'desc'),         # most recent first
 }
@@ -153,11 +182,11 @@ def create_user():
         username = request.form.get('username', '').strip()
         email = request.form.get('email', '').strip()
         password = request.form.get('password', '')
-        role = request.form.get('role', 'user')
-        if role not in ('admin', 'user'):
-            role = 'user'
+        role = _read_role(ROLE_USER)
 
         errors = []
+        if role not in current_user.assignable_roles:
+            errors.append('Only a super admin can make another super admin.')
         if not username:
             errors.append('Username is required.')
         if '@' not in email:
@@ -189,13 +218,19 @@ def create_user():
 @admin_required
 def edit_user(id):
     user = db.get_or_404(User, id)
+    refused = _refuse_if_outranked(user)
+    if refused:
+        return refused
     if request.method == 'POST':
         validate_csrf()
         email = request.form.get('email', '').strip()
-        role = request.form.get('role', 'user')
-        if role not in ('admin', 'user'):
-            role = 'user'
+        role = _read_role(user.role)
         new_password = request.form.get('new_password', '')
+
+        # Their own role included: an admin cannot promote themselves.
+        if role != user.role and role not in current_user.assignable_roles:
+            flash('Only a super admin can make another super admin.', 'error')
+            return render_template('admin/user_form.html', user=user)
 
         if '@' not in email:
             flash('A valid email address is required.', 'error')
@@ -206,8 +241,16 @@ def edit_user(id):
             flash('Email already in use.', 'error')
             return render_template('admin/user_form.html', user=user)
 
+        # Losing the last super admin would leave Maintenance — and with it
+        # backups and restore — reachable only from a shell.
+        if (user.is_super_admin and role != ROLE_SUPER_ADMIN
+                and _other_active_super_admins(id) == 0):
+            flash('This is the only super admin; make someone else a super admin first.',
+                  'error')
+            return render_template('admin/user_form.html', user=user)
+
         # Losing the last admin would leave user management unreachable.
-        if user.role == 'admin' and role != 'admin' and _other_active_admins(id) == 0:
+        if user.is_admin and role not in ADMIN_ROLES and _other_active_admins(id) == 0:
             flash('This is the only administrator; assign another admin first.', 'error')
             return render_template('admin/user_form.html', user=user)
 
@@ -240,6 +283,9 @@ def issue_api_token(id):
     """Create a named token. The plaintext is shown once and never stored."""
     validate_csrf()
     user = db.get_or_404(User, id)
+    refused = _refuse_if_outranked(user)
+    if refused:
+        return refused
 
     name = request.form.get('token_name', '').strip()
     if not name:
@@ -261,6 +307,9 @@ def issue_api_token(id):
 def revoke_api_token(id, token_id):
     validate_csrf()
     user = db.get_or_404(User, id)
+    refused = _refuse_if_outranked(user)
+    if refused:
+        return refused
     token = db.session.get(ApiToken, token_id)
     if token is None or token.user_id != user.id:
         flash('That token could not be found.', 'error')
@@ -281,10 +330,13 @@ def toggle_user(id):
     validate_csrf()
     user = db.get_or_404(User, id)
 
+    refused = _refuse_if_outranked(user)
+    if refused:
+        return refused
     if user.id == current_user.id:
         flash('You cannot deactivate your own account.', 'error')
         return redirect(url_for('admin.users', **carried_list_args(request.args)))
-    if user.is_active and user.role == 'admin' and _other_active_admins(id) == 0:
+    if user.is_active and user.is_admin and _other_active_admins(id) == 0:
         flash('This is the only active administrator; assign another admin first.', 'error')
         return redirect(url_for('admin.users', **carried_list_args(request.args)))
 
@@ -432,14 +484,14 @@ def run_auto_archive_now():
 
 @bp.route('/maintenance')
 @login_required
-@admin_required
+@super_admin_required
 def maintenance_page():
     return _render_maintenance(scan=bool(request.args.get('scan')))
 
 
 @bp.route('/maintenance/backup', methods=['POST'])
 @login_required
-@admin_required
+@super_admin_required
 def create_backup():
     validate_csrf()
     try:
@@ -472,7 +524,7 @@ def create_backup():
 
 @bp.route('/maintenance/backup/<path:name>/download')
 @login_required
-@admin_required
+@super_admin_required
 def download_backup(name):
     # Validated rather than joined blindly: this path comes from the URL.
     if not maintenance.is_backup_name(name):
@@ -485,7 +537,7 @@ def download_backup(name):
 
 @bp.route('/maintenance/backup/<path:name>/delete', methods=['POST'])
 @login_required
-@admin_required
+@super_admin_required
 def delete_backup(name):
     validate_csrf()
     if maintenance.delete_backup(name):
@@ -541,7 +593,7 @@ def _perform_restore(source_path, label):
 
 @bp.route('/maintenance/restore', methods=['POST'])
 @login_required
-@admin_required
+@super_admin_required
 def restore_backup():
     """Restore over the live instance. Destroys whatever is there now."""
     allow_large_upload()   # before any request.form access, which parses the body
@@ -576,7 +628,7 @@ def restore_backup():
 
 @bp.route('/maintenance/clean-storage', methods=['POST'])
 @login_required
-@admin_required
+@super_admin_required
 def clean_storage():
     validate_csrf()
     removed = maintenance.clean_storage()
@@ -592,7 +644,7 @@ def clean_storage():
 
 @bp.route('/maintenance/clear-thumbnails', methods=['POST'])
 @login_required
-@admin_required
+@super_admin_required
 def clear_thumbnails():
     validate_csrf()
     result = maintenance.clear_thumbnail_cache()
@@ -603,7 +655,7 @@ def clear_thumbnails():
 
 @bp.route('/maintenance/check-database', methods=['POST'])
 @login_required
-@admin_required
+@super_admin_required
 def check_database():
     validate_csrf()
     result = maintenance.check_database()
@@ -617,7 +669,7 @@ def check_database():
 
 @bp.route('/maintenance/vacuum', methods=['POST'])
 @login_required
-@admin_required
+@super_admin_required
 def vacuum_database():
     validate_csrf()
     result = maintenance.vacuum_database()
@@ -628,7 +680,7 @@ def vacuum_database():
 
 @bp.route('/maintenance/checkpoint', methods=['POST'])
 @login_required
-@admin_required
+@super_admin_required
 def checkpoint_wal():
     validate_csrf()
     result = maintenance.checkpoint_wal()
@@ -638,7 +690,7 @@ def checkpoint_wal():
 
 @bp.route('/sign-in-attempts')
 @login_required
-@admin_required
+@super_admin_required
 def sign_in_attempts():
     """The full attempt log, paginated, so the maintenance page stays usable."""
     outcome = request.args.get('outcome', 'failed')
@@ -668,7 +720,7 @@ def sign_in_attempts():
 
 @bp.route('/maintenance/check-updates', methods=['POST'])
 @login_required
-@admin_required
+@super_admin_required
 def check_updates():
     """Ask now rather than waiting for the cache to lapse."""
     validate_csrf()
@@ -686,7 +738,7 @@ def check_updates():
 
 @bp.route('/maintenance/clear-lockouts', methods=['POST'])
 @login_required
-@admin_required
+@super_admin_required
 def clear_lockouts():
     """Release every lockout. The escape hatch for locking yourself out."""
     validate_csrf()
@@ -697,7 +749,7 @@ def clear_lockouts():
 
 @bp.route('/maintenance/run-pm-check', methods=['POST'])
 @login_required
-@admin_required
+@super_admin_required
 def run_pm_check_now():
     validate_csrf()
     from flask import current_app

@@ -37,7 +37,9 @@ public API specification advertise an attacker's server. Nothing is lost by drop
 a proxy passes the real `Host` through. `test_proxy_headers.py` pins both halves.
 
 `create_admin.py` takes `--username/--email/--password` or `ADMIN_*`, plus `--if-missing` so
-the entrypoint can run it on every start.
+the entrypoint can run it on every start. It creates a **super admin**, and `--promote
+USERNAME` makes an existing account one — the way back in when nobody who can sign in is.
+Shell access to the instance already means holding the database, so neither is an escalation.
 
 ## Dependencies
 `requirements.txt` is **runtime only** — it is what the Docker image installs, so anything
@@ -412,7 +414,8 @@ regenerate every day until someone completed the work.
 `PM.advance_schedule()` anchors the next due date to the **previous due date**, not to the day it ran, so a late tick or a manual "Generate WO Now" doesn't shift every future occurrence. If a PM is several intervals overdue, whole intervals are skipped — one catch-up WO, not a backlog.
 
 ### First-run setup (`app/setup/`)
-While `User.query.count() == 0`, `/setup` offers to create the first administrator and a
+While `User.query.count() == 0`, `/setup` offers to create the first administrator — a super
+admin — and a
 `before_request` gate redirects everything else there (the API answers 503 JSON; the public
 API docs stay reachable). One account closes it permanently — the POST re-checks inside the
 request so two simultaneous visitors cannot both become admin.
@@ -422,6 +425,35 @@ residual risk: until the account exists, whoever reaches the page first gets it.
 in increasing order of strictness: a loud warning logged on every start while it is open;
 `SETUP_WINDOW_MINUTES` to bound the window Portainer-style; or `ADMIN_*` env vars, which
 create the account before anything listens and close the window entirely.
+
+### Roles
+Three, each including the one below: `user` works with records, `admin` also has users and
+Settings (`@admin_required`), `super_admin` also has **Maintenance** — backups, restore, the
+database, the sign-in log (`@super_admin_required`). `ROLES` in `app/models/user.py` is
+ordered most privileged first, which is also how they sort and are offered. `is_admin` is
+true for both admin roles; `is_super_admin` for the top one only.
+
+The gate is on the routes; the sidebar link is hidden as well. `test_super_admin.py` finds
+every rule under `/admin/maintenance` and `/admin/sign-in-attempts` from the URL map and
+requests each as an admin, so **a new Maintenance route left on `@admin_required` fails the
+build**.
+
+The escalation rules are what make the gate mean anything. `assignable_roles` never includes
+a role above the user's own, so an admin can neither grant super admin nor take it for
+themselves; the form only offers what is assignable and the routes refuse the rest.
+`_refuse_if_outranked()` stops an admin editing, deactivating, or issuing or revoking tokens
+for a super admin — each is a way into that account (set its password; hold a token that acts
+as it), and so into Maintenance. The users list drops those controls on super admin rows for
+an admin, per the rule that a button the route will not honour reads as broken.
+
+The **last active super admin cannot be demoted**, or Maintenance becomes reachable from a
+shell only; a deactivated super admin does not count, since they cannot sign in to use it.
+First-run setup and `create_admin.py` create super admins — a fresh instance whose only
+account could not reach Maintenance could not restore the backup it was set up for.
+
+Migration `b3c1d7e9f2a4` promotes **every existing admin**, so upgrading changes nobody's
+access: everyone who had Maintenance still does, and the super admin demotes whoever should
+only be an admin. Promoting nobody would have left upgraded instances without Maintenance.
 
 ### User display names
 `User.display_name` is what people are called on screen; `username` remains the identity —
@@ -520,7 +552,7 @@ the server agree.
   code execution for anyone who can reach the port.
 - The `user_loader` re-checks `is_active` on every request, so deactivating an account ends sessions already signed in
 - Login `?next=` goes through `safe_redirect()`, which accepts same-origin relative paths only
-- Admin-only routes use `@admin_required` from `app/utils.py`; the last active admin can't be demoted or deactivated
+- Admin-only routes use `@admin_required` from `app/utils.py`, Maintenance uses `@super_admin_required` (see Roles); the last active admin can't be demoted or deactivated, nor the last active super admin demoted
 - Posted `status`/`priority`/`wo_type` values are validated against the model's vocabulary; all untrusted ints and dates go through `parse_int`/`parse_date`, which return `None` rather than raising
 
 ### Dates
@@ -894,7 +926,7 @@ insignificant, and sorts `1.0.1-dev` *below* `1.0.1`. An unknown or unparseable 
 as "current" rather than crying wolf.
 
 ### Maintenance (`app/maintenance.py`, `/admin/maintenance`)
-Admin-only housekeeping, modelled on what self-hosted apps generally need (Home Assistant's
+**Super-admin-only** housekeeping, modelled on what self-hosted apps generally need (Home Assistant's
 backups and system health, Immich's orphaned-file repair, LubeLogger's single-archive export):
 
 - **Backups** — one `.tar.gz` of the database plus `uploads/`. The database is captured with

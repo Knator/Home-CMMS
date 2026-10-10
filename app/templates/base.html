@@ -50,7 +50,9 @@
     <div class="sidebar-section">Admin</div>
     <a href="{{ url_for('admin.users') }}" class="{{ 'active' if request.endpoint == 'admin.users' or request.endpoint == 'admin.create_user' or request.endpoint == 'admin.edit_user' }}">Users</a>
     <a href="{{ url_for('admin.settings_page') }}" class="{{ 'active' if request.endpoint == 'admin.settings_page' }}">Settings</a>
+    {% if current_user.is_super_admin %}
     <a href="{{ url_for('admin.maintenance_page') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('admin.maintenance') }}">Maintenance</a>
+    {% endif %}
     {% endif %}
     {% else %}
     <div class="sidebar-section">Reference</div>

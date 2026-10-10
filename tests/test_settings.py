@@ -44,10 +44,13 @@ def test_an_admin_can_open_it(admin_client):
     assert b'Settings' in response.data
 
 
-def test_it_is_separate_from_maintenance(admin_client):
-    """Two pages, two jobs — and each links to the other."""
-    settings = admin_client.get('/admin/settings').get_data(as_text=True)
-    maintenance = admin_client.get('/admin/maintenance').get_data(as_text=True)
+def test_it_is_separate_from_maintenance(client, db, login):
+    """Two pages, two jobs — and each links to the other. Maintenance is for
+    super admins, so one is signed in here."""
+    make_user('owner', role='super_admin')
+    login('owner')
+    settings = client.get('/admin/settings').get_data(as_text=True)
+    maintenance = client.get('/admin/maintenance').get_data(as_text=True)
     assert '/admin/maintenance' in settings
     # Maintenance keeps its own concerns; settings does not duplicate them.
     assert 'Backups' in maintenance and 'Backups' not in settings

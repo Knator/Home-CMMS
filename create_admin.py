@@ -1,4 +1,4 @@
-"""Create an admin user.
+"""Create a super admin, or make an existing account one.
 
 Interactive by default. For unattended setup (a container's first run, a
 provisioning script) pass the details as arguments or environment variables:
@@ -8,6 +8,13 @@ provisioning script) pass the details as arguments or environment variables:
 
 With --if-missing it does nothing when the account already exists, so it is safe
 to run on every container start.
+
+    python create_admin.py --promote kevin
+
+makes an existing account a super admin — the way back in when nobody who can
+still sign in is one. The account is created as, or promoted to, super admin
+because whoever can run this already holds the whole instance: they have the
+database file.
 """
 import argparse
 import getpass
@@ -20,14 +27,15 @@ os.environ.setdefault('SCHEDULER_ENABLED', '0')
 
 from app import create_app  # noqa: E402
 from app.extensions import db  # noqa: E402
-from app.models.user import User  # noqa: E402
+from app.models.user import ROLE_SUPER_ADMIN, User  # noqa: E402
 from app.passwords import (  # noqa: E402
     describe_requirements, password_problems,
 )
 
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description='Create an admin user.')
+    parser = argparse.ArgumentParser(
+        description='Create a super admin, or make an existing account one.')
     parser.add_argument('--username', default=os.environ.get('ADMIN_USERNAME'))
     parser.add_argument('--email', default=os.environ.get('ADMIN_EMAIL'))
     parser.add_argument('--password', default=os.environ.get('ADMIN_PASSWORD'),
@@ -35,7 +43,28 @@ def parse_args(argv=None):
                              'visible in the process list.')
     parser.add_argument('--if-missing', action='store_true',
                         help='Exit quietly if the user already exists.')
+    parser.add_argument('--promote', metavar='USERNAME',
+                        help='Make an existing account a super admin, then exit.')
     return parser.parse_args(argv)
+
+
+def promote(username):
+    user = User.query.filter_by(username=username).first()
+    if user is None:
+        print(f"  error: no account called '{username}'.", file=sys.stderr)
+        return 1
+    if user.is_super_admin:
+        print(f"'{username}' is already a super admin; nothing to do.")
+    else:
+        user.role = ROLE_SUPER_ADMIN
+        db.session.commit()
+        print(f"'{username}' is now a super admin.")
+    if not user.is_active:
+        # Said rather than changed: deactivating someone was a decision, and
+        # this was asked to change their role, not undo it.
+        print(f"  note: '{username}' is deactivated and cannot sign in until "
+              f"another admin reactivates the account.", file=sys.stderr)
+    return 0
 
 
 def collect_interactively():
@@ -71,6 +100,9 @@ def main(argv=None):
     app = create_app()
 
     with app.app_context():
+        if args.promote:
+            return promote(args.promote)
+
         unattended = bool(args.username or args.email or args.password)
 
         if args.if_missing and args.username and \
@@ -97,11 +129,11 @@ def main(argv=None):
                 print(f'  error: {message}', file=sys.stderr)
             return 1
 
-        user = User(username=username, email=email, role='admin')
+        user = User(username=username, email=email, role=ROLE_SUPER_ADMIN)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
-        print(f"Admin user '{username}' created.")
+        print(f"Super admin '{username}' created.")
         return 0
 
 

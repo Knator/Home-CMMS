@@ -32,7 +32,7 @@ from flask_login import login_user
 
 from app import maintenance
 from app.extensions import db
-from app.models.user import User
+from app.models.user import ROLE_SUPER_ADMIN, User
 from app.setup import bp
 from app.passwords import password_problems
 from app.utils import allow_large_upload, utcnow, validate_csrf
@@ -118,7 +118,10 @@ def first_run():
             flash('An administrator already exists. Please sign in.', 'error')
             return redirect(url_for('auth.login'))
 
-        user = User(username=username, email=email, role='admin')
+        # A super admin: the first account is the instance's owner, and a
+        # fresh instance with no one able to reach Maintenance could not
+        # restore a backup or take one.
+        user = User(username=username, email=email, role=ROLE_SUPER_ADMIN)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()

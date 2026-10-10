@@ -225,6 +225,67 @@ def asset_delete_blockers(asset):
     return blockers
 
 
+class UserInUse(Exception):
+    """Raised by delete_user() for an account that has history."""
+
+    def __init__(self, blockers):
+        super().__init__(', '.join(blockers))
+        self.blockers = blockers
+
+
+def user_delete_blockers(user):
+    """Human-readable reasons this account cannot be deleted (empty = deletable).
+
+    The same rule as assets and locations: an account that has left a mark on a
+    record is part of that record's history — who raised the work, who did it,
+    who attached the manual — so it can be deactivated but not deleted. What is
+    left to delete is typos, test accounts and people who never got started.
+
+    Archived work orders count: they freeze the names they show, but keep their
+    links, exactly as they do for assets.
+    """
+    from app.models.attachment import Attachment
+    from app.models.job_plan import JobPlan
+    from app.models.pm import PM
+
+    blockers = []
+    checks = (
+        (WorkOrder.query.filter_by(created_by=user.id), 'created', 'work order'),
+        (WorkOrder.query.filter_by(assigned_to=user.id), 'is assigned', 'work order'),
+        (PM.query.filter_by(created_by=user.id), 'created', 'PM schedule'),
+        (JobPlan.query.filter_by(created_by=user.id), 'created', 'job plan'),
+        (Attachment.query.filter_by(uploaded_by=user.id), 'uploaded', 'file'),
+    )
+    for query, verb, noun in checks:
+        count = query.count()
+        if count:
+            blockers.append(f'{verb} {_plural(count, noun)}')
+    return blockers
+
+
+def delete_user(user):
+    """Delete an account with no history, or raise UserInUse.
+
+    The check lives here and not only on the page because the database would
+    not stop it: the ORM's default on deleting a user is to blank "created by"
+    and "assigned to" on every work order pointing at them, then delete — so a
+    caller that skipped the check would quietly rewrite history rather than fail.
+
+    API tokens go with the account (they are credentials, not history). A
+    setting's "last changed by" is cleared rather than counted, so a test admin
+    who once flipped a setting can still be removed. The sign-in log holds the
+    username as text and is left alone: it is a record of what was typed.
+    """
+    from app.models.setting import Setting
+
+    blockers = user_delete_blockers(user)
+    if blockers:
+        raise UserInUse(blockers)
+    Setting.query.filter_by(updated_by=user.id).update({'updated_by': None})
+    db.session.delete(user)
+    db.session.commit()
+
+
 def selectable_locations(include_id=None):
     """Active locations for a picker, plus whatever the record already points at.
 

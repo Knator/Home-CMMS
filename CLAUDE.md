@@ -233,6 +233,8 @@ Write paths shared by the routes and the scheduler. **Never insert a `WorkOrder`
   history. Returns human-readable reasons; empty means safe to delete. **Both delete
   routes must consult these**, and the detail templates swap the delete button for a
   "change status instead" panel when non-empty.
+- `user_delete_blockers(user)` / `delete_user(user)` — the same rule for accounts; see
+  Deleting users. `delete_user()` raises `UserInUse` rather than trusting its caller.
 - `selectable_locations(include_id)` / `selectable_assets(include_id)` — Active-only
   pickers. `include_id` keeps whatever a record already points at in the list, so
   editing an old work order whose asset was since decommissioned doesn't silently blank
@@ -454,6 +456,31 @@ account could not reach Maintenance could not restore the backup it was set up f
 Migration `b3c1d7e9f2a4` promotes **every existing admin**, so upgrading changes nobody's
 access: everyone who had Maintenance still does, and the super admin demotes whoever should
 only be an admin. Promoting nobody would have left upgraded instances without Maintenance.
+
+### Deleting users
+The asset/location rule: an account that has left a mark on a record is **deactivated, not
+deleted**. `user_delete_blockers()` counts work orders created or assigned (archived ones
+included — they keep their links), PMs and job plans created, and files uploaded; what is left
+to delete is typos, test accounts and people who never got started. The edit page shows a
+Delete panel when the list is empty, and otherwise says why and offers Deactivate.
+
+**`delete_user()` refuses on its own, not just the page**, because the database would not: on
+deleting a user the ORM's default is to blank `created_by`/`assigned_to` on every work order
+pointing at them and carry on, quietly rewriting history. API tokens go with the account
+(`ON DELETE CASCADE`; credentials, not history). A setting's `updated_by` is **cleared rather
+than counted**, so a test admin who once flipped a setting can still be removed. The sign-in
+log holds the username as text and is left alone.
+
+No last-admin check: you cannot delete yourself, and an admin cannot delete a super admin
+(`_refuse_if_outranked`), so whoever deletes is an active admin of at least the target's rank.
+
+**User ids are never reused** — the `users` table is `AUTOINCREMENT` (`sqlite_autoincrement`
+on the model; migration `c7a2e4f19b38`). Without it SQLite gives a new row `max(id) + 1`, so
+deleting the newest account and creating another reused its id, and since session and
+remember-me cookies carry only the id, a browser still signed in as the deleted account was
+signed in as the new one. `test_a_deleted_accounts_browser_is_not_signed_in_as_the_next_account`
+reproduces exactly that. The migration rebuilds the table from an explicit definition with ids
+copied unchanged, so sessions and every reference survive.
 
 ### User display names
 `User.display_name` is what people are called on screen; `username` remains the identity —

@@ -27,7 +27,10 @@ from app import security
 from app import settings as app_settings
 from app import updates
 from app.passwords import password_problems
-from app.services import auto_archive_closed_work_orders
+from app.services import (
+    UserInUse, auto_archive_closed_work_orders, delete_user as remove_user,
+    user_delete_blockers,
+)
 
 
 def _other_active_admins(user_id):
@@ -213,6 +216,12 @@ def create_user():
     return render_template('admin/user_form.html', user=None)
 
 
+def _user_form(user):
+    """The edit page, with what it needs to offer Delete or explain why not."""
+    return render_template('admin/user_form.html', user=user,
+                           delete_blockers=user_delete_blockers(user))
+
+
 @bp.route('/users/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -230,16 +239,16 @@ def edit_user(id):
         # Their own role included: an admin cannot promote themselves.
         if role != user.role and role not in current_user.assignable_roles:
             flash('Only a super admin can make another super admin.', 'error')
-            return render_template('admin/user_form.html', user=user)
+            return _user_form(user)
 
         if '@' not in email:
             flash('A valid email address is required.', 'error')
-            return render_template('admin/user_form.html', user=user)
+            return _user_form(user)
 
         existing = User.query.filter_by(email=email).first()
         if existing and existing.id != id:
             flash('Email already in use.', 'error')
-            return render_template('admin/user_form.html', user=user)
+            return _user_form(user)
 
         # Losing the last super admin would leave Maintenance — and with it
         # backups and restore — reachable only from a shell.
@@ -247,12 +256,12 @@ def edit_user(id):
                 and _other_active_super_admins(id) == 0):
             flash('This is the only super admin; make someone else a super admin first.',
                   'error')
-            return render_template('admin/user_form.html', user=user)
+            return _user_form(user)
 
         # Losing the last admin would leave user management unreachable.
         if user.is_admin and role not in ADMIN_ROLES and _other_active_admins(id) == 0:
             flash('This is the only administrator; assign another admin first.', 'error')
-            return render_template('admin/user_form.html', user=user)
+            return _user_form(user)
 
         # Blank means "leave it alone"; anything else must meet the policy.
         if new_password:
@@ -260,7 +269,7 @@ def edit_user(id):
             if problems:
                 for problem in problems:
                     flash(f'Password: {problem.lower()}.', 'error')
-                return render_template('admin/user_form.html', user=user)
+                return _user_form(user)
 
         user.email = email
         user.role = role
@@ -273,7 +282,7 @@ def edit_user(id):
         flash('User updated.', 'success')
         return redirect(url_for('admin.users', **carried_list_args(request.args)))
 
-    return render_template('admin/user_form.html', user=user)
+    return _user_form(user)
 
 
 @bp.route('/users/<int:id>/api-token', methods=['POST'])
@@ -344,6 +353,39 @@ def toggle_user(id):
     db.session.commit()
     state = 'activated' if user.is_active else 'deactivated'
     flash(f'User {state}.', 'success')
+    return redirect(url_for('admin.users', **carried_list_args(request.args)))
+
+
+@bp.route('/users/<int:id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_user(id):
+    """Delete an account that has no history; anyone else is deactivated.
+
+    No last-admin check is needed here, unlike demotion: you cannot delete
+    yourself, and an admin cannot delete a super admin, so whoever is deleting
+    is an active admin of at least the target's rank and remains one after.
+    """
+    validate_csrf()
+    user = db.get_or_404(User, id)
+    back = url_for('admin.edit_user', id=id, **carried_list_args(request.args))
+
+    refused = _refuse_if_outranked(user)
+    if refused:
+        return refused
+    if user.id == current_user.id:
+        flash('You cannot delete your own account.', 'error')
+        return redirect(back)
+
+    username = user.username
+    try:
+        remove_user(user)
+    except UserInUse as in_use:
+        flash(f"'{username}' cannot be deleted: this account {', '.join(in_use.blockers)}. "
+              'Deactivate it instead.', 'error')
+        return redirect(back)
+
+    flash(f"User '{username}' deleted.", 'success')
     return redirect(url_for('admin.users', **carried_list_args(request.args)))
 
 

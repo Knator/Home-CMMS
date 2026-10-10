@@ -134,6 +134,42 @@
       </form>
     </div>
   </div>
+
+  {# Not offered on your own account: the route refuses it, and a button it
+     will not honour reads as broken. #}
+  {% if user.id != current_user.id %}
+    {% if delete_blockers %}
+    <div class="protected-zone">
+      <h3>This account has history</h3>
+      <p>It cannot be deleted because it {{ delete_blockers | join(', ') }}. Deleting it
+         would take that history with it.</p>
+      {% if user.is_active %}
+      <p>Deactivate it instead: it can no longer sign in, and its name stays on
+         everything it touched.</p>
+      <form method="post" action="{{ url_for('admin.toggle_user', id=user.id, **list_args) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary btn-sm">Deactivate</button>
+      </form>
+      {% else %}
+      <p>It is already deactivated, so it cannot sign in.</p>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="danger-zone">
+      <h3>Delete Account</h3>
+      <p class="text-muted" style="margin-bottom:10px;">This account has not created,
+         been assigned or uploaded anything, so it can be removed. Its API tokens are
+         deleted with it.</p>
+      {# The username is user-supplied, so the confirmation goes in data-confirm
+         and never into an inline handler. #}
+      <form method="post" action="{{ url_for('admin.delete_user', id=user.id, **list_args) }}"
+            data-confirm="Delete the account '{{ user.username }}'? This cannot be undone.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-danger btn-sm">Delete Account</button>
+      </form>
+    </div>
+    {% endif %}
+  {% endif %}
   {% endif %}
 </div>
 {% endblock %}

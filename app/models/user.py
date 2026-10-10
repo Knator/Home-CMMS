@@ -15,6 +15,12 @@ ROLE_LABELS = {ROLE_SUPER_ADMIN: 'Super Admin', ROLE_ADMIN: 'Admin', ROLE_USER: 
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
+    # An id is never handed out twice. Without AUTOINCREMENT SQLite gives a new
+    # row max(id) + 1, so deleting the newest account and creating another
+    # reused its id — and session and remember-me cookies carry only the id, so
+    # a browser still signed in as the deleted account would be signed in as
+    # the new one. Migration c7a2e4f19b38.
+    __table_args__ = {'sqlite_autoincrement': True}
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)

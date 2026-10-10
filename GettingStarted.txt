@@ -228,6 +228,10 @@ This guide takes you from a fresh clone to a running, testable app.
        Super Admin also has Maintenance, and only a super admin can make (or
        unmake) another one — an admin is never offered the role, and cannot
        edit, deactivate or issue tokens for a super admin's account.
+     - Deleting: open the user and use Delete Account at the bottom. Only an
+       account that has never created, been assigned or uploaded anything can
+       be deleted; anyone else is deactivated instead, so their name stays on
+       the work they did.
 
   h) REMEMBER ME
      - Ticking it on the login page keeps you signed in for 30 days, even

@@ -126,10 +126,23 @@ def safe_redirect(target, fallback_endpoint='main.dashboard'):
 
 
 def admin_required(f):
+    """Admins and super admins: users and settings."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role != 'admin':
+        if not current_user.is_authenticated or not current_user.is_admin:
             flash('Administrator access required.', 'error')
+            return redirect(url_for('main.dashboard'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def super_admin_required(f):
+    """Super admins only: everything under Maintenance. Checked on the route,
+    not by hiding the sidebar link, so a bookmarked URL is refused too."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_super_admin:
+            flash('Super administrator access required.', 'error')
             return redirect(url_for('main.dashboard'))
         return f(*args, **kwargs)
     return decorated

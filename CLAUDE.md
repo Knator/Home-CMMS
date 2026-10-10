@@ -37,7 +37,9 @@ public API specification advertise an attacker's server. Nothing is lost by drop
 a proxy passes the real `Host` through. `test_proxy_headers.py` pins both halves.
 
 `create_admin.py` takes `--username/--email/--password` or `ADMIN_*`, plus `--if-missing` so
-the entrypoint can run it on every start.
+the entrypoint can run it on every start. It creates a **super admin**, and `--promote
+USERNAME` makes an existing account one — the way back in when nobody who can sign in is.
+Shell access to the instance already means holding the database, so neither is an escalation.
 
 ## Dependencies
 `requirements.txt` is **runtime only** — it is what the Docker image installs, so anything
@@ -231,6 +233,8 @@ Write paths shared by the routes and the scheduler. **Never insert a `WorkOrder`
   history. Returns human-readable reasons; empty means safe to delete. **Both delete
   routes must consult these**, and the detail templates swap the delete button for a
   "change status instead" panel when non-empty.
+- `user_delete_blockers(user)` / `delete_user(user)` — the same rule for accounts; see
+  Deleting users. `delete_user()` raises `UserInUse` rather than trusting its caller.
 - `selectable_locations(include_id)` / `selectable_assets(include_id)` — Active-only
   pickers. `include_id` keeps whatever a record already points at in the list, so
   editing an old work order whose asset was since decommissioned doesn't silently blank
@@ -412,7 +416,8 @@ regenerate every day until someone completed the work.
 `PM.advance_schedule()` anchors the next due date to the **previous due date**, not to the day it ran, so a late tick or a manual "Generate WO Now" doesn't shift every future occurrence. If a PM is several intervals overdue, whole intervals are skipped — one catch-up WO, not a backlog.
 
 ### First-run setup (`app/setup/`)
-While `User.query.count() == 0`, `/setup` offers to create the first administrator and a
+While `User.query.count() == 0`, `/setup` offers to create the first administrator — a super
+admin — and a
 `before_request` gate redirects everything else there (the API answers 503 JSON; the public
 API docs stay reachable). One account closes it permanently — the POST re-checks inside the
 request so two simultaneous visitors cannot both become admin.
@@ -422,6 +427,60 @@ residual risk: until the account exists, whoever reaches the page first gets it.
 in increasing order of strictness: a loud warning logged on every start while it is open;
 `SETUP_WINDOW_MINUTES` to bound the window Portainer-style; or `ADMIN_*` env vars, which
 create the account before anything listens and close the window entirely.
+
+### Roles
+Three, each including the one below: `user` works with records, `admin` also has users and
+Preferences (`@admin_required`), `super_admin` also has **Settings** and **Maintenance** —
+backups, restore, the database, the sign-in log (`@super_admin_required`). `ROLES` in `app/models/user.py` is
+ordered most privileged first, which is also how they sort and are offered. `is_admin` is
+true for both admin roles; `is_super_admin` for the top one only.
+
+The gate is on the routes; the sidebar link is hidden as well. `test_super_admin.py` finds
+every rule under `/admin/maintenance` and `/admin/sign-in-attempts` from the URL map and
+requests each as an admin, so **a new Maintenance route left on `@admin_required` fails the
+build**.
+
+The escalation rules are what make the gate mean anything. `assignable_roles` never includes
+a role above the user's own, so an admin can neither grant super admin nor take it for
+themselves; the form only offers what is assignable and the routes refuse the rest.
+`_refuse_if_outranked()` stops an admin editing, deactivating, or issuing or revoking tokens
+for a super admin — each is a way into that account (set its password; hold a token that acts
+as it), and so into Maintenance. The users list drops those controls on super admin rows for
+an admin, per the rule that a button the route will not honour reads as broken.
+
+The **last active super admin cannot be demoted**, or Maintenance becomes reachable from a
+shell only; a deactivated super admin does not count, since they cannot sign in to use it.
+First-run setup and `create_admin.py` create super admins — a fresh instance whose only
+account could not reach Maintenance could not restore the backup it was set up for.
+
+Migration `b3c1d7e9f2a4` promotes **every existing admin**, so upgrading changes nobody's
+access: everyone who had Maintenance still does, and the super admin demotes whoever should
+only be an admin. Promoting nobody would have left upgraded instances without Maintenance.
+
+### Deleting users
+The asset/location rule: an account that has left a mark on a record is **deactivated, not
+deleted**. `user_delete_blockers()` counts work orders created or assigned (archived ones
+included — they keep their links), PMs and job plans created, and files uploaded; what is left
+to delete is typos, test accounts and people who never got started. The edit page shows a
+Delete panel when the list is empty, and otherwise says why and offers Deactivate.
+
+**`delete_user()` refuses on its own, not just the page**, because the database would not: on
+deleting a user the ORM's default is to blank `created_by`/`assigned_to` on every work order
+pointing at them and carry on, quietly rewriting history. API tokens go with the account
+(`ON DELETE CASCADE`; credentials, not history). A setting's `updated_by` is **cleared rather
+than counted**, so a test admin who once flipped a setting can still be removed. The sign-in
+log holds the username as text and is left alone.
+
+No last-admin check: you cannot delete yourself, and an admin cannot delete a super admin
+(`_refuse_if_outranked`), so whoever deletes is an active admin of at least the target's rank.
+
+**User ids are never reused** — the `users` table is `AUTOINCREMENT` (`sqlite_autoincrement`
+on the model; migration `c7a2e4f19b38`). Without it SQLite gives a new row `max(id) + 1`, so
+deleting the newest account and creating another reused its id, and since session and
+remember-me cookies carry only the id, a browser still signed in as the deleted account was
+signed in as the new one. `test_a_deleted_accounts_browser_is_not_signed_in_as_the_next_account`
+reproduces exactly that. The migration rebuilds the table from an explicit definition with ids
+copied unchanged, so sessions and every reference survive.
 
 ### User display names
 `User.display_name` is what people are called on screen; `username` remains the identity —
@@ -520,7 +579,7 @@ the server agree.
   code execution for anyone who can reach the port.
 - The `user_loader` re-checks `is_active` on every request, so deactivating an account ends sessions already signed in
 - Login `?next=` goes through `safe_redirect()`, which accepts same-origin relative paths only
-- Admin-only routes use `@admin_required` from `app/utils.py`; the last active admin can't be demoted or deactivated
+- Admin-only routes use `@admin_required` from `app/utils.py`, Maintenance uses `@super_admin_required` (see Roles); the last active admin can't be demoted or deactivated, nor the last active super admin demoted
 - Posted `status`/`priority`/`wo_type` values are validated against the model's vocabulary; all untrusted ints and dates go through `parse_int`/`parse_date`, which return `None` rather than raising
 
 ### Dates
@@ -805,10 +864,25 @@ LAN box, where that renders blank. **When adding an endpoint, add an entry to `E
 `test_api_docs.py` fails if a route is undocumented *or* documented but missing, which is
 what stops the reference drifting from the code.
 
-### Settings (`app/settings.py`, `app/models/setting.py`, `/admin/settings`)
-Admin-only **in-app preferences**, deliberately separate from Maintenance: Maintenance is
-about keeping the instance running (backups, storage, database, scheduler), Settings is about
-how the application behaves for the people using it.
+### Preferences and Settings (`app/settings.py`, `app/models/setting.py`)
+In-app configuration on **two pages, split by who may change it**, both separate from
+Maintenance (which is about keeping the instance running — backups, storage, database,
+scheduler):
+
+- **Preferences** (`/admin/preferences`, admins) — how work orders and PMs behave: default
+  overdue grace, archived deletion, auto-archiving, PM stalling and cancellation.
+- **Settings** (`/admin/settings`, **super admins only**) — server performance and security:
+  the attachment size limit and the update check.
+
+**Where a new option goes:** anything bearing on what the server accepts, what it reaches
+out to, how hard it can be made to work, or who can get in belongs in **Settings**; how the
+application behaves for the people using it belongs in **Preferences**. When unsure, Settings —
+moving something down to admins later is easy, taking it away is not.
+
+Both pages share the one `settings` table, and **each handler saves only its own keys**. An
+unticked checkbox is simply absent from a form, so a handler that wrote every key would
+switch off whatever the other page owns; `test_saving_settings_leaves_preferences_alone` and
+its twin pin that.
 
 Preferences live in a key/value `settings` table, **not in `.env`**. The environment
 describes the deployment — where the database is, what port to listen on — and is needed
@@ -821,8 +895,8 @@ bootstrap from the environment and keep runtime preferences in their own storage
 Precedence is **env → stored → config default**. A variable that is actually set wins and
 the field renders disabled with "Set by the environment", because setting one is a deliberate
 act by whoever runs the server. `ENV_SETTING_OVERRIDES` in `config.py` records which were
-genuinely set (empty means unset). Adding a preference means one entry in `DEFAULTS` and no
-migration.
+genuinely set (empty means unset). Adding a preference means one entry in `DEFAULTS`, a
+field on the right page and a line in that page's handler — no migration.
 
 `upload_limit_bytes()` is the subtle one: a *chosen* value is whole MB, but with nothing
 chosen it returns `MAX_CONTENT_LENGTH` **in bytes** rather than converting to MB and back —
@@ -894,7 +968,7 @@ insignificant, and sorts `1.0.1-dev` *below* `1.0.1`. An unknown or unparseable 
 as "current" rather than crying wolf.
 
 ### Maintenance (`app/maintenance.py`, `/admin/maintenance`)
-Admin-only housekeeping, modelled on what self-hosted apps generally need (Home Assistant's
+**Super-admin-only** housekeeping, modelled on what self-hosted apps generally need (Home Assistant's
 backups and system health, Immich's orphaned-file repair, LubeLogger's single-archive export):
 
 - **Backups** — one `.tar.gz` of the database plus `uploads/`. The database is captured with

@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% block title %}Preferences — Home CMMS{% endblock %}
+{% block page_title %}Preferences{% endblock %}
+
+{% block content %}
+{# How work orders and PMs behave, for admins. Anything bearing on server
+   performance or security goes in Settings, which is for super admins. #}
+<div class="page-header">
+  <div>
+    <h1>Preferences</h1>
+    <div class="header-meta">
+      <span class="breadcrumb-path">How work orders and PMs behave for everyone using this instance.</span>
+    </div>
+  </div>
+</div>
+
+
+<form method="post" class="form-shell">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Work Orders</span></div>
+    <div class="card-body">
+      <div class="setting">
+        <div class="form-group">
+          <label for="default_grace_days">Default overdue grace (days)</label>
+          <input type="number" id="default_grace_days" name="default_grace_days"
+                 min="0" max="365" class="tiny-number"
+                 value="{{ settings.default_grace_days.value }}">
+          <div class="field-hint">
+            Default value that is prefilled when creating a new work order or PM.
+          </div>
+        </div>
+      </div>
+      <div class="setting">
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="allow_archived_deletion" value="1"
+                   {{ 'checked' if settings.allow_archived_deletion.value }}>
+            Allow archived work orders to be deleted
+          </label>
+          <div class="field-hint">
+            Archiving freezes the record for historical record keeping.
+          </div>
+        </div>
+      </div>
+
+
+      <div class="setting">
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="auto_archive_enabled" value="1"
+                   {{ 'checked' if settings.auto_archive_enabled.value }}>
+            Automatically archive closed work orders
+          </label>
+          <div class="field-hint">
+            Any work orders completed or cancelled longer than the specified time frame will be automatically archived.
+            While this tool can be used effectively to keep old work orders cleaned up - Archiving cannot be undone. Use with caution.
+          </div>
+        </div>
+
+        <div class="form-group">
+        <label for="auto_archive_days">Days before archiving</label>
+        <input type="number" id="auto_archive_days" name="auto_archive_days"
+               min="0" max="3650" class="tiny-number"
+               value="{{ settings.auto_archive_days.value }}">
+        {% if settings.auto_archive_enabled.value %}
+          {# `form=` rather than nesting: a form cannot contain another form, and
+             this button belongs beside the setting it acts on rather than
+             stranded at the bottom of the page. #}
+          <button type="submit" form="run-auto-archive" class="btn btn-secondary btn-sm"
+                  style="margin-top:8px;"
+                  onclick="return confirm('Archive every closed work order past the cut-off now? This cannot be undone.')">Run auto-archive now</button>
+          <span class="field-hint">
+            Applies the rule immediately instead of waiting for the next hourly check.
+          </span>
+        {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Preventive Maintenance</span></div>
+    <div class="card-body">
+      <div class="setting">
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="pm_stall_on_open" value="1"
+                   {{ 'checked' if settings.pm_stall_on_open.value }}>
+            An open work order stops its PM generating another
+          </label>
+          <div class="field-hint">
+            <strong>On (default):</strong> a PM waits until its work order is completed or
+            cancelled before generating another. The due date is not changed while
+            it waits — the PM reads as overdue and generates as soon as you close
+            the old one. Applies to fixed and floating schedules alike.<br>
+            <strong>Off</strong>: a PM raises its next work order on schedule whether or not
+            the last was ever touched, so several can pile up against one job.
+          </div>
+        </div>
+      </div>
+
+      <div class="setting">
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="pm_cancel_restarts_clock" value="1"
+                   {{ 'checked' if settings.pm_cancel_restarts_clock.value }}>
+            Cancelling resets a floating PM's due date
+          </label>
+          <div class="field-hint">
+            <strong>Floating schedules only.</strong><br>
+            <strong>On:</strong> canceling a floating schedule workorder triggers the setting of the new due date the same as completing it.<br>
+            <strong>Off (default):</strong> canceling a floating schedule pm keeps the PMs next due date unchanged.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save preferences</button>
+  </div>
+</form>
+
+{% if settings.auto_archive_enabled.value %}
+{# Empty and out of the way; the button that submits it sits with the setting
+   above, linked by id. #}
+<form method="post" action="{{ url_for('admin.run_auto_archive_now') }}"
+      id="run-auto-archive" hidden>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+{% endif %}
+{% endblock %}

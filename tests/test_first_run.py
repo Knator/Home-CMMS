@@ -54,7 +54,9 @@ def test_it_creates_an_admin_and_signs_them_in(client, db):
     assert response.headers['Location'] == '/'
 
     user = User.query.one()
-    assert user.role == 'admin'
+    # A super admin: a fresh instance needs someone who can reach Maintenance,
+    # or the backup it was set up to restore could never be restored.
+    assert user.role == 'super_admin'
     assert user.check_password('A-good-password1')
     assert client.get('/').status_code == 200          # already signed in
 

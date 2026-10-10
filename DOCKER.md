@@ -225,7 +225,8 @@ in. An untested backup is a hope, not a backup.
 
 ```bash
 docker compose logs -f cmms                       # follow logs
-docker compose exec cmms python create_admin.py   # add an admin
+docker compose exec cmms python create_admin.py   # add a super admin
+docker compose exec cmms python create_admin.py --promote kevin   # make an existing account one
 docker compose exec cmms flask db upgrade         # migrations (also run on start)
 docker compose restart cmms                       # restart
 docker compose down                               # stop, volumes kept
@@ -327,9 +328,13 @@ hijacking and `<base>` injection regardless.
 
 Worth knowing before exposing it to the internet:
 
-- **Everyone signed in can see and edit everything.** The `admin` role only gates
-  user management, Settings and Maintenance. Hand out accounts only to people you
-  trust with all of the data.
+- **Everyone signed in can see and edit everything.** Roles only gate the admin
+  area: an **Admin** manages users and Preferences, a **Super Admin** also has
+  Settings (attachment limit, update check) and Maintenance — backups, restore,
+  the database and the sign-in log. Hand out
+  accounts only to people you trust with all of the data.
+- **If nobody who can sign in is a super admin any more**, promote someone from
+  the host: `docker compose exec cmms python create_admin.py --promote <username>`.
 - **`/api/v1/docs` is public** — the shape of the API, never any data. Add
   `@login_required` to the two view functions in `app/api/routes.py` to change
   that.

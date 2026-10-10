@@ -18,7 +18,7 @@ from datetime import date
 
 @pytest.fixture
 def signed_in(client, db, login):
-    make_user('tester', role='admin', password='Password123!')
+    make_user('tester', role='super_admin', password='Password123!')
     login('tester', 'Password123!')
     return client
 

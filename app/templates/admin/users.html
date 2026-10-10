@@ -26,7 +26,7 @@
   <select name="role" id="role" onchange="this.form.submit()">
     <option value="" {{ 'selected' if not selected_role }}>All</option>
     {% for r in roles %}
-      <option value="{{ r }}" {{ 'selected' if selected_role == r }}>{{ r | title }}</option>
+      <option value="{{ r }}" {{ 'selected' if selected_role == r }}>{{ role_labels[r] }}</option>
     {% endfor %}
   </select>
 
@@ -79,7 +79,7 @@
             {% if u.display_name %}<div class="field-hint">{{ u.username }}</div>{% endif %}
           </td>
           <td class="col-hide-sm">{{ u.email }}</td>
-          <td><span class="badge {{ 'priority-critical' if u.role == 'admin' else 'priority-low' }}">{{ u.role }}</span></td>
+          <td><span class="badge {{ {'super_admin': 'priority-critical', 'admin': 'priority-high'}.get(u.role, 'priority-low') }}">{{ u.role_label }}</span></td>
           <td>
             {% if u.is_active %}
               <span class="badge badge-active">Active</span>
@@ -89,6 +89,9 @@
           </td>
           <td class="col-hide-sm">{{ format_datetime(u.last_login) }}</td>
           <td style="display:flex;gap:6px;">
+            {# An admin cannot change a super admin, so is not offered to: a
+               button the route will refuse reads as broken. #}
+            {% if not current_user.outranks(u) %}
             <a href="{{ url_for('admin.edit_user', id=u.id, **list_args) }}" class="btn btn-ghost btn-sm">Edit</a>
             {# The action carries the filters: Activate and Deactivate redirect
                back here, and would otherwise land on the full list. #}
@@ -96,6 +99,7 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-ghost btn-sm">{{ 'Deactivate' if u.is_active else 'Activate' }}</button>
             </form>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}

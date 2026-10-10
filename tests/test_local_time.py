@@ -121,7 +121,7 @@ def test_calendar_dates_are_left_alone(client, db, user, login, in_new_york):
 def test_the_maintenance_page_reports_the_timezone(client, db, app, login, in_new_york):
     from tests.conftest import make_user
 
-    make_user('boss', role='admin')
+    make_user('boss', role='super_admin')
     login('boss')
     body = client.get('/admin/maintenance').get_data(as_text=True)
     assert 'Host timezone' in body

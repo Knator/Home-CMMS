@@ -10,11 +10,13 @@ import pytest
 from app.extensions import db as _db
 from app.models.auth_attempt import AuthAttempt
 from app.utils import local_day_start_utc
-from tests.conftest import prime_csrf
+from tests.conftest import make_user, prime_csrf
 
 
 @pytest.fixture
-def admin_client(client, db, admin, login):
+def admin_client(client, db, login):
+    # The log belongs to Maintenance, which is for super admins.
+    make_user('admin', role='super_admin')
     login('admin')
     prime_csrf(client)
     return client

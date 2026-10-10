@@ -25,7 +25,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 @pytest.fixture
 def admin_client(client, db, login):
-    make_user('admin', role='admin', password='Password123!')
+    make_user('admin', role='super_admin', password='Password123!')
     login('admin', 'Password123!')
     prime_csrf(client)
     return client

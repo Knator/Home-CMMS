@@ -124,7 +124,7 @@ def test_archive_whose_database_is_not_ours_is_refused(stamped, tmp_path):
 
 
 def test_inspect_reports_what_the_backup_holds(stamped, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     create_asset(name='Furnace')
     write_upload(app, 'asset/1/manual.pdf')
 
@@ -141,7 +141,7 @@ def test_inspect_reports_what_the_backup_holds(stamped, app):
 # ── restoring ──────────────────────────────────────────────────────────────
 
 def test_restore_brings_back_records_and_files(stamped, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     create_asset(name='Furnace')
     write_upload(app, 'asset/1/manual.pdf', b'the original manual')
 
@@ -151,7 +151,7 @@ def test_restore_brings_back_records_and_files(stamped, app):
     # Diverge: delete the asset and the file, add a different user.
     Asset.query.delete()
     User.query.delete()
-    make_user('mallory', role='admin')
+    make_user('mallory', role='super_admin')
     os.remove(os.path.join(app.config['UPLOAD_FOLDER'], 'asset/1/manual.pdf'))
 
     maintenance.restore_backup(archive)
@@ -163,7 +163,7 @@ def test_restore_brings_back_records_and_files(stamped, app):
 
 
 def test_restore_archives_the_previous_state_first(stamped, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     created = maintenance.create_backup()
     archive = os.path.join(maintenance.backup_dir(), created['name'])
 
@@ -178,7 +178,7 @@ def test_restore_archives_the_previous_state_first(stamped, app):
 
 
 def test_restore_can_skip_the_safety_copy(stamped, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     created = maintenance.create_backup()
 
     summary = maintenance.restore_backup(
@@ -189,7 +189,7 @@ def test_restore_can_skip_the_safety_copy(stamped, app):
 
 
 def test_a_refused_archive_changes_nothing(stamped, app, tmp_path):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     bad = str(tmp_path / 'bad.tar.gz')
     make_archive(bad, {maintenance.DB_MEMBER: b'x', '../escape': b'no'})
 
@@ -210,7 +210,7 @@ def test_restore_works_when_the_current_database_is_unreadable(stamped, app):
     sidecar must go, or it would graft the dead write-ahead log onto the file
     that replaces it.
     """
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     created = maintenance.create_backup()
 
     db_path = maintenance.database_path()
@@ -228,7 +228,7 @@ def test_restore_works_when_the_current_database_is_unreadable(stamped, app):
 
 
 def test_sidecars_from_the_replaced_database_do_not_survive(stamped, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     created = maintenance.create_backup()
 
     db_path = maintenance.database_path()
@@ -243,7 +243,7 @@ def test_sidecars_from_the_replaced_database_do_not_survive(stamped, app):
 # ── backup naming and retention ────────────────────────────────────────────
 
 def test_safety_copies_are_listed_but_never_pruned(stamped, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     maintenance.create_backup()
     created = maintenance.create_backup()
     maintenance.restore_backup(os.path.join(maintenance.backup_dir(), created['name']))
@@ -293,7 +293,7 @@ def test_restore_requires_an_administrator(stamped, client, login, app):
 
 
 def test_restore_requires_the_confirmation_box(stamped, client, login, app):
-    make_user('admin', role='admin')
+    make_user('admin', role='super_admin')
     create_asset(name='Marker')
     created = maintenance.create_backup()
     Asset.query.delete()
@@ -316,7 +316,7 @@ def test_restore_requires_the_confirmation_box(stamped, client, login, app):
 ])
 def test_restore_rejects_a_name_outside_the_backups_folder(
         stamped, client, login, app, name):
-    make_user('admin', role='admin')
+    make_user('admin', role='super_admin')
     create_asset(name='Marker')
     login('admin')
     prime_csrf(client)
@@ -330,7 +330,7 @@ def test_restore_rejects_a_name_outside_the_backups_folder(
 
 def test_restore_from_the_page_replaces_the_data_and_signs_everyone_out(
         stamped, client, login, app):
-    make_user('admin', role='admin')
+    make_user('admin', role='super_admin')
     create_asset(name='Boiler')
     created = maintenance.create_backup()
 
@@ -352,7 +352,7 @@ def test_restore_from_the_page_replaces_the_data_and_signs_everyone_out(
 
 
 def test_restore_accepts_an_uploaded_archive(stamped, client, login, app):
-    make_user('admin', role='admin')
+    make_user('admin', role='super_admin')
     create_asset(name='Water Heater')
     created = maintenance.create_backup()
     archive_bytes = open(
@@ -384,7 +384,7 @@ def test_setup_offers_restore_while_no_users_exist(stamped, client):
 
 def test_setup_restore_brings_an_instance_back_and_closes_setup(
         stamped, client, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     create_asset(name='Dishwasher')
     write_upload(app, 'asset/1/manual.pdf', b'manual bytes')
     created = maintenance.create_backup()
@@ -413,7 +413,7 @@ def test_setup_restore_brings_an_instance_back_and_closes_setup(
 
 
 def test_setup_restore_takes_no_safety_copy(stamped, client, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     created = maintenance.create_backup()
     archive_bytes = open(
         os.path.join(maintenance.backup_dir(), created['name']), 'rb').read()
@@ -453,7 +453,7 @@ def test_setup_restore_of_a_userless_backup_is_refused(stamped, client, app):
 
 
 def test_setup_restore_is_closed_once_an_account_exists(stamped, client, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     created = maintenance.create_backup()
     archive_bytes = open(
         os.path.join(maintenance.backup_dir(), created['name']), 'rb').read()
@@ -480,7 +480,7 @@ def test_restore_works_when_uploads_is_a_mount_point(stamped, app, monkeypatch):
     EBUSY on a mount — and did so *after* the database had been swapped, so the
     instance came back with its records but none of its files.
     """
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     create_asset(name='Dryer')
     write_upload(app, 'asset/1/manual.pdf', b'the original manual')
     created = maintenance.create_backup()
@@ -511,7 +511,7 @@ def test_restore_accepts_an_archive_larger_than_the_attachment_limit(
         stamped, client, login, app):
     """A 50.8 MB archive hit MAX_CONTENT_LENGTH and the browser saw a connection
     reset rather than any error, because the body is cut off mid-upload."""
-    make_user('admin', role='admin')
+    make_user('admin', role='super_admin')
     create_asset(name='Compressor')
     created = maintenance.create_backup()
     archive_bytes = open(
@@ -535,7 +535,7 @@ def test_restore_accepts_an_archive_larger_than_the_attachment_limit(
 
 
 def test_setup_restore_also_accepts_an_oversized_archive(stamped, client, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     create_asset(name='Generator')
     created = maintenance.create_backup()
     archive_bytes = open(
@@ -560,7 +560,7 @@ def test_setup_restore_also_accepts_an_oversized_archive(stamped, client, app):
 
 def test_ordinary_attachment_uploads_still_respect_the_limit(stamped, client, login, app):
     """Lifting the cap must apply to restore only, not to every upload."""
-    make_user('admin', role='admin')
+    make_user('admin', role='super_admin')
     asset = create_asset(name='Compressor')
     app.config['MAX_CONTENT_LENGTH'] = 2048
     login('admin')
@@ -593,9 +593,9 @@ def userless_backup(app):
 
 
 def test_a_userless_backup_is_refused_by_the_service(stamped, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     archive = userless_backup(app)
-    make_user('bob', role='admin')          # the instance has an account again
+    make_user('bob', role='super_admin')          # the instance has an account again
 
     with pytest.raises(RestoreError, match='no user accounts'):
         maintenance.restore_backup(archive)
@@ -603,10 +603,10 @@ def test_a_userless_backup_is_refused_by_the_service(stamped, app):
 
 def test_the_refusal_happens_before_anything_is_replaced(stamped, app):
     """Validated up front, so a bad archive leaves the instance untouched."""
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     create_asset(name='Keep me')
     archive = userless_backup(app)
-    make_user('bob', role='admin')
+    make_user('bob', role='super_admin')
     create_asset(name='Also keep me')
 
     before = sorted(a.name for a in Asset.query.all())
@@ -621,9 +621,9 @@ def test_the_refusal_happens_before_anything_is_replaced(stamped, app):
 
 def test_the_admin_page_refuses_it_too(stamped, client, login, app):
     """This was the gap: the setup path checked, the admin page did not."""
-    make_user('admin', role='admin')
+    make_user('admin', role='super_admin')
     archive = userless_backup(app)
-    admin = make_user('admin', role='admin')
+    admin = make_user('admin', role='super_admin')
 
     login('admin')
     prime_csrf(client)
@@ -638,9 +638,9 @@ def test_the_admin_page_refuses_it_too(stamped, client, login, app):
 
 def test_setup_is_not_reopened_by_a_restore(stamped, client, login, app):
     """The property that actually matters."""
-    make_user('admin', role='admin')
+    make_user('admin', role='super_admin')
     archive = userless_backup(app)
-    make_user('admin', role='admin')
+    make_user('admin', role='super_admin')
 
     login('admin')
     prime_csrf(client)
@@ -656,7 +656,7 @@ def test_setup_is_not_reopened_by_a_restore(stamped, client, login, app):
 
 def test_a_backup_with_accounts_still_restores(stamped, app):
     """The guard must not block the normal case."""
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     create_asset(name='Furnace')
     created = maintenance.create_backup()
 
@@ -711,7 +711,7 @@ def test_an_archive_that_expands_past_the_ceiling_is_refused(stamped, app, tmp_p
 
 
 def test_the_refusal_happens_before_anything_is_written(stamped, app, tmp_path):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     create_asset(name='Keep me')
     import app.maintenance as m
     original = m.expansion_limit_bytes
@@ -743,7 +743,7 @@ def test_a_legitimate_backup_is_not_refused(stamped, app):
     """The calibration that matters: a real backup must still restore. A
     database with freed pages compresses ~650x and is entirely legitimate, which
     is why the ratio is only consulted for very large expansions."""
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     create_asset(name='Furnace')
     created = maintenance.create_backup()
 
@@ -763,13 +763,13 @@ def test_a_high_ratio_below_the_floor_is_allowed(stamped, app, tmp_path):
 # ── the instance can check its own backups ─────────────────────────────────
 
 def test_a_freshly_made_backup_reports_no_blockers(stamped, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     created = maintenance.create_backup()
     assert maintenance.restore_blockers(created['name']) == []
 
 
 def test_blockers_are_reported_for_a_backup_that_would_be_refused(stamped, app):
-    make_user('alice', role='admin')
+    make_user('alice', role='super_admin')
     created = maintenance.create_backup()
 
     import app.maintenance as m
@@ -785,7 +785,7 @@ def test_blockers_are_reported_for_a_backup_that_would_be_refused(stamped, app):
 def test_creating_a_backup_warns_when_it_could_not_be_restored(
         stamped, client, login, app):
     """Told at creation time, not on the day it is needed."""
-    make_user('admin', role='admin')
+    make_user('admin', role='super_admin')
     login('admin')
     prime_csrf(client)
 

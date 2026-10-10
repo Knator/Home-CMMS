@@ -14,7 +14,9 @@ from app.models.work_order import (
 # completed or cancelled *and* archived or not, the way Maximo pairs a status
 # with its history flag.
 ARCHIVE_FILTERS = ('hide', 'show', 'only')
+from app.models.asset import Asset
 from app.models.job_plan import JobPlan
+from app.models.location import Location
 from app.models.user import User
 from app.models.attachment import Attachment
 from app.models.mixins import ITEM_MATERIAL, ITEM_TOOL
@@ -24,6 +26,7 @@ from app.services import (
     record_materials_on_asset, related_attachments, selectable_assets,
     selectable_locations, sync_pm_schedule,
 )
+from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from app.navigation import (carried_list_args, PAGE_SIZE, empty_page, neighbours,
@@ -32,6 +35,7 @@ from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
 from app.settings import archived_deletion_allowed
+from app.sorting import SortKey, apply_sort, chosen_sort, rank
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads, upload_rows_from_form,
     parse_date, parse_int, choice,
@@ -144,6 +148,25 @@ def _chosen(param, allowed, args=None):
     return [value for value in source.getlist(param) if value in allowed]
 
 
+# Sortable headings; see app/sorting.py. The first direction of each is
+# whichever end is most likely wanted first.
+SORTS = {
+    'number':    SortKey(lambda: WorkOrder.wo_number, 'desc'),        # newest first
+    'title':     SortKey(lambda: func.lower(WorkOrder.title)),
+    'type':      SortKey(lambda: WorkOrder.wo_type),
+    'status':    SortKey(lambda: rank(WorkOrder.status, WO_STATUSES)),           # open first
+    'priority':  SortKey(lambda: rank(WorkOrder.priority, WO_PRIORITIES), 'desc'),  # critical first
+    'asset':     SortKey(lambda: func.lower(Asset.name),
+                         join=lambda q: q.outerjoin(Asset, WorkOrder.asset_id == Asset.id)),
+    'location':  SortKey(lambda: func.lower(Location.name),
+                         join=lambda q: q.outerjoin(Location, WorkOrder.location_id == Location.id)),
+    'due':       SortKey(lambda: WorkOrder.due_date),                 # soonest first
+    'completed': SortKey(lambda: WorkOrder.completed_date, 'desc'),   # most recent first
+}
+# Newest first: the list's normal order, and every sort's tiebreak.
+DEFAULT_ORDER = (WorkOrder.created_at.desc(), WorkOrder.id.desc())
+
+
 def _work_order_query(args):
     """The filtered query, and the regex pattern if one applies.
 
@@ -195,7 +218,7 @@ def _work_order_query(args):
     elif archived == 'only':
         q = q.filter(WorkOrder.archived_at.isnot(None))
 
-    return q.order_by(WorkOrder.created_at.desc()), pattern, None
+    return apply_sort(q, chosen_sort(args, SORTS), SORTS, DEFAULT_ORDER), pattern, None
 
 
 def _regex_texts(wo):
@@ -293,6 +316,7 @@ def index():
         archive_filters=ARCHIVE_FILTERS, selected_archived=archived,
         selected_due=request.args.get('due', '') if request.args.get('due') in DUE_FILTERS else '',
         soon_days=OVERDUE_SOON_DAYS,
+        sorting=chosen_sort(request.args, SORTS),
         today=date.today(), any_records=any_records,
     )
 

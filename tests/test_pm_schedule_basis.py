@@ -6,7 +6,7 @@ import pytest
 from app.models.pm import PM
 from app.models.work_order import WorkOrder
 from app.services import create_work_order, generate_work_order_for_pm
-from tests.conftest import CSRF
+from tests.conftest import CSRF, table_headings
 
 
 def make_pm(db, from_completion=False, interval=30, due=None):
@@ -204,7 +204,7 @@ def test_basis_is_shown_on_detail_and_list(client, db, user, login):
 
     assert 'Last completion' in client.get(f'/pms/{pm.id}').get_data(as_text=True)
     listing = client.get('/pms/').get_data(as_text=True)
-    assert '>Basis</th>' in listing
+    assert 'Basis' in table_headings(listing)
     assert 'Last completion' in listing
 
 

@@ -12,9 +12,11 @@ application and the failures remain visible afterwards.
 from datetime import timedelta
 
 from flask import request
+from sqlalchemy import func
 
 from app.extensions import db
 from app.models.auth_attempt import AuthAttempt
+from app.sorting import SortKey, Sorting, apply_sort
 from app.utils import utcnow
 
 # Enough headroom for someone genuinely fumbling a password, far too little for
@@ -145,9 +147,20 @@ def count_failures():
 OUTCOMES = ('all', 'failed', 'successful')
 
 
+# Sortable headings on the attempt log; see app/sorting.py. An address sorts as
+# text, so 10.0.0.10 comes before 10.0.0.9 — good enough to group a subnet.
+ATTEMPT_SORTS = {
+    'when':    SortKey(lambda: AuthAttempt.created_at, 'desc'),          # newest first
+    'account': SortKey(lambda: func.lower(AuthAttempt.identifier)),
+    'ip':      SortKey(lambda: AuthAttempt.ip_address),
+    'result':  SortKey(lambda: AuthAttempt.successful),                  # failures first
+}
+ATTEMPT_DEFAULT_ORDER = (AuthAttempt.created_at.desc(), AuthAttempt.id.desc())
+
+
 def attempt_page(page=1, outcome='failed', ip='', date_from=None, date_to=None,
-                 per_page=PAGE_SIZE):
-    """A page of the attempt log, newest first.
+                 per_page=PAGE_SIZE, sorting=None):
+    """A page of the attempt log, newest first unless `sorting` says otherwise.
 
     `date_from` and `date_to` are **local** calendar dates and are converted to
     the UTC instants the column actually holds; `date_to` is inclusive of the
@@ -175,7 +188,9 @@ def attempt_page(page=1, outcome='failed', ip='', date_from=None, date_to=None,
         query = query.filter(
             AuthAttempt.created_at < local_day_start_utc(date_to + timedelta(days=1)))
 
+    if sorting is None:
+        sorting = Sorting(None, None, ATTEMPT_SORTS)
     return (
-        query.order_by(AuthAttempt.created_at.desc())
+        apply_sort(query, sorting, ATTEMPT_SORTS, ATTEMPT_DEFAULT_ORDER)
         .paginate(page=max(page, 1), per_page=per_page, error_out=False)
     )

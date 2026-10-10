@@ -7,6 +7,7 @@
 {% import '_empty_state.html' as empty %}
 {% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
+{% from '_sort.html' import sort_th, sort_fields, clear_link, tree_link %}
 <div class="page-header">
   <h1>Assets</h1>
   <div class="page-actions">
@@ -15,6 +16,7 @@
 </div>
 
 <form method="get" class="filters">
+  {{ sort_fields(sorting) }}
   {{ search_box(search, use_regex,
                 'Search name, notes') }}
   <label>Category</label>
@@ -38,8 +40,9 @@
   </select>
   <button type="submit" class="btn btn-secondary btn-sm">Search</button>
   {% if search or selected_category or selected_location or show_all %}
-    <a href="{{ url_for('assets.index') }}" class="btn btn-ghost btn-sm">Clear</a>
+    {{ clear_link('assets.index', sorting) }}
   {% endif %}
+  {{ tree_link('assets.index', sorting, list_args) }}
 
   {# Pinned right inside the filter bar: it belongs with the controls that
      decide what is being counted, not with the New button. #}
@@ -50,7 +53,18 @@
   <div class="table-wrap">
     {% if rows %}
     <table>
-      <thead><tr><th>Asset #</th><th>Name</th><th>Status</th><th class="col-hide-sm">Category</th><th>Location</th><th class="col-hide-sm">Make / Model</th><th class="col-hide-sm">Install Date</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          {{ sort_th('assets.index', 'number', 'Asset #', sorting, list_args) }}
+          {{ sort_th('assets.index', 'name', 'Name', sorting, list_args) }}
+          {{ sort_th('assets.index', 'status', 'Status', sorting, list_args) }}
+          {{ sort_th('assets.index', 'category', 'Category', sorting, list_args, th_class='col-hide-sm') }}
+          {{ sort_th('assets.index', 'location', 'Location', sorting, list_args) }}
+          {{ sort_th('assets.index', 'make_model', 'Make / Model', sorting, list_args, th_class='col-hide-sm') }}
+          {{ sort_th('assets.index', 'install_date', 'Install Date', sorting, list_args, th_class='col-hide-sm') }}
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
         {% for a, depth in rows %}
         <tr>
@@ -72,7 +86,8 @@
       </tbody>
     </table>
     {% else %}
-      {{ empty.empty_state('assets', 'assets.create', any_records, list_args) }}
+      {{ empty.empty_state('assets', 'assets.create', any_records, list_args,
+                         clear_args=sorting.args()) }}
     {% endif %}
   </div>
 </div>

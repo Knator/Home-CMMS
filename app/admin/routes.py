@@ -6,15 +6,22 @@ from flask import (
     session,
 )
 from flask_login import login_required, current_user, logout_user
+from sqlalchemy import func
 
 from app.admin import bp
 from app.extensions import db
 from app.models.user import User
 from app.models.api_token import ApiToken
+from datetime import timedelta
+
 from app.utils import (
     validate_csrf, admin_required, parse_date, parse_int, utcnow,
-    allow_large_upload,
+    allow_large_upload, local_day_start_utc,
 )
+from app.navigation import carried_list_args, empty_page, page_number, paginate_list
+from app.search import (SearchTooSlow, compile_pattern, like_clause, regex_filter,
+                        too_slow_message)
+from app.sorting import SortKey, apply_sort, chosen_sort
 from app import maintenance
 from app import security
 from app import settings as app_settings
@@ -29,12 +36,112 @@ def _other_active_admins(user_id):
     ).count()
 
 
+USER_ROLES = ('admin', 'user')
+USER_STATUSES = ('active', 'inactive')
+
+
+def _user_regex_texts(user):
+    return (user.username, user.display_name, user.email)
+
+
+def _user_label():
+    """User.label in SQL: the display name, or the username when there is none.
+    NULLIF as well as COALESCE, so an empty display name falls back the way
+    the property's `or` does."""
+    return func.lower(func.coalesce(func.nullif(User.display_name, ''), User.username))
+
+
+# Sortable headings; see app/sorting.py.
+USER_SORTS = {
+    'name':       SortKey(_user_label),
+    'email':      SortKey(lambda: func.lower(User.email)),
+    'role':       SortKey(lambda: User.role),                       # admin first
+    'status':     SortKey(lambda: User.is_active, 'desc'),          # active first
+    'last_login': SortKey(lambda: User.last_login, 'desc'),         # most recent first
+}
+# By what the list shows — ordering by username looks arbitrary once display
+# names differ from it.
+USER_DEFAULT_ORDER = (_user_label(), User.id)
+
+
+def _filtered_user_page(args):
+    """One page of the user list, and any problem worth reporting.
+
+    The search looks at the username, the display name and the email — "name"
+    means both names, since the list shows the display name and people sign in
+    with the username.
+
+    The login range takes local calendar dates, the way the sign-in log does:
+    `last_login` is stored UTC, so each bound is converted at the edge with
+    local_day_start_utc() rather than compared directly, which would be wrong
+    by the UTC offset. The "to" date is inclusive — up to the start of the next
+    local day. Anyone who has never signed in has no `last_login`, so a range
+    leaves them out; that is the answer to "who signed in between these dates".
+    """
+    search = args.get('q', '').strip()
+    use_regex = bool(args.get('regex'))
+    role = args.get('role', '')
+    status = args.get('status', '')
+    date_from = parse_date(args.get('from', '').strip())
+    date_to = parse_date(args.get('to', '').strip())
+
+    query = User.query
+    if role in USER_ROLES:
+        query = query.filter(User.role == role)
+    if status == 'active':
+        query = query.filter(User.is_active.is_(True))
+    elif status == 'inactive':
+        query = query.filter(User.is_active.is_(False))
+    if date_from:
+        query = query.filter(User.last_login >= local_day_start_utc(date_from))
+    if date_to:
+        query = query.filter(
+            User.last_login < local_day_start_utc(date_to + timedelta(days=1)))
+
+    pattern = None
+    if search and use_regex:
+        pattern, regex_error = compile_pattern(search)
+        if regex_error:
+            return empty_page(page_number(args)), ('invalid', regex_error)
+    elif search:
+        query = query.filter(like_clause(search, User.username, User.display_name,
+                                         User.email))
+
+    query = apply_sort(query, chosen_sort(args, USER_SORTS), USER_SORTS, USER_DEFAULT_ORDER)
+    rows = query.all()
+    if pattern is not None:
+        try:
+            rows = regex_filter(pattern, rows, _user_regex_texts)
+        except SearchTooSlow:
+            return empty_page(page_number(args)), ('slow', None)
+    return paginate_list(rows, page_number(args)), None
+
+
 @bp.route('/users')
 @login_required
 @admin_required
 def users():
-    all_users = sorted(User.query.all(), key=lambda u: u.label.lower())
-    return render_template('admin/users.html', users=all_users)
+    page, problem = _filtered_user_page(request.args)
+    if problem:
+        kind, detail_text = problem
+        if kind == 'slow':
+            flash(too_slow_message().capitalize(), 'error')
+        else:
+            flash(f'That is not a valid regular expression: {detail_text}', 'error')
+
+    role = request.args.get('role', '')
+    status = request.args.get('status', '')
+    return render_template(
+        'admin/users.html', users=page.items, page=page,
+        sorting=chosen_sort(request.args, USER_SORTS),
+        search=request.args.get('q', '').strip(),
+        use_regex=bool(request.args.get('regex')),
+        roles=USER_ROLES, selected_role=role if role in USER_ROLES else '',
+        statuses=USER_STATUSES, selected_status=status if status in USER_STATUSES else '',
+        date_from=request.args.get('from', '').strip(),
+        date_to=request.args.get('to', '').strip(),
+        any_records=bool(page.items) or User.query.first() is not None,
+    )
 
 
 @bp.route('/users/new', methods=['GET', 'POST'])
@@ -72,7 +179,7 @@ def create_user():
         db.session.add(user)
         db.session.commit()
         flash('User created.', 'success')
-        return redirect(url_for('admin.users'))
+        return redirect(url_for('admin.users', **carried_list_args(request.args)))
 
     return render_template('admin/user_form.html', user=None)
 
@@ -121,7 +228,7 @@ def edit_user(id):
 
         db.session.commit()
         flash('User updated.', 'success')
-        return redirect(url_for('admin.users'))
+        return redirect(url_for('admin.users', **carried_list_args(request.args)))
 
     return render_template('admin/user_form.html', user=user)
 
@@ -176,16 +283,16 @@ def toggle_user(id):
 
     if user.id == current_user.id:
         flash('You cannot deactivate your own account.', 'error')
-        return redirect(url_for('admin.users'))
+        return redirect(url_for('admin.users', **carried_list_args(request.args)))
     if user.is_active and user.role == 'admin' and _other_active_admins(id) == 0:
         flash('This is the only active administrator; assign another admin first.', 'error')
-        return redirect(url_for('admin.users'))
+        return redirect(url_for('admin.users', **carried_list_args(request.args)))
 
     user.is_active = not user.is_active
     db.session.commit()
     state = 'activated' if user.is_active else 'deactivated'
     flash(f'User {state}.', 'success')
-    return redirect(url_for('admin.users'))
+    return redirect(url_for('admin.users', **carried_list_args(request.args)))
 
 
 # ── Maintenance ────────────────────────────────────────────────────────────
@@ -543,11 +650,14 @@ def sign_in_attempts():
     date_from = parse_date(request.args.get('from', '').strip())
     date_to = parse_date(request.args.get('to', '').strip())
     page = parse_int(request.args.get('page'), minimum=1) or 1
+    sorting = chosen_sort(request.args, security.ATTEMPT_SORTS)
 
     return render_template(
         'admin/sign_in_attempts.html',
         attempts=security.attempt_page(page=page, outcome=outcome, ip=ip,
-                                       date_from=date_from, date_to=date_to),
+                                       date_from=date_from, date_to=date_to,
+                                       sorting=sorting),
+        sorting=sorting,
         outcome=outcome, outcomes=security.OUTCOMES,
         ip=ip,
         date_from=request.args.get('from', '').strip(),

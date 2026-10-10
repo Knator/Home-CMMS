@@ -3,7 +3,7 @@ from datetime import date
 
 from app.models.location import Location
 from app.services import create_location, create_asset, create_work_order
-from tests.conftest import CSRF
+from tests.conftest import CSRF, table_headings
 
 
 def test_work_order_list_shows_location_and_completed(client, db, user, login):
@@ -15,8 +15,8 @@ def test_work_order_list_shows_location_and_completed(client, db, user, login):
 
     login()
     body = client.get('/work-orders/').get_data(as_text=True)
-    assert '>Location</th>' in body
-    assert '>Completed</th>' in body
+    assert 'Location' in table_headings(body)
+    assert 'Completed' in table_headings(body)
     assert 'Garage' in body
     assert '2026-04-09' in body
 

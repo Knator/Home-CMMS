@@ -6,6 +6,7 @@ from flask import (
     session,
 )
 from flask_login import login_required, current_user, logout_user
+from sqlalchemy import func
 
 from app.admin import bp
 from app.extensions import db
@@ -20,6 +21,7 @@ from app.utils import (
 from app.navigation import carried_list_args, empty_page, page_number, paginate_list
 from app.search import (SearchTooSlow, compile_pattern, like_clause, regex_filter,
                         too_slow_message)
+from app.sorting import SortKey, apply_sort, chosen_sort
 from app import maintenance
 from app import security
 from app import settings as app_settings
@@ -40,6 +42,26 @@ USER_STATUSES = ('active', 'inactive')
 
 def _user_regex_texts(user):
     return (user.username, user.display_name, user.email)
+
+
+def _user_label():
+    """User.label in SQL: the display name, or the username when there is none.
+    NULLIF as well as COALESCE, so an empty display name falls back the way
+    the property's `or` does."""
+    return func.lower(func.coalesce(func.nullif(User.display_name, ''), User.username))
+
+
+# Sortable headings; see app/sorting.py.
+USER_SORTS = {
+    'name':       SortKey(_user_label),
+    'email':      SortKey(lambda: func.lower(User.email)),
+    'role':       SortKey(lambda: User.role),                       # admin first
+    'status':     SortKey(lambda: User.is_active, 'desc'),          # active first
+    'last_login': SortKey(lambda: User.last_login, 'desc'),         # most recent first
+}
+# By what the list shows — ordering by username looks arbitrary once display
+# names differ from it.
+USER_DEFAULT_ORDER = (_user_label(), User.id)
 
 
 def _filtered_user_page(args):
@@ -85,11 +107,8 @@ def _filtered_user_page(args):
         query = query.filter(like_clause(search, User.username, User.display_name,
                                          User.email))
 
-    # Sorted by what the list shows, as before: ordering by username looks
-    # arbitrary once display names differ from it. In Python because `label` is
-    # a property — fine for a household's handful of accounts, and the page is
-    # still sliced so a large list stays bounded.
-    rows = sorted(query.all(), key=lambda u: u.label.lower())
+    query = apply_sort(query, chosen_sort(args, USER_SORTS), USER_SORTS, USER_DEFAULT_ORDER)
+    rows = query.all()
     if pattern is not None:
         try:
             rows = regex_filter(pattern, rows, _user_regex_texts)
@@ -114,6 +133,7 @@ def users():
     status = request.args.get('status', '')
     return render_template(
         'admin/users.html', users=page.items, page=page,
+        sorting=chosen_sort(request.args, USER_SORTS),
         search=request.args.get('q', '').strip(),
         use_regex=bool(request.args.get('regex')),
         roles=USER_ROLES, selected_role=role if role in USER_ROLES else '',
@@ -630,11 +650,14 @@ def sign_in_attempts():
     date_from = parse_date(request.args.get('from', '').strip())
     date_to = parse_date(request.args.get('to', '').strip())
     page = parse_int(request.args.get('page'), minimum=1) or 1
+    sorting = chosen_sort(request.args, security.ATTEMPT_SORTS)
 
     return render_template(
         'admin/sign_in_attempts.html',
         attempts=security.attempt_page(page=page, outcome=outcome, ip=ip,
-                                       date_from=date_from, date_to=date_to),
+                                       date_from=date_from, date_to=date_to,
+                                       sorting=sorting),
+        sorting=sorting,
         outcome=outcome, outcomes=security.OUTCOMES,
         ip=ip,
         date_from=request.args.get('from', '').strip(),

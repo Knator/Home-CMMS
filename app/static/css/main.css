@@ -441,6 +441,25 @@ tbody td {
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--surface-subtle); }
 
+/* Sortable headings (_sort.html). The heading keeps its own look — the link
+   inherits colour and case — so a sortable table does not read as a row of
+   links; the faint arrows are the cue, and darken on hover. */
+thead th.sortable { padding: 0; }
+.sort-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sort-link:hover, .sort-link.is-sorted { color: var(--text-primary); }
+.sort-arrow { width: 7px; height: 10px; flex: none; fill: currentColor; }
+.sort-arrow path { opacity: .25; }
+.sort-link:hover .sort-arrow path { opacity: .5; }
+.sort-arrow path.on, .sort-link:hover .sort-arrow path.on { opacity: 1; }
+
 a.row-link { color: var(--text-primary); text-decoration: none; font-weight: 500; }
 a.row-link:hover { color: var(--accent); }
 
@@ -1262,6 +1281,7 @@ body.nav-open .nav-toggle-bars::after  { transform: translateY(-6px) rotate(-45d
   .table-wrap { -webkit-overflow-scrolling: touch; }
   .table-wrap table { min-width: 560px; }
   thead th, tbody td { padding: 9px 10px; }
+  .sort-link { padding: 9px 10px; }
 
   /* Repeatable rows stack; the drag handle and controls sit on their own line. */
   .repeat-row,

@@ -302,6 +302,40 @@ JavaScript off; only the appearance is CSS. The summary reports the current choi
 collapsed filter that does not say what it is doing is worse than no filter. Archived stays a
 single tri-state select: it is orthogonal to the rest.
 
+### Sorting lists (`app/sorting.py`)
+Every list — work orders, job plans, PMs, assets, locations, users and the sign-in log —
+sorts by clicking a heading. It is done in **SQL before the page is cut**: the browser holds
+fifty rows, so sorting there would only rearrange page one. A heading is a plain link adding
+`sort` and `dir`, which therefore ride in `list_args` like any filter: onto row links, the
+pager and Back, and a record's previous/next arrows follow the same order because each list
+builds its sequence from the same query.
+
+Each route declares `SORTS = {key: SortKey(expression, first, join)}`; nothing from the
+request reaches SQL except by naming a key, and an unknown key falls back to the list's
+normal order. `first` is the direction of a first click — soonest due, highest priority, most
+recent completion, largest count. `expression` is a callable so counts can be correlated
+subqueries (job plan tasks/materials/tools/duration, a location's assets) built at request
+time; `join` is always an **outer** join, or rows with nothing there would vanish.
+
+Status and priority sort by **rank in the vocabulary** (`rank()`), not alphabetically —
+alphabetical priority is "critical, high, low, medium". Text sorts on `lower()`. Blanks count
+as the **lowest value** — first ascending, last descending — so either end is one click
+away, including "every work order with no asset"; stated with `nulls_first()`/`nulls_last()`
+rather than left to the dialect. `apply_sort()` ends every sort with the list's `DEFAULT_ORDER`,
+which must end in an id: without a unique last key, rows that tie have no fixed order between
+page loads, so one can appear on two pages and another on neither.
+
+**The hierarchies are a tree only in their own order.** Sorted by a column, assets and
+locations become a flat list in that order — a sub-assembly sorted by install date cannot also
+sit under its parent — and `tree_link()` ("Show as tree") drops `sort`/`dir` while keeping the
+filters.
+
+`_sort.html` holds `sort_th()` (link, `aria-sort`, arrows), `sort_fields()` — hidden inputs
+the filter form needs, since a GET form submits only its own fields and would otherwise drop
+the order — `clear_link()` and `tree_link()`. Changing the sort returns to page one (`page` is
+never carried). Clear drops the filters but keeps the order. The sign-in log's pager says
+Newer/Older only while unsorted.
+
 ### PM Scheduler (`app/scheduler.py`)
 `run_pm_check(app)` runs hourly. It finds active PMs where `next_due_date <= today` and `last_generated_date` is either NULL or not today (the explicit `IS NULL` matters — SQL treats `NULL != today` as NULL, which would skip brand-new PMs). Each PM commits independently and failures are logged and skipped, so one bad PM can't discard the rest of the pass.
 
@@ -400,8 +434,9 @@ stale. It is deliberately **not unique** — two people called Alex is a real si
 this never addresses anybody. Clearing the field stores NULL, not `''`, which puts the
 username back.
 
-Lists of users are sorted in Python by `label`, since ordering by username looks arbitrary
-once the two differ. The **API keeps reporting `username`** in `assigned_to`: clients POST
+Lists of users are sorted by `label`, since ordering by username looks arbitrary once the
+two differ — in SQL as `lower(coalesce(nullif(display_name, ''), username))`, the NULLIF
+matching the property's `or`. The **API keeps reporting `username`** in `assigned_to`: clients POST
 that value back to assign work, and a non-unique display name cannot address a user.
 
 ### Password policy (`app/passwords.py`)

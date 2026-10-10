@@ -6,10 +6,12 @@ from flask_login import login_required, current_user
 from app.pms import bp
 from app import settings as app_settings
 from app.extensions import db
+from app.models.asset import Asset
 from app.models.pm import PM
 from app.models.job_plan import JobPlan
 from app.models.work_order import WorkOrder, WO_PRIORITIES
 from app.models.attachment import Attachment
+from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from app.navigation import (carried_list_args, PAGE_SIZE, empty_page, neighbours,
@@ -17,6 +19,7 @@ from app.navigation import (carried_list_args, PAGE_SIZE, empty_page, neighbours
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
+from app.sorting import SortKey, apply_sort, chosen_sort
 
 from app.scheduler import MAX_LEAD_DAYS
 from app.services import generate_work_order_for_pm, selectable_assets, selectable_locations
@@ -66,6 +69,22 @@ def _read_form():
     return name, interval, next_due, from_completion, lead, grace, priority, errors
 
 
+# Sortable headings; see app/sorting.py.
+SORTS = {
+    'name':           SortKey(lambda: func.lower(PM.name)),
+    'asset':          SortKey(lambda: func.lower(Asset.name),
+                              join=lambda q: q.outerjoin(Asset, PM.asset_id == Asset.id)),
+    'interval':       SortKey(lambda: PM.interval_days),
+    # False first: "Fixed interval" before "Last completion", as the labels read.
+    'basis':          SortKey(lambda: PM.schedule_from_completion),
+    'next_due':       SortKey(lambda: PM.next_due_date),                 # soonest first
+    'last_generated': SortKey(lambda: PM.last_generated_date, 'desc'),   # most recent first
+    'status':         SortKey(lambda: PM.is_active, 'desc'),             # active first
+}
+# Soonest due first: the list's normal order, and every sort's tiebreak.
+DEFAULT_ORDER = (PM.next_due_date, PM.id)
+
+
 def _pm_query(args):
     """The filtered query, and the regex pattern if one applies."""
     active_only = args.get('show', 'active') != 'all'
@@ -84,7 +103,7 @@ def _pm_query(args):
     elif search:
         q = q.filter(like_clause(search, PM.name, PM.notes))
 
-    return q.order_by(PM.next_due_date), pattern, None
+    return apply_sort(q, chosen_sort(args, SORTS), SORTS, DEFAULT_ORDER), pattern, None
 
 
 def _regex_texts(pm):
@@ -141,6 +160,7 @@ def index():
     any_records = bool(page.items) or PM.query.first() is not None
 
     return render_template('pms/list.html', pms=page.items, page=page,
+                           sorting=chosen_sort(request.args, SORTS),
                            today=date.today(),
                            active_only=request.args.get('show', 'active') != 'all',
                            search=request.args.get('q', '').strip(),

@@ -1,8 +1,10 @@
 from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
+from sqlalchemy import func, select
 
 from app.locations import bp
 from app.extensions import db
+from app.models.asset import Asset
 from app.models.location import Location
 from app.models.mixins import LIFECYCLE_STATUSES, STATUS_ACTIVE, STATUS_LABELS, STATUS_HELP
 from app.models.attachment import Attachment
@@ -10,6 +12,7 @@ from app.navigation import carried_list_args, neighbours, page_number, paginate_
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
+from app.sorting import SortKey, apply_sort, chosen_sort, rank
 
 from app.models.work_order import WorkOrder
 from app.services import (
@@ -74,6 +77,23 @@ def _form_context(location=None):
     )
 
 
+def _asset_count():
+    # Every asset there, whatever its status — the count the column shows.
+    return (select(func.count(Asset.id))
+            .where(Asset.location_id == Location.id).scalar_subquery())
+
+
+# Sortable headings; see app/sorting.py.
+SORTS = {
+    'number':      SortKey(lambda: Location.location_number),
+    'name':        SortKey(lambda: func.lower(Location.name)),
+    'status':      SortKey(lambda: rank(Location.status, LIFECYCLE_STATUSES)),  # active first
+    'description': SortKey(lambda: func.lower(Location.description)),
+    'assets':      SortKey(_asset_count, 'desc'),                               # most first
+}
+DEFAULT_ORDER = (Location.name, Location.id)
+
+
 def _filtered_locations(args):
     """The location list exactly as the index page builds it, hierarchy pass
     included, so the sequence is the depth-first order on screen. Returns
@@ -96,7 +116,8 @@ def _filtered_locations(args):
         q = q.filter(like_clause(
             search, Location.name, Location.description, Location.notes))
 
-    matched = q.order_by(Location.name).all()
+    sorting = chosen_sort(args, SORTS)
+    matched = apply_sort(q, sorting, SORTS, DEFAULT_ORDER).all()
     if pattern is not None:
         try:
             matched = regex_filter(
@@ -104,6 +125,11 @@ def _filtered_locations(args):
                 lambda loc: (loc.name, loc.description, loc.notes))
         except SearchTooSlow:
             return [], ('slow', None)
+
+    # Sorted by a column, the tree gives way to a flat list in that order: a
+    # room sorted by asset count cannot also sit under its floor.
+    if sorting:
+        return [(location, 0) for location in matched], None
 
     # Filtered first, arranged second: hierarchy_ordered promotes a match whose
     # parent did not match, so searching for a child still finds it rather than
@@ -125,6 +151,7 @@ def index():
             flash(f'That is not a valid regular expression: {detail_text}', 'error')
 
     return render_template('locations/list.html', rows=page.items, page=page,
+                           sorting=chosen_sort(request.args, SORTS),
                            show_all=request.args.get('show', 'active') == 'all',
                            search=request.args.get('q', '').strip(),
                            use_regex=bool(request.args.get('regex')), any_records=any_records)

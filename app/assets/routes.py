@@ -2,6 +2,7 @@ import os
 
 from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
+from sqlalchemy import func
 
 from app.assets import bp
 from app.extensions import db
@@ -13,6 +14,7 @@ from app.navigation import carried_list_args, neighbours, page_number, paginate_
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
+from app.sorting import SortKey, apply_sort, chosen_sort, rank
 
 from app.models.asset_material import AssetMaterial
 from app.services import (
@@ -91,6 +93,23 @@ def _apply_common_fields(asset):
     asset.notes = request.form.get('notes', '').strip() or None
 
 
+# Sortable headings; see app/sorting.py. A register reads oldest number first,
+# unlike work orders, where the newest is what you are after.
+SORTS = {
+    'number':       SortKey(lambda: Asset.asset_number),
+    'name':         SortKey(lambda: func.lower(Asset.name)),
+    'status':       SortKey(lambda: rank(Asset.status, LIFECYCLE_STATUSES)),  # active first
+    'category':     SortKey(lambda: func.lower(Asset.category)),
+    'location':     SortKey(lambda: func.lower(Location.name),
+                            join=lambda q: q.outerjoin(Location, Asset.location_id == Location.id)),
+    # As the column shows it: make, then model. Neither set reads as blank.
+    'make_model':   SortKey(lambda: func.lower(func.trim(
+                        func.coalesce(Asset.make, '').concat(' ').concat(func.coalesce(Asset.model, ''))))),
+    'install_date': SortKey(lambda: Asset.install_date),                       # oldest first
+}
+DEFAULT_ORDER = (Asset.name, Asset.id)
+
+
 def _filtered_assets(args):
     """The asset list exactly as the index page builds it — including the
     hierarchy pass, so the sequence is the depth-first order actually on screen
@@ -119,12 +138,18 @@ def _filtered_assets(args):
     elif search:
         q = q.filter(like_clause(search, Asset.name, Asset.notes))
 
-    matched = q.order_by(Asset.name).all()
+    sorting = chosen_sort(args, SORTS)
+    matched = apply_sort(q, sorting, SORTS, DEFAULT_ORDER).all()
     if pattern is not None:
         try:
             matched = regex_filter(pattern, matched, lambda a: (a.name, a.notes))
         except SearchTooSlow:
             return [], ('slow', None)
+
+    # Sorted by a column, the tree gives way to a flat list in that order: a
+    # sub-assembly sorted by install date cannot also sit under its parent.
+    if sorting:
+        return [(asset, 0) for asset in matched], None
 
     # Filtered first, arranged second: hierarchy_ordered promotes a match whose
     # parent did not match, so a sub-assembly is still found on its own.
@@ -147,6 +172,7 @@ def index():
     location_id = parse_int(request.args.get('location_id'))
     return render_template(
         'assets/list.html', rows=page.items, page=page,
+        sorting=chosen_sort(request.args, SORTS),
         locations=Location.query.order_by(Location.name).all(),
         categories=ASSET_CATEGORIES,
         selected_category=request.args.get('category', ''),

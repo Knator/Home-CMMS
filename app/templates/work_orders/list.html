@@ -6,6 +6,7 @@
 {% import '_empty_state.html' as empty %}
 {% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
+{% from '_sort.html' import sort_th, sort_fields, clear_link %}
 <div class="page-header">
   <h1>Work Orders</h1>
   <div class="page-actions">
@@ -51,6 +52,7 @@
 {% endmacro %}
 
 <form method="get" class="filters">
+  {{ sort_fields(sorting) }}
   {# Placed first: it is the one people reach for. #}
   {{ search_box(search, use_regex,
                 'Search title, description, notes') }}
@@ -80,7 +82,7 @@
   <button type="submit" class="btn btn-secondary btn-sm">Search</button>
   {% if selected_statuses or selected_types or selected_priorities or search
         or selected_archived != 'hide' or selected_due %}
-    <a href="{{ url_for('work_orders.index') }}" class="btn btn-ghost btn-sm">Clear</a>
+    {{ clear_link('work_orders.index', sorting) }}
   {% endif %}
 
   {# Pinned right inside the filter bar: it belongs with the controls that
@@ -94,8 +96,16 @@
     <table>
       <thead>
         <tr>
-          <th>WO #</th><th>Title</th><th class="col-hide-sm">Type</th><th>Status</th><th class="col-hide-sm">Priority</th>
-          <th class="col-hide-sm">Asset</th><th class="col-hide-sm">Location</th><th>Due</th><th class="col-hide-sm">Completed</th><th></th>
+          {{ sort_th('work_orders.index', 'number', 'WO #', sorting, list_args) }}
+          {{ sort_th('work_orders.index', 'title', 'Title', sorting, list_args) }}
+          {{ sort_th('work_orders.index', 'type', 'Type', sorting, list_args, th_class='col-hide-sm') }}
+          {{ sort_th('work_orders.index', 'status', 'Status', sorting, list_args) }}
+          {{ sort_th('work_orders.index', 'priority', 'Priority', sorting, list_args, th_class='col-hide-sm') }}
+          {{ sort_th('work_orders.index', 'asset', 'Asset', sorting, list_args, th_class='col-hide-sm') }}
+          {{ sort_th('work_orders.index', 'location', 'Location', sorting, list_args, th_class='col-hide-sm') }}
+          {{ sort_th('work_orders.index', 'due', 'Due', sorting, list_args) }}
+          {{ sort_th('work_orders.index', 'completed', 'Completed', sorting, list_args, th_class='col-hide-sm') }}
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -122,7 +132,8 @@
       </tbody>
     </table>
     {% else %}
-      {{ empty.empty_state('work orders', 'work_orders.create', any_records, list_args) }}
+      {{ empty.empty_state('work orders', 'work_orders.create', any_records, list_args,
+                         clear_args=sorting.args()) }}
     {% endif %}
   </div>
 </div>

@@ -10,6 +10,7 @@ import pytest
 
 from app.models.location import Location
 from app.services import create_location, create_asset, create_work_order
+from tests.conftest import table_headings
 
 CSS = (pathlib.Path(__file__).resolve().parent.parent
        / 'app' / 'static' / 'css' / 'main.css').read_text()
@@ -91,9 +92,10 @@ def test_wide_lists_mark_their_secondary_columns(client, seeded, login):
 def test_primary_columns_are_never_hidden(client, seeded, login):
     """Whatever drops out, the row still has to be identifiable and clickable."""
     login()
-    body = client.get('/work-orders/').get_data(as_text=True)
-    for keep in ('<th>WO #</th>', '<th>Title</th>', '<th>Status</th>', '<th>Due</th>'):
-        assert keep in body, keep
+    headings = table_headings(client.get('/work-orders/').get_data(as_text=True))
+    for keep in ('WO #', 'Title', 'Status', 'Due'):
+        assert keep in headings, keep
+        assert 'col-hide-sm' not in headings[keep], keep
 
 
 def test_tables_stay_inside_a_scroll_container(client, seeded, login):

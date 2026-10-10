@@ -6,6 +6,7 @@
 {% import '_empty_state.html' as empty %}
 {% import '_stepper.html' as nav %}
 {% from '_search.html' import search_box %}
+{% from '_sort.html' import sort_th, sort_fields, clear_link, tree_link %}
 <div class="page-header">
   <h1>Locations</h1>
   <div class="page-actions">
@@ -14,6 +15,7 @@
 </div>
 
 <form method="get" class="filters">
+  {{ sort_fields(sorting) }}
   {{ search_box(search, use_regex,
                 'Search name, description, notes') }}
   <label>Show</label>
@@ -23,8 +25,9 @@
   </select>
   <button type="submit" class="btn btn-secondary btn-sm">Search</button>
   {% if search or show_all %}
-    <a href="{{ url_for('locations.index') }}" class="btn btn-ghost btn-sm">Clear</a>
+    {{ clear_link('locations.index', sorting) }}
   {% endif %}
+  {{ tree_link('locations.index', sorting, list_args) }}
 
   {# Pinned right inside the filter bar: it belongs with the controls that
      decide what is being counted, not with the New button. #}
@@ -35,7 +38,16 @@
   <div class="table-wrap">
     {% if rows %}
     <table>
-      <thead><tr><th>Location #</th><th>Name</th><th>Status</th><th class="col-hide-sm">Description</th><th>Assets</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          {{ sort_th('locations.index', 'number', 'Location #', sorting, list_args) }}
+          {{ sort_th('locations.index', 'name', 'Name', sorting, list_args) }}
+          {{ sort_th('locations.index', 'status', 'Status', sorting, list_args) }}
+          {{ sort_th('locations.index', 'description', 'Description', sorting, list_args, th_class='col-hide-sm') }}
+          {{ sort_th('locations.index', 'assets', 'Assets', sorting, list_args) }}
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
         {% for loc, depth in rows %}
         <tr>
@@ -55,7 +67,8 @@
       </tbody>
     </table>
     {% else %}
-      {{ empty.empty_state('locations', 'locations.create', any_records, list_args) }}
+      {{ empty.empty_state('locations', 'locations.create', any_records, list_args,
+                         clear_args=sorting.args()) }}
     {% endif %}
   </div>
 </div>

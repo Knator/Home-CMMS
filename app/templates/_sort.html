@@ -1,0 +1,59 @@
+{# Sortable table headings, shared by every list; the order itself is
+   app/sorting.py.
+
+   A heading is a plain link, not a script: the list is paged, so only the
+   database can put all of it in order, and a link that reloads with `sort` and
+   `dir` is the whole mechanism. Those two then ride along in `list_args` like
+   any filter — onto the row links, the pager, and back again from a record.
+
+   `list_args` never carries `page`, so changing the order starts at page one
+   rather than dropping you into the middle of a list that has just been
+   rearranged.
+
+   `sorting` is the route's Sorting: it knows each column's first direction and
+   reverses the active one. `aria-sort` sits on the <th>, which is where
+   assistive technology looks for it. #}
+{% macro sort_th(endpoint, key, label, sorting, list_args, th_class='') %}
+  {% set active = sorting.is_active(key) %}
+  {% set next_dir = sorting.next_direction(key) %}
+  <th class="sortable{{ ' ' ~ th_class if th_class }}"
+      {%- if active %} aria-sort="{{ 'ascending' if sorting.direction == 'asc' else 'descending' }}"{% endif %}>
+    <a href="{{ url_for(endpoint, **dict(list_args, sort=key, dir=next_dir)) }}"
+       class="sort-link{{ ' is-sorted' if active }}"
+       title="Sort by {{ label }}, {{ 'ascending' if next_dir == 'asc' else 'descending' }}">
+      {{- label -}}
+      {#- Both triangles always, the live one solid: the faint pair is what
+          says a heading can be clicked at all. -#}
+      <svg class="sort-arrow" viewBox="0 0 10 14" aria-hidden="true">
+        <path{% if active and sorting.direction == 'asc' %} class="on"{% endif %} d="M5 1 9 6H1z"/>
+        <path{% if active and sorting.direction == 'desc' %} class="on"{% endif %} d="M5 13 1 8h8z"/>
+      </svg>
+    </a>
+  </th>
+{% endmacro %}
+
+{# The chosen order, as hidden fields in a filter form. Submitting a filter
+   builds a fresh query string from the form's own fields, so without these
+   narrowing the list would quietly throw the sort away. #}
+{% macro sort_fields(sorting) %}
+  {% if sorting %}
+    <input type="hidden" name="sort" value="{{ sorting.key }}">
+    <input type="hidden" name="dir" value="{{ sorting.direction }}">
+  {% endif %}
+{% endmacro %}
+
+{# Clear drops what narrows the list, not the order it is in: sorting is how
+   you are looking at the list, not what you narrowed it to. #}
+{% macro clear_link(endpoint, sorting) %}
+  <a href="{{ url_for(endpoint, **sorting.args()) }}" class="btn btn-ghost btn-sm">Clear</a>
+{% endmacro %}
+
+{# The hierarchies (locations, assets) are drawn as a tree only in their own
+   order. Sorted by a column they become a flat list — a sub-assembly sorted by
+   install date cannot also sit under its parent — and this is the way back. #}
+{% macro tree_link(endpoint, sorting, list_args) %}
+  {% if sorting %}
+    <a href="{{ url_for(endpoint, **sorting.without(list_args)) }}"
+       class="btn btn-ghost btn-sm">Show as tree</a>
+  {% endif %}
+{% endmacro %}

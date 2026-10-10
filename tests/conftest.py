@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 
 import pytest
@@ -108,6 +109,20 @@ def admin(app):
 @pytest.fixture
 def user(app):
     return make_user('tester')
+
+
+def table_headings(body):
+    """`{label: class attribute}` for every <th> on the page.
+
+    By visible text rather than exact markup: a sortable heading wraps its label
+    in a link and an arrow, and a test about which columns exist should not care.
+    """
+    headings = {}
+    for attrs, inner in re.findall(r'<th([^>]*)>(.*?)</th>', body, re.S):
+        label = ' '.join(re.sub(r'<[^>]+>', '', inner).split())
+        found = re.search(r'class="([^"]*)"', attrs)
+        headings[label] = found.group(1) if found else ''
+    return headings
 
 
 def prime_csrf(client):

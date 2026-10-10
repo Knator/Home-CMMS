@@ -6,7 +6,7 @@ import pytest
 from app.models.job_plan import JobPlan, JobPlanItem, JobPlanTask
 from app.models.attachment import Attachment
 from app.utils import format_duration
-from tests.conftest import CSRF
+from tests.conftest import CSRF, table_headings
 
 
 def create_plan(client, **extra):
@@ -136,7 +136,7 @@ def test_total_shown_on_detail_and_list(client, db, user, login):
 
     assert '45m' in client.get(f'/job-plans/{plan.id}').get_data(as_text=True)
     listing = client.get('/job-plans/').get_data(as_text=True)
-    assert '>Duration</th>' in listing
+    assert 'Duration' in table_headings(listing)
     assert '45m' in listing
 
 

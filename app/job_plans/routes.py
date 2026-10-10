@@ -1,5 +1,6 @@
 from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
+from sqlalchemy import func, select
 
 from app.job_plans import bp
 from app.extensions import db
@@ -12,6 +13,7 @@ from app.navigation import (carried_list_args, PAGE_SIZE, empty_page, neighbours
 from app.search import (
     SearchTooSlow, compile_pattern, like_clause, regex_filter, too_slow_message,
 )
+from app.sorting import SortKey, apply_sort, chosen_sort
 from app.utils import (
     validate_csrf, purge_entity_attachments, store_uploads, named_uploads, upload_rows_from_form,
     is_embedded, embedded_created,
@@ -21,6 +23,37 @@ from app.utils import (
 ENTITY = 'job_plan'
 MAX_TASKS = 200
 MAX_ITEMS = 200
+
+
+def _task_count():
+    return (select(func.count(JobPlanTask.id))
+            .where(JobPlanTask.job_plan_id == JobPlan.id).scalar_subquery())
+
+
+def _task_minutes():
+    # As JobPlan.total_minutes: a task with no estimate counts as zero, and so
+    # does a plan with no tasks — the list shows both the same way.
+    return (select(func.coalesce(func.sum(func.coalesce(JobPlanTask.estimated_minutes, 0)), 0))
+            .where(JobPlanTask.job_plan_id == JobPlan.id).scalar_subquery())
+
+
+def _item_count(kind):
+    return (select(func.count(JobPlanItem.id))
+            .where(JobPlanItem.job_plan_id == JobPlan.id, JobPlanItem.kind == kind)
+            .scalar_subquery())
+
+
+# Sortable headings; see app/sorting.py. Counts and durations open largest
+# first: "which plan is the long one" is the usual question.
+SORTS = {
+    'name':        SortKey(lambda: func.lower(JobPlan.name)),
+    'tasks':       SortKey(_task_count, 'desc'),
+    'duration':    SortKey(_task_minutes, 'desc'),
+    'materials':   SortKey(lambda: _item_count(ITEM_MATERIAL), 'desc'),
+    'tools':       SortKey(lambda: _item_count(ITEM_TOOL), 'desc'),
+    'description': SortKey(lambda: func.lower(JobPlan.description)),
+}
+DEFAULT_ORDER = (JobPlan.name, JobPlan.id)
 
 
 def _job_plan_query(args):
@@ -43,7 +76,7 @@ def _job_plan_query(args):
             JobPlan.tasks.any(like_clause(search, JobPlanTask.description)),
         ))
 
-    return query.order_by(JobPlan.name), pattern, None
+    return apply_sort(query, chosen_sort(args, SORTS), SORTS, DEFAULT_ORDER), pattern, None
 
 
 def _filtered_page(args):
@@ -93,6 +126,7 @@ def index():
     any_records = bool(page.items) or JobPlan.query.first() is not None
 
     return render_template('job_plans/list.html', job_plans=page.items, page=page,
+                           sorting=chosen_sort(request.args, SORTS),
                            search=request.args.get('q', '').strip(),
                            use_regex=bool(request.args.get('regex')), any_records=any_records)
 

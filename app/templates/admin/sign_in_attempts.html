@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% import '_stepper.html' as nav %}
+{% from '_sort.html' import sort_th, sort_fields, clear_link %}
 {% block title %}Sign-in Attempts — Home CMMS{% endblock %}
 {% block page_title %}Sign-in Attempts{% endblock %}
 
@@ -31,6 +32,7 @@
 </div>
 
 <form method="get" class="filters">
+  {{ sort_fields(sorting) }}
   <label for="outcome">Show</label>
   <select name="outcome" id="outcome">
     <option value="failed" {{ 'selected' if outcome == 'failed' }}>Failed only</option>
@@ -50,7 +52,7 @@
 
   <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
   {% if outcome != 'failed' or ip or date_from or date_to %}
-    <a href="{{ url_for('admin.sign_in_attempts') }}" class="btn btn-ghost btn-sm">Clear</a>
+    {{ clear_link('admin.sign_in_attempts', sorting) }}
   {% endif %}
 </form>
 
@@ -60,7 +62,10 @@
     <table>
       <thead>
         <tr>
-          <th>When</th><th>Account tried</th><th>From</th><th>Result</th>
+          {{ sort_th('admin.sign_in_attempts', 'when', 'When', sorting, list_args) }}
+          {{ sort_th('admin.sign_in_attempts', 'account', 'Account tried', sorting, list_args) }}
+          {{ sort_th('admin.sign_in_attempts', 'ip', 'From', sorting, list_args) }}
+          {{ sort_th('admin.sign_in_attempts', 'result', 'Result', sorting, list_args) }}
         </tr>
       </thead>
       <tbody>
@@ -84,18 +89,19 @@
   </div>
 </div>
 
+{# `list_args` is every filter plus the order, so page two is the same list.
+   Newer and Older only while the log is in its own order; sorted by anything
+   else, the pages are simply previous and next. #}
 {% if attempts.pages > 1 %}
 <div class="pager">
   {% if attempts.has_prev %}
     <a class="btn btn-secondary btn-sm"
-       href="{{ url_for('admin.sign_in_attempts', page=attempts.prev_num,
-                             outcome=outcome, ip=ip, **{'from': date_from, 'to': date_to}) }}">← Newer</a>
+       href="{{ url_for('admin.sign_in_attempts', page=attempts.prev_num, **list_args) }}">← {{ 'Previous' if sorting else 'Newer' }}</a>
   {% endif %}
   <span class="pager-position">Page {{ attempts.page }} of {{ attempts.pages }}</span>
   {% if attempts.has_next %}
     <a class="btn btn-secondary btn-sm"
-       href="{{ url_for('admin.sign_in_attempts', page=attempts.next_num,
-                             outcome=outcome, ip=ip, **{'from': date_from, 'to': date_to}) }}">Older →</a>
+       href="{{ url_for('admin.sign_in_attempts', page=attempts.next_num, **list_args) }}">{{ 'Next' if sorting else 'Older' }} →</a>
   {% endif %}
 </div>
 {% endif %}

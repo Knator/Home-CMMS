@@ -6,6 +6,7 @@
 {% from '_search.html' import search_box %}
 {% import '_stepper.html' as nav %}
 {% import '_empty_state.html' as empty %}
+{% from '_sort.html' import sort_th, sort_fields, clear_link %}
 <div class="page-header">
   <h1>Users</h1>
   <div class="page-actions">
@@ -18,6 +19,7 @@
    multi-value menus the work order list uses — with two values each, "both" is
    the same as no filter at all. #}
 <form method="get" class="filters">
+  {{ sort_fields(sorting) }}
   {{ search_box(search, use_regex, 'Search name or email') }}
 
   <label for="role">Role</label>
@@ -46,7 +48,7 @@
 
   <button type="submit" class="btn btn-secondary btn-sm">Search</button>
   {% if search or selected_role or selected_status or date_from or date_to %}
-    <a href="{{ url_for('admin.users') }}" class="btn btn-ghost btn-sm">Clear</a>
+    {{ clear_link('admin.users', sorting) }}
   {% endif %}
 
   {# Pinned right inside the filter bar, like every other list. #}
@@ -57,7 +59,16 @@
   {% if users %}
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Name</th><th class="col-hide-sm">Email</th><th>Role</th><th>Status</th><th class="col-hide-sm">Last Login</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          {{ sort_th('admin.users', 'name', 'Name', sorting, list_args) }}
+          {{ sort_th('admin.users', 'email', 'Email', sorting, list_args, th_class='col-hide-sm') }}
+          {{ sort_th('admin.users', 'role', 'Role', sorting, list_args) }}
+          {{ sort_th('admin.users', 'status', 'Status', sorting, list_args) }}
+          {{ sort_th('admin.users', 'last_login', 'Last Login', sorting, list_args, th_class='col-hide-sm') }}
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
         {% for u in users %}
         <tr>
@@ -92,7 +103,8 @@
     </table>
   </div>
   {% else %}
-    {{ empty.empty_state('users', 'admin.create_user', any_records, list_args) }}
+    {{ empty.empty_state('users', 'admin.create_user', any_records, list_args,
+                         clear_args=sorting.args()) }}
   {% endif %}
 </div>
 

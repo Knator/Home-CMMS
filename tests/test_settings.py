@@ -80,7 +80,7 @@ def test_each_page_holds_its_own_cards(owner_client):
     assert card_titles(owner_client.get('/admin/preferences').get_data(as_text=True)) \
         == ['Work Orders', 'Preventive Maintenance']
     assert card_titles(owner_client.get('/admin/settings').get_data(as_text=True)) \
-        == ['Updates', 'Attachments']
+        == ['Updates', 'Attachments', 'Email (SMTP)']
 
 
 def test_it_is_separate_from_maintenance(owner_client):

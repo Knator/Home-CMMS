@@ -1803,6 +1803,24 @@ body.embedded { background: var(--card-bg); }
    clicking it toggles the checkbox. Indented to the checkbox's text instead. */
 .setting .checkbox-label + .field-hint { margin-left: 24px; }
 
+/* The Email card's fields sit in a grid rather than one .setting per row, so
+   the hint indent has to be said again there. */
+.form-grid .checkbox-label + .field-hint { margin-left: 24px; }
+
+/* The test-email row under the SMTP fields: the address and its button on one
+   line, wrapping on a phone, set apart from the settings it exercises. */
+.mail-test {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-subtle);
+}
+.mail-test .form-group { flex: 1 1 240px; }
+.mail-test .field-hint { flex-basis: 100%; }
+
 /* ── Password requirements hint ──
    A `?` that reveals the rules on hover and on keyboard focus. Not a `title`
    attribute: those never appear for keyboard or touch users, cannot be styled,

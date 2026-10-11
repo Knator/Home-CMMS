@@ -872,7 +872,7 @@ scheduler):
 - **Preferences** (`/admin/preferences`, admins) — how work orders and PMs behave: default
   overdue grace, archived deletion, auto-archiving, PM stalling and cancellation.
 - **Settings** (`/admin/settings`, **super admins only**) — server performance and security:
-  the attachment size limit and the update check.
+  the attachment size limit, the update check, and the SMTP server email goes through.
 
 **Where a new option goes:** anything bearing on what the server accepts, what it reaches
 out to, how hard it can be made to work, or who can get in belongs in **Settings**; how the
@@ -956,7 +956,8 @@ It runs on `release` events only; a `workflow_dispatch` rebuild has no release t
 That is why `publish` carries `if: always() && needs.verify.result != 'failure'` — a *skipped*
 dependency would otherwise skip the build too, and break the manual rebuild path.
 
-`app/updates.py` is the **only outbound network call in the application**, which shapes it
+`app/updates.py` is the **only outbound call the application makes on its own** — the other,
+email (`app/mail.py`), goes only to an SMTP server a super admin typed in. That shapes it
 entirely: it is a setting that can be switched off, the answer is cached six hours in the
 settings table (GitHub allows 60 unauthenticated requests an hour), the request has a
 three-second timeout, and every failure is swallowed — an offline instance renders "could not
@@ -966,6 +967,42 @@ user-supplied reaches it, so it adds no SSRF surface, and no request body is sen
 `compare()` is numeric, not lexicographic (1.10.0 is ahead of 1.9.0), treats a leading `v` as
 insignificant, and sorts `1.0.1-dev` *below* `1.0.1`. An unknown or unparseable latest reads
 as "current" rather than crying wolf.
+
+### Email (`app/mail.py`)
+Outgoing mail over SMTP, configured by a super admin in Settings > Email the way Uptime Kuma,
+Immich and LubeLogger do it: server, port, security (`starttls` / `ssl` / `none`), optional
+username and password, From address and name, and whether to verify the certificate. Sent
+with the standard library's `smtplib` — nothing to install. **Everything that sends goes
+through `send_mail()`**, so notifications share one connection path, one timeout and one set
+of error messages.
+
+- **`SEND_TIMEOUT` is short (10 s per network wait)** because the app runs one gunicorn worker:
+  a send hanging on an unreachable server would hold the whole instance. Same reasoning as the
+  regex budget. Notifications should send from the scheduler thread, not inside a request.
+- **Failures become sentences** (`explain()`), naming what to change — the raw
+  `[SSL: WRONG_VERSION_NUMBER]` never says that 587 wants STARTTLS. `_port_hint()` adds the
+  port/security mismatch, the commonest mistake. Note smtplib reports a server that never
+  sends its greeting as *"connection unexpectedly closed"*; the timeout is the exception's
+  `__context__`, which is what `explain()` checks.
+- **Login only when a username is set**: a relay that trusts its network needs none, and many
+  refuse AUTH when offered. Saving with no username also clears the stored password.
+- **The password is stored as entered** in the settings table, as Uptime Kuma and Immich do.
+  Encrypting it with a key kept beside the database protects nothing from whoever holds both,
+  and `rotate_secret_key()` runs on every restore, which would make it unreadable. It is never
+  rendered (the field is blank, "leave blank to keep"), never logged, and kept out of
+  `MailConfig.__repr__`. It *is* in every backup; the form says so.
+- `autocomplete="new-password"` on the password and `off` on the username stop browsers
+  filling the admin's own sign-in into the SMTP fields.
+- `formataddr()` quotes the From name and `EmailMessage` refuses a header containing a line
+  break, so neither field can inject headers; the form also refuses a multi-line From name.
+- **"Save & send test email"** is a second submit button on the Settings form: it saves, then
+  sends with what was saved, so a working test proves exactly what notifications will use, and
+  nothing typed is lost to a separate form. It defaults to the signed-in user's address.
+
+`tests/smtp_server.py` is a small real SMTP server — plain, STARTTLS, or TLS from the first
+byte, with AUTH — so the handshake failures are tested against a real conversation rather
+than a mock that agrees with the code. TLS tests make a self-signed certificate with the
+`openssl` CLI and skip without it.
 
 ### Maintenance (`app/maintenance.py`, `/admin/maintenance`)
 **Super-admin-only** housekeeping, modelled on what self-hosted apps generally need (Home Assistant's

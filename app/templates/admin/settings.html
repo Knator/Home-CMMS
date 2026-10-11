@@ -3,6 +3,7 @@
 {% block page_title %}Settings{% endblock %}
 
 {% block content %}
+{% from '_password.html' import reveal_button %}
 {# Server performance and security, for super admins only. Everyday behaviour
    — work orders, PMs — lives in Preferences, which admins can use. #}
 <div class="page-header">
@@ -12,9 +13,6 @@
       <span class="breadcrumb-path">Server performance and security. Super admins only.</span>
     </div>
   </div>
-  <!-- <div class="page-actions">
-    <a href="{{ url_for('admin.maintenance_page') }}" class="btn btn-ghost">Maintenance</a>
-  </div> -->
 </div>
 
 
@@ -32,8 +30,9 @@
             Check GitHub for a newer release
           </label>
           <div class="field-hint">
-            The only thing in this application that reaches the internet.
-            Nothing about your instance is sent — it is an unauthenticated
+            The only thing in this application that reaches the internet on its
+            own; email goes only to the server set below. Nothing about your
+            instance is sent — it is an unauthenticated
             request for a public release listing, so GitHub sees an address and
             nothing more. The answer is cached for six hours, and an instance
             with no route out simply reports that it could not check.
@@ -77,6 +76,112 @@
             Applies to the size of a single attachment.
           </div>
         {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Outgoing EMAIL SMTP Setup -->
+  {% set sent = request.form %}
+  {% set has_password = settings.smtp_password.value != '' %}
+  <div class="card" id="email">
+    <div class="card-header"><span class="card-title">Email (SMTP)</span></div>
+    <div class="card-body">
+      <p class="field-hint" style="margin-bottom:12px;">
+        The mail server this instance sends through. Leave the server blank to
+        send no email at all.
+      </p>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="smtp_host">SMTP server</label>
+          <input type="text" id="smtp_host" name="smtp_host" maxlength="255"
+                 placeholder="smtp.example.com" autocomplete="off" spellcheck="false"
+                 value="{{ sent.get('smtp_host', settings.smtp_host.value) }}">
+        </div>
+        <div class="form-group">
+          <label for="smtp_port">Port</label>
+          <input type="number" id="smtp_port" name="smtp_port" min="1" max="65535"
+                 class="tiny-number"
+                 value="{{ sent.get('smtp_port', settings.smtp_port.value) }}">
+        </div>
+        <div class="form-group full">
+          <label for="smtp_security">Security</label>
+          {% set security = sent.get('smtp_security', settings.smtp_security.value) %}
+          <select id="smtp_security" name="smtp_security">
+            {% for value, (label, port) in mail_security.items() %}
+              <option value="{{ value }}" {{ 'selected' if security == value }}>{{ label }} — usually port {{ port }}</option>
+            {% endfor %}
+          </select>
+          <div class="field-hint">
+            <!-- Match it to the port: STARTTLS on 587 is the most common, SSL/TLS on
+            465. Choose None only for a relay on your own network. -->
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="smtp_username">Username</label>
+          {# autocomplete="off" and "new-password" below: without them a browser
+             offers to fill in your own sign-in here. #}
+          <input type="text" id="smtp_username" name="smtp_username" maxlength="255"
+                 autocomplete="off" spellcheck="false"
+                 value="{{ sent.get('smtp_username', settings.smtp_username.value) }}">
+        </div>
+        <div class="form-group">
+          <label for="smtp_password">Password</label>
+          <div class="password-row">
+            <input type="password" id="smtp_password" name="smtp_password"
+                   autocomplete="new-password"
+                   placeholder="{{ 'Saved — leave blank to keep' if has_password else '' }}">
+            {{ reveal_button('smtp_password') }}
+          </div>
+        </div>
+        <div class="form-group full">
+          <div class="field-hint" style="margin-top:-6px;">
+            <!-- Leave the username blank for a server that needs no login; the saved
+            password is then removed. Gmail and Outlook need an app password, not
+            your normal one. The password is stored in the database, so it is in
+            every backup. -->
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="smtp_from_address">From address</label>
+          <input type="email" id="smtp_from_address" name="smtp_from_address" maxlength="255"
+                 placeholder="cmms@example.com" spellcheck="false"
+                 value="{{ sent.get('smtp_from_address', settings.smtp_from_address.value) }}">
+        </div>
+        <div class="form-group">
+          <label for="smtp_from_name">From name</label>
+          <input type="text" id="smtp_from_name" name="smtp_from_name" maxlength="100"
+                 value="{{ sent.get('smtp_from_name', settings.smtp_from_name.value) }}">
+        </div>
+        <div class="form-group full">
+          {% set verify = ('smtp_verify_tls' in sent) if sent else settings.smtp_verify_tls.value %}
+          <label class="checkbox-label">
+            <input type="checkbox" name="smtp_verify_tls" value="1" {{ 'checked' if verify }}>
+            Check the server's certificate
+          </label>
+          <div class="field-hint">
+            <!-- Leave on. Turn it off only for a relay on your own network with a
+            self-signed certificate: the connection stays encrypted, but the
+            server's identity goes unchecked. -->
+          </div>
+        </div>
+      </div>
+
+      {# Saves first, then sends with what was saved — so a test that works is
+         proof of exactly what notifications will use. It is a second submit
+         button on the same form, so nothing typed is lost to a separate one. #}
+      <div class="setting mail-test">
+        <div class="form-group">
+          <label for="test_to">Send a test email to</label>
+          <input type="email" id="test_to" name="test_to" maxlength="255"
+                 value="{{ sent.get('test_to', current_user.email) }}">
+        </div>
+        <button type="submit" name="send_test" value="1" class="btn btn-secondary btn-sm">
+          Save &amp; send test email
+        </button>
+        <div class="field-hint">
+          Waits up to {{ mail_timeout }} seconds for the server, so a wrong
+          server name or port takes a moment to report.
         </div>
       </div>
     </div>

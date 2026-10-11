@@ -226,7 +226,8 @@ This guide takes you from a fresh clone to a running, testable app.
        and confirm the Admin menu is hidden for non-admins.
      - Roles: User works with records. Admin also manages users and
        Preferences (work order and PM behaviour). Super Admin also has
-       Settings (attachment limit, update check) and Maintenance.
+       Settings (attachment limit, update check, email server) and
+       Maintenance.
        Only a super admin can make (or unmake) another one — an admin is
        never offered the role, and cannot edit, deactivate or issue tokens
        for a super admin's account.

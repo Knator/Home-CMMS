@@ -50,6 +50,19 @@ DEFAULTS = {
     'pm_cancel_restarts_clock': ('bool', False, None,
                                  'A cancelled work order restarts a floating '
                                  "PM's clock from the cancellation"),
+    # Outgoing email (app/mail.py). Blank host means email is not set up.
+    'smtp_host': ('str', '', None, 'SMTP server'),
+    'smtp_port': ('int', 587, None, 'SMTP port'),
+    'smtp_security': ('str', 'starttls', None, 'How the SMTP connection is secured'),
+    'smtp_username': ('str', '', None, 'SMTP username'),
+    # Stored as entered, as Uptime Kuma and Immich do: encrypting it with a key
+    # kept beside the database protects nothing from whoever holds both, and the
+    # key is rotated on every restore, which would lose it. It is never written
+    # back into a page or a log.
+    'smtp_password': ('str', '', None, 'SMTP password'),
+    'smtp_from_address': ('str', '', None, 'Address email is sent from'),
+    'smtp_from_name': ('str', 'Home CMMS', None, 'Name email is sent from'),
+    'smtp_verify_tls': ('bool', True, None, "Check the SMTP server's certificate"),
 }
 
 # What "no limit" means when the limit is switched off. Werkzeug has no

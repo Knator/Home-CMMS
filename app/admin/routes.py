@@ -22,6 +22,7 @@ from app.navigation import carried_list_args, empty_page, page_number, paginate_
 from app.search import (SearchTooSlow, compile_pattern, like_clause, regex_filter,
                         too_slow_message)
 from app.sorting import SortKey, apply_sort, chosen_sort, rank
+from app import mail
 from app import maintenance
 from app import security
 from app import settings as app_settings
@@ -499,6 +500,61 @@ def run_auto_archive_now():
     return redirect(url_for('admin.preferences_page'))
 
 
+def _read_smtp_form(errors):
+    """The SMTP card's fields, validated. Appends to `errors`; returns the
+    values to store, or None for the password when it should be left alone."""
+    form = request.form
+    host = form.get('smtp_host', '').strip()
+    port = parse_int(form.get('smtp_port'), minimum=1)
+    security = form.get('smtp_security', mail.SECURITY_STARTTLS)
+    username = form.get('smtp_username', '').strip()
+    from_address = form.get('smtp_from_address', '').strip()
+    from_name = form.get('smtp_from_name', '').strip()
+
+    if host and (any(c.isspace() for c in host) or len(host) > 255):
+        errors.append('The SMTP server should be a name like smtp.example.com, with no spaces.')
+    if security not in mail.SECURITY_MODES:
+        errors.append('Choose how the SMTP connection is secured.')
+    # Required only once a server is named: a blank host means email is off,
+    # and someone switching it off should not have to fill in the rest first.
+    if host:
+        if port is None or port > 65535:
+            errors.append('Enter an SMTP port between 1 and 65535.')
+        if not _looks_like_address(from_address):
+            errors.append('Enter the address email should come from, like cmms@example.com.')
+    elif from_address and not _looks_like_address(from_address):
+        errors.append('The "From" address does not look like an email address.')
+    if '\r' in from_name or '\n' in from_name or len(from_name) > 100:
+        errors.append('The "From" name must be a single line of up to 100 characters.')
+
+    # Blank keeps the saved password: it is never sent back to the page, so an
+    # empty box is the normal state, not a request to clear it. No username
+    # means no login at all, so the password goes with it.
+    password = form.get('smtp_password', '')
+    if not username:
+        password = ''
+    elif not password:
+        password = None
+
+    return {
+        'smtp_host': host,
+        'smtp_port': port if port is not None else app_settings.get('smtp_port'),
+        'smtp_security': security,
+        'smtp_username': username,
+        'smtp_password': password,
+        'smtp_from_address': from_address,
+        'smtp_from_name': from_name,
+        'smtp_verify_tls': bool(form.get('smtp_verify_tls')),
+    }
+
+
+def _looks_like_address(value):
+    """Enough to catch a typo, not an RFC 5322 parser: one @, something either
+    side, nothing that could split a header."""
+    local, at, domain = value.partition('@')
+    return bool(at and local and '.' in domain and not any(c.isspace() for c in value))
+
+
 @bp.route('/settings', methods=['GET', 'POST'])
 @login_required
 @super_admin_required
@@ -527,11 +583,23 @@ def settings_page():
         # with the one field.
         limit_locked = app_settings.env_override('max_upload_mb') is not None
 
+        errors = []
         if limit_on and limit is None and not limit_locked:
-            flash('Enter a maximum attachment size of at least 1 MB, '
-                  'or switch the limit off.', 'error')
+            errors.append('Enter a maximum attachment size of at least 1 MB, '
+                          'or switch the limit off.')
+        smtp = _read_smtp_form(errors)
+        send_test = bool(request.form.get('send_test'))
+        test_to = request.form.get('test_to', '').strip()
+        if send_test and not _looks_like_address(test_to):
+            errors.append('Enter the address to send the test email to.')
+        # Everything is checked before anything is written; see preferences_page.
+        if errors:
+            for message in errors:
+                flash(message, 'error')
             return render_template('admin/settings.html',
-                                   settings=app_settings.all_settings())
+                                   settings=app_settings.all_settings(),
+                                   mail_security=mail.SECURITY_MODES,
+                                   mail_timeout=mail.SEND_TIMEOUT)
 
         app_settings.set_value('upload_limit_enabled', limit_on, current_user.id)
         app_settings.set_value('update_check_enabled',
@@ -541,13 +609,28 @@ def settings_page():
         # authoritative and take effect the day the variable is removed.
         if limit is not None and not limit_locked:
             app_settings.set_value('max_upload_mb', limit, current_user.id)
+        for key, value in smtp.items():
+            if value is not None:
+                app_settings.set_value(key, value, current_user.id)
 
         db.session.commit()
         flash('Settings saved.', 'success')
+
+        # After saving, so the test proves exactly what notifications will use.
+        if send_test:
+            try:
+                mail.send_test_email(test_to, sent_by=current_user.label)
+            except mail.MailError as failure:
+                flash(f'The test email was not sent. {failure}', 'error')
+            else:
+                flash(f'Test email sent to {test_to}. If it does not arrive, '
+                      'check the spam folder.', 'success')
         return redirect(url_for('admin.settings_page'))
 
     return render_template('admin/settings.html',
-                           settings=app_settings.all_settings())
+                           settings=app_settings.all_settings(),
+                           mail_security=mail.SECURITY_MODES,
+                                   mail_timeout=mail.SEND_TIMEOUT)
 
 
 @bp.route('/maintenance')
